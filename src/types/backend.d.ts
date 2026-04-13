@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-export { };
+export {};
 // https://bobbyhadz.com/blog/typescript-make-types-global#declare-global-types-in-typescript
 
 declare global {
@@ -19,8 +19,10 @@ declare global {
 
     interface IBackendRes<T> {
         errors?: string | string[] | Record<string, string>;
+        error?: unknown;
         message: string;
-        status: number | string;
+        status?: number | string;
+        statusCode?: number | string;
         data?: T;
     }
 
@@ -30,8 +32,7 @@ declare global {
             pageSize: number;
             pages: number;
             total: number;
-        },
-        result: T[]
+        };
+        result: T[];
     }
-
 }

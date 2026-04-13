@@ -1,5 +1,6 @@
 import "./globals.css";
-import { ThemeProvider } from "@/components/layout/theme-provider";
+
+import { AppProvider } from "@/components/layout/app-provider";
 
 const themeInitScript = `
   (() => {
@@ -17,7 +18,6 @@ const themeInitScript = `
   })();
 `;
 
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -32,7 +32,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className="min-h-full flex flex-col">
-        <ThemeProvider>{children}</ThemeProvider>
+        <AppProvider>{children}</AppProvider>
       </body>
     </html>
   );

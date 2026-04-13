@@ -21,10 +21,13 @@ export default function RoomHeader({
   onViewModeChange,
 }: RoomHeaderProps) {
   const [meetingDuration, setMeetingDuration] = useState(0);
-  const [shareUrl, setShareUrl] = useState("");
   const [copied, setCopied] = useState(false);
   const [deferredReady, setDeferredReady] = useState(false);
   const copyTimeoutRef = useRef<number | null>(null);
+  const shareUrl =
+    deferredReady && typeof window !== "undefined"
+      ? `${window.location.origin}/${meetingCode}`
+      : "";
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
@@ -41,8 +44,6 @@ export default function RoomHeader({
       return;
     }
 
-    setShareUrl(`${window.location.origin}/${meetingCode}`);
-
     const intervalId = window.setInterval(() => {
       setMeetingDuration((currentValue) => currentValue + 1);
     }, 1000);
@@ -50,7 +51,7 @@ export default function RoomHeader({
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [deferredReady, meetingCode]);
+  }, [deferredReady]);
 
   useEffect(() => {
     return () => {

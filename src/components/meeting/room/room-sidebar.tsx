@@ -1,7 +1,6 @@
 "use client";
 
 import { MessageSquare, Mic, MicOff, Users, Video, VideoOff } from "lucide-react";
-import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -21,20 +20,13 @@ export default function RoomSidebar({
   participants,
   onPanelChange,
 }: RoomSidebarProps) {
-  const [currentTab, setCurrentTab] = useState<SidebarTab>("participants");
-
-  useEffect(() => {
-    if (activePanel) {
-      setCurrentTab(activePanel);
-    }
-  }, [activePanel]);
-
   if (!activePanel) {
     return null;
   }
 
+  const currentTab: SidebarTab = activePanel;
+
   const handleTabChange = (panel: SidebarTab) => {
-    setCurrentTab(panel);
     onPanelChange(panel);
   };
 
