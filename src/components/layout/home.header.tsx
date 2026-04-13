@@ -22,12 +22,12 @@ export default function Homeheader() {
 
                 <div className="flex items-center gap-3">
                     <ThemeToggle />
-                    <Link href="/auth">
-                        <Button variant="ghost" size="sm">Sign in</Button>
-                    </Link>
-                    <Link href="/auth">
-                        <Button size="sm">Get Started</Button>
-                    </Link>
+                    <Button asChild variant="ghost" size="sm">
+                        <Link href="/auth">Sign in</Link>
+                    </Button>
+                    <Button asChild size="sm">
+                        <Link href="/auth/sign-up">Get Started</Link>
+                    </Button>
                 </div>
             </div>
         </header>
