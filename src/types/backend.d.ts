@@ -18,9 +18,9 @@ declare global {
     }
 
     interface IBackendRes<T> {
-        error?: string | string[] | Record<string, string>;
+        errors?: string | string[] | Record<string, string>;
         message: string;
-        statusCode: number | string;
+        status: number | string;
         data?: T;
     }
 
