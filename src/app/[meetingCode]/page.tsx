@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 
 import Lobby, { type LobbyJoinPayload } from "@/components/meeting/lobby";
-import MeetingRoom from "@/components/meeting/room";
+import MeetingRoom from "@/components/meeting/room/room";
 
 export default function MeetingPage() {
   const params = useParams<{ meetingCode: string }>();
