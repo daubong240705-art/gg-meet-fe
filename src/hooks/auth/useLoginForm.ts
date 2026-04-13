@@ -90,9 +90,9 @@ export function useLogoutMutation() {
         },
         onSuccess: () => {
             clearUser();
-            toast.success("Signed out", {
-                description: "You have been signed out successfully.",
-            });
+            // toast.success("Signed out", {
+            //     description: "You have been signed out successfully.",
+            // });
             router.replace("/");
             router.refresh();
         },

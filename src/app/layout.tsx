@@ -1,6 +1,7 @@
 import "./globals.css";
 
 import { AppProvider } from "@/components/layout/app-provider";
+import { SiteShell } from "@/components/layout/site-shell";
 
 const themeInitScript = `
   (() => {
@@ -31,8 +32,10 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body className="min-h-full flex flex-col">
-        <AppProvider>{children}</AppProvider>
+      <body className="min-h-screen">
+        <AppProvider>
+          <SiteShell>{children}</SiteShell>
+        </AppProvider>
       </body>
     </html>
   );

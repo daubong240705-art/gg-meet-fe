@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Loader2, LogOut, UserRound, Video } from "lucide-react";
+import { Loader2, LogOut, UserRound, Video } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -110,21 +110,21 @@ export default function Homeheader() {
                                     clearCloseTimeout();
                                     setMenuOpen((currentValue) => !currentValue);
                                 }}
-                                className="flex items-center gap-3 rounded-full border border-border/70 bg-background/85 px-2 py-1.5 transition hover:bg-muted/70"
+                                className="flex items-center gap-3 rounded-full  bg-background/85 px-2 py-1.5 transition hover:bg-muted/70"
                             >
                                 <div className="flex size-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
                                     {getUserInitials(user.fullName)}
                                 </div>
 
-                                <div className="hidden text-left sm:block">
+                                {/* <div className="hidden text-left sm:block">
                                     <p className="max-w-32 truncate text-sm font-medium leading-none text-foreground">
                                         {user.fullName}
                                     </p>
-                                </div>
+                                </div> */}
 
-                                <ChevronDown
+                                {/* <ChevronDown
                                     className={`hidden size-4 text-muted-foreground transition-transform sm:block ${menuOpen ? "rotate-180" : ""}`}
-                                />
+                                /> */}
                             </button>
 
                             {menuOpen ? (

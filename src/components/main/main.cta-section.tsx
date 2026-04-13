@@ -4,7 +4,7 @@ import { Button } from "../ui/button";
 
 export default function CTASection() {
     return (
-        <section className="max-w-7xl mx-auto px-6 py-20 mb-20">
+        <section className="max-w-7xl mx-auto px-6 pt-20 pb-10 md:pb-12">
             <Card className="p-12 md:p-16 text-center bg-linear-to-br from-primary/5 to-primary/10 border-primary/20">
                 <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
                     Ready to get started?
