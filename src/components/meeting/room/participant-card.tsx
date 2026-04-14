@@ -1,6 +1,6 @@
 "use client";
 
-import { Mic, MicOff, MoreVertical, VideoOff } from "lucide-react";
+import { MicOff, MoreVertical } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,22 +14,27 @@ type ParticipantCardProps = {
   participant: Participant;
   compact?: boolean;
   highlighted?: boolean;
+  className?: string;
 };
 
 export default function ParticipantCard({
   participant,
   compact = false,
   highlighted = false,
+  className,
 }: ParticipantCardProps) {
   const initials = getInitials(participant.name);
+  const isActiveSpeaker = !participant.isMuted && participant.isSpeaking;
 
   return (
     <Card
       className={cn(
-        "relative h-full min-h-60 gap-0 overflow-hidden border border-border/70 px-0 py-0",
+        "relative w-full aspect-video min-h-48 gap-0 overflow-hidden border border-border/70 px-0 py-0",
         "bg-linear-to-br from-card via-card to-muted/60 shadow-sm",
-        compact && "min-h-28",
-        highlighted && "ring-2 ring-primary/30"
+        compact && "min-h-32",
+        isActiveSpeaker && "border-[#8ab4f8]/90 shadow-[0_12px_32px_rgba(138,180,248,0.18)]",
+        highlighted && !isActiveSpeaker && "ring-2 ring-primary/30",
+        className,
       )}
     >
       <div
@@ -51,11 +56,24 @@ export default function ParticipantCard({
         </div>
       ) : null}
 
+      {isActiveSpeaker ? (
+        <div className="pointer-events-none absolute inset-0 z-1 rounded-[inherit] border-2 border-[#8ab4f8] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" />
+      ) : null}
+
       <div className="relative flex h-full flex-col justify-between p-4">
         {!participant.isLocal ? <AudioTrackView track={participant.audioTrack} /> : null}
 
         <div className="flex justify-end">
-          {!compact ? (
+          {participant.isMuted ? (
+            <div
+              className={cn(
+                "flex items-center justify-center rounded-full border border-white/10 bg-black/45 text-white backdrop-blur-sm",
+                compact ? "h-8 w-8" : "h-9 w-9",
+              )}
+            >
+              <MicOff className={cn(compact ? "h-4 w-4" : "h-4.5 w-4.5")} />
+            </div>
+          ) : !compact ? (
             <Button
               type="button"
               variant="ghost"
@@ -72,7 +90,7 @@ export default function ParticipantCard({
             <div
               className={cn(
                 "flex h-20 w-20 items-center justify-center rounded-full bg-primary text-xl font-semibold text-primary-foreground shadow-lg",
-                compact && "h-12 w-12 text-base"
+                compact && "h-14 w-14 text-base"
               )}
             >
               {initials}
@@ -80,7 +98,7 @@ export default function ParticipantCard({
           ) : null}
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-black/45 p-3 text-white backdrop-blur-sm">
+        {/* <div className="rounded-xl border border-white/10 bg-black/45 p-3 text-white backdrop-blur-sm">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className={cn("truncate font-medium", compact && "text-sm")}>
@@ -118,6 +136,15 @@ export default function ParticipantCard({
               ) : null}
             </div>
           </div>
+        </div> */}
+
+        <div
+          className={cn(
+            "pointer-events-none absolute bottom-3 left-3  max-w-[70%] rounded-full border border-white/10 bg-black/55 text-white backdrop-blur-sm",
+            compact ? "px-2.5 py-1 text-[10px]" : "px-3 py-1.5 text-xs",
+          )}
+        >
+          <p className="truncate font-medium">{participant.name}</p>
         </div>
       </div>
     </Card>

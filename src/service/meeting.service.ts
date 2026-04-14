@@ -3,6 +3,8 @@ import { getBackendBaseUrl } from "@/lib/config/api-url";
 
 const API_URL = getBackendBaseUrl();
 
+export type MeetingParticipantStatus = "ACCEPT" | "WAITING" | (string & {});
+
 export type MeetingHost = {
     id?: number | null;
     fullName?: string | null;
@@ -23,10 +25,28 @@ export type CreateMeetingResponseData = {
     participantStatus?: string | null;
 };
 
+export type JoinMeetingResponseData = CreateMeetingResponseData;
+
+export const normalizeMeetingParticipantStatus = (
+    status?: string | null,
+): MeetingParticipantStatus | null => {
+    const normalizedStatus = status?.trim().toUpperCase();
+    return normalizedStatus ? normalizedStatus as MeetingParticipantStatus : null;
+};
+
 export const meetingApi = {
     createInstantMeeting() {
         return sendRequest<IBackendRes<CreateMeetingResponseData>>({
             url: `${API_URL}/meetings`,
+            method: "POST",
+            useCredentials: true,
+            auth: true,
+        });
+    },
+
+    joinMeeting(meetingCode: string) {
+        return sendRequest<IBackendRes<JoinMeetingResponseData>>({
+            url: `${API_URL}/meetings/${encodeURIComponent(meetingCode)}/join`,
             method: "POST",
             useCredentials: true,
             auth: true,

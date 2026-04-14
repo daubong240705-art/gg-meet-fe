@@ -23,9 +23,7 @@ type MeetingPageContentProps = {
   meetingCode: string;
 };
 
-type MeetingJoinState = LobbyJoinPayload & {
-  livekitToken?: string | null;
-};
+type MeetingJoinState = LobbyJoinPayload;
 
 function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
   const [joinState, setJoinState] = useState<MeetingJoinState | null>(() => {
@@ -44,6 +42,8 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
       isMicOn: pendingSession.isMicOn,
       isCameraOn: pendingSession.isCameraOn,
       livekitToken: pendingSession.livekitToken ?? null,
+      meetingToken: pendingSession.meetingToken ?? null,
+      participantStatus: pendingSession.participantStatus ?? null,
     };
   });
 

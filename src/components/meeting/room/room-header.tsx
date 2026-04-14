@@ -1,30 +1,13 @@
 "use client";
 
-import { Check, Copy, Grid3x3, Maximize2, Settings } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-
-import type { ViewMode } from "./types";
-import { formatDuration } from "./utils";
 
 type RoomHeaderProps = {
   meetingCode: string;
-  viewMode: ViewMode;
-  isRoomLive?: boolean;
-  statusLabel?: string;
-  onViewModeChange: (viewMode: ViewMode) => void;
 };
 
-export default function RoomHeader({
-  meetingCode,
-  viewMode,
-  isRoomLive,
-  statusLabel,
-  onViewModeChange,
-}: RoomHeaderProps) {
-  const [meetingDuration, setMeetingDuration] = useState(0);
+export default function RoomHeader({ meetingCode }: RoomHeaderProps) {
   const [copied, setCopied] = useState(false);
   const [deferredReady, setDeferredReady] = useState(false);
   const copyTimeoutRef = useRef<number | null>(null);
@@ -32,8 +15,6 @@ export default function RoomHeader({
     deferredReady && typeof window !== "undefined"
       ? `${window.location.origin}/${meetingCode}`
       : "";
-  const liveState = isRoomLive ?? deferredReady;
-  const roomStatusLabel = statusLabel ?? (liveState ? "Room live" : "Preparing room");
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
@@ -42,28 +23,6 @@ export default function RoomHeader({
 
     return () => {
       window.cancelAnimationFrame(frameId);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!deferredReady) {
-      return;
-    }
-
-    const intervalId = window.setInterval(() => {
-      setMeetingDuration((currentValue) => currentValue + 1);
-    }, 1000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [deferredReady]);
-
-  useEffect(() => {
-    return () => {
-      if (copyTimeoutRef.current !== null) {
-        window.clearTimeout(copyTimeoutRef.current);
-      }
     };
   }, []);
 
@@ -89,92 +48,30 @@ export default function RoomHeader({
   };
 
   return (
-    <header className="border-b border-border/60 bg-background/85 backdrop-blur">
-      <div className="flex flex-col gap-4 px-4 py-4 lg:flex-row lg:items-center lg:justify-between lg:px-6">
-        <div className="flex flex-wrap items-center gap-3">
-          <span
-            className={cn(
-              "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium",
-              liveState
-                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
-            )}
-          >
-            <span
-              className={cn(
-                "mr-2 h-2 w-2 rounded-full",
-                liveState ? "bg-emerald-500" : "bg-amber-500"
-              )}
-            />
-            {roomStatusLabel}
+    <header className="px-3 pt-3 sm:px-4 lg:px-6 lg:pt-5">
+      <div className="mx-auto flex max-w-420 items-center justify-between gap-3 rounded-full border border-white/10 bg-[#202124]/88 px-3 py-2 text-white shadow-[0_12px_40px_rgba(0,0,0,0.24)] backdrop-blur-xl">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="rounded-full bg-white/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/65">
+            Meet
           </span>
-
-          <div>
-            <p className="text-sm text-muted-foreground">Meeting code</p>
-            <p className="font-semibold tracking-wide">{meetingCode.toUpperCase()}</p>
-          </div>
-
-          <div className="h-10 w-px bg-border/70" />
-
-          <div>
-            <p className="text-sm text-muted-foreground">Duration</p>
-            <p className="font-semibold tabular-nums">
-              {formatDuration(meetingDuration)}
-            </p>
-          </div>
+          <p className="truncate text-sm font-medium tracking-wide">
+            {meetingCode}
+          </p>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-2 py-1">
-            <Button
-              type="button"
-              variant={viewMode === "grid" ? "secondary" : "ghost"}
-              size="icon-sm"
-              className="rounded-full"
-              onClick={() => onViewModeChange("grid")}
-            >
-              <Grid3x3 className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant={viewMode === "speaker" ? "secondary" : "ghost"}
-              size="icon-sm"
-              className="rounded-full"
-              onClick={() => onViewModeChange("speaker")}
-            >
-              <Maximize2 className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="rounded-full"
-            >
-              <Settings className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleCopyMeetingLink}
-            disabled={!shareUrl}
-            className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/80 px-4 py-2 text-left transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            <div className="min-w-0">
-              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                Share link
-              </p>
-              <p className="max-w-56 truncate text-sm font-medium">
-                {shareUrl || "Loading meeting link..."}
-              </p>
-            </div>
-            {copied ? (
-              <Check className="h-4 w-4 text-emerald-500" />
-            ) : (
-              <Copy className="h-4 w-4 text-muted-foreground" />
-            )}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleCopyMeetingLink}
+          disabled={!shareUrl}
+          className="flex shrink-0 items-center gap-2 rounded-full bg-white/8 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          {copied ? (
+            <Check className="h-4 w-4 text-emerald-300" />
+          ) : (
+            <Copy className="h-4 w-4 text-white/75" />
+          )}
+          <span className="hidden sm:inline">Copy link</span>
+        </button>
       </div>
     </header>
   );

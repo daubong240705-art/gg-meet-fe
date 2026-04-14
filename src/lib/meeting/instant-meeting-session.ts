@@ -8,6 +8,8 @@ export type InstantMeetingSession = {
     isMicOn: boolean;
     isCameraOn: boolean;
     livekitToken?: string | null;
+    meetingToken?: string | null;
+    participantStatus?: string | null;
 };
 
 type StoredInstantMeetings = Record<string, InstantMeetingSession>;

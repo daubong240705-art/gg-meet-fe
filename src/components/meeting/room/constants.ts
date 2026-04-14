@@ -1,4 +1,4 @@
-import type { ChatMessage, Participant } from "./types";
+import type { Participant } from "./types";
 
 export const REMOTE_PARTICIPANTS: Participant[] = [
   {
@@ -64,20 +64,5 @@ export const REMOTE_PARTICIPANTS: Participant[] = [
     cameraTrack: null,
     audioTrack: null,
     screenShareTrack: null,
-  },
-];
-
-export const CHAT_MESSAGES: ChatMessage[] = [
-  {
-    id: "1",
-    name: "Sarah Chen",
-    time: "9:45 AM",
-    message: "Slides look great. We can move to the rollout plan after this section.",
-  },
-  {
-    id: "2",
-    name: "Mike Johnson",
-    time: "9:46 AM",
-    message: "Please drop the final deck in chat when you're done presenting.",
   },
 ];

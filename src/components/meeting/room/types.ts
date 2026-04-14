@@ -14,7 +14,6 @@ export type MeetingRoomProps = {
   onLeave: () => void;
 };
 
-export type ViewMode = "grid" | "speaker";
 export type SidebarPanel = "participants" | "chat" | null;
 export type SidebarTab = Exclude<SidebarPanel, null>;
 
@@ -40,7 +39,11 @@ export type Participant = {
 
 export type ChatMessage = {
   id: string;
+  identity: string;
   name: string;
+  isLocal: boolean;
+  timestamp: number;
   time: string;
   message: string;
+  editTimestamp?: number;
 };

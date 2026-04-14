@@ -1,10 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, Mic, MicOff, User, Video, VideoOff } from "lucide-react";
+import { Check, ChevronDown, Loader2, Mic, MicOff, User, Video, VideoOff } from "lucide-react";
+import { toast } from "sonner";
 
 import { useAuthSession } from "@/lib/auth/auth-session";
+import { assertApiSuccess } from "@/hooks/shared/mutation.utils";
+import { persistInstantMeetingSession } from "@/lib/meeting/instant-meeting-session";
+import {
+  meetingApi,
+  normalizeMeetingParticipantStatus,
+  type JoinMeetingResponseData,
+} from "@/service/meeting.service";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,6 +23,9 @@ type LobbyJoinPayload = {
   userName: string;
   isMicOn: boolean;
   isCameraOn: boolean;
+  livekitToken?: string | null;
+  meetingToken?: string | null;
+  participantStatus?: string | null;
 };
 
 type LobbyProps = {
@@ -50,6 +62,63 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
       .join("")
       .slice(0, 2)
       .toUpperCase() || "G";
+
+  const joinMeetingMutation = useMutation<
+    IBackendRes<JoinMeetingResponseData>,
+    IBackendRes<unknown>,
+    LobbyJoinPayload
+  >({
+    mutationFn: async () => {
+      const response = await meetingApi.joinMeeting(meetingCode);
+      return assertApiSuccess(response);
+    },
+    onSuccess: (response, payload) => {
+      const participantStatus = normalizeMeetingParticipantStatus(
+        response.data?.participantStatus,
+      );
+      const livekitToken = response.data?.livekitToken?.trim() || null;
+      const meetingToken = response.data?.meetingToken?.trim() || null;
+      const resolvedMeetingCode = response.data?.meetingCode?.trim() || meetingCode;
+      const nextJoinPayload: LobbyJoinPayload = {
+        ...payload,
+        livekitToken,
+        meetingToken,
+        participantStatus,
+      };
+
+      if (!livekitToken) {
+        toast.error("Unable to join meeting", {
+          description: "The server did not return a valid LiveKit token.",
+        });
+        return;
+      }
+
+      persistInstantMeetingSession({
+        meetingCode: resolvedMeetingCode,
+        userName: payload.userName,
+        isMicOn: payload.isMicOn,
+        isCameraOn: payload.isCameraOn,
+        livekitToken,
+        meetingToken,
+        participantStatus,
+      });
+
+      onJoin(nextJoinPayload);
+    },
+    onError: (error) => {
+      const errorDescription = Array.isArray(error.errors)
+        ? error.errors[0]
+        : typeof error.errors === "string"
+          ? error.errors
+          : typeof error.error === "string"
+            ? error.error
+            : error.message;
+
+      toast.error("Unable to join meeting", {
+        description: errorDescription || "Please try again in a moment.",
+      });
+    },
+  });
 
   function stopStream() {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -288,10 +357,20 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
 
           <div className="flex items-center gap-4">
             <Button
-              onClick={() => onJoin({ userName: displayName, isMicOn, isCameraOn })}
+              onClick={() =>
+                joinMeetingMutation.mutate({
+                  userName: displayName,
+                  isMicOn,
+                  isCameraOn,
+                })
+              }
               size="lg"
               className="h-14 flex-1 text-lg"
+              disabled={joinMeetingMutation.isPending}
             >
+              {joinMeetingMutation.isPending ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : null}
               Join now
             </Button>
             <Button
