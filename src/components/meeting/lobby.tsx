@@ -41,8 +41,8 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const sessionUserName = user?.fullName?.trim() || "";
-  const [userNameOverride, setUserNameOverride] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState(false);
+  const [userNameOverride, setUserNameOverride] = useState("");
+  const [hasEditedName, setHasEditedName] = useState(false);
   const [isCameraOn, setIsCameraOn] = useState(true);
   const [isMicOn, setIsMicOn] = useState(true);
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
@@ -52,8 +52,10 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
   const [openMenu, setOpenMenu] = useState<"camera" | "mic" | null>(null);
   const [deviceError, setDeviceError] = useState("");
 
-  const userName = userNameOverride ?? sessionUserName;
+  const rawUserName = hasEditedName ? userNameOverride : sessionUserName;
+  const userName = rawUserName.trim();
   const displayName = userName.trim() || "Guest";
+  const canJoinMeeting = userName.length > 0;
   const meetingName = meetingCode ? meetingCode.toUpperCase() : "your meeting";
   const initials =
     displayName
@@ -68,8 +70,8 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
     IBackendRes<unknown>,
     LobbyJoinPayload
   >({
-    mutationFn: async () => {
-      const response = await meetingApi.joinMeeting(meetingCode);
+    mutationFn: async (payload) => {
+      const response = await meetingApi.joinMeeting(meetingCode, payload.userName);
       return assertApiSuccess(response);
     },
     onSuccess: (response, payload) => {
@@ -217,28 +219,12 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
                   className="h-full w-full object-cover scale-x-[-1]"
                 />
                 <div className="absolute bottom-20 left-6">
-                  {editingName ? (
-                    <Input
-                      value={userName}
-                      onChange={(event) => setUserNameOverride(event.target.value)}
-                      onBlur={() => setEditingName(false)}
-                      onKeyDown={(event) =>
-                        event.key === "Enter" && setEditingName(false)
-                      }
-                      autoFocus
-                      className="w-64 border-white/30 bg-black/60 text-white"
-                      placeholder="Your name"
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setEditingName(true)}
-                      className="flex items-center gap-2 rounded-lg bg-black/60 px-4 py-2 text-white hover:bg-black/75"
-                    >
-                      <User className="h-4 w-4" />
-                      <span className="font-medium">{displayName}</span>
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2 rounded-lg bg-black/60 px-4 py-2 text-white backdrop-blur-sm">
+                    <User className="h-4 w-4" />
+                    <span className="font-medium">
+                      {userName || "Enter your name below"}
+                    </span>
+                  </div>
                 </div>
               </>
             ) : (
@@ -247,14 +233,12 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
                   <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-primary text-4xl font-semibold text-white">
                     {initials}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setEditingName(true)}
-                    className="mx-auto mb-2 flex items-center gap-2 rounded-lg bg-black/60 px-4 py-2 text-white hover:bg-black/75"
-                  >
+                  <div className="mx-auto mb-2 flex w-fit items-center gap-2 rounded-lg bg-black/60 px-4 py-2 text-white">
                     <User className="h-4 w-4" />
-                    <span className="font-medium">{displayName}</span>
-                  </button>
+                    <span className="font-medium">
+                      {userName || "Enter your name below"}
+                    </span>
+                  </div>
                   <p className="text-sm text-white/70">Camera is off</p>
                 </div>
               </div>
@@ -355,18 +339,38 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
             </div>
           </Card>
 
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground" htmlFor="lobby-user-name">
+              Your name
+            </label>
+            <Input
+              id="lobby-user-name"
+              value={rawUserName}
+              onChange={(event) => {
+                setHasEditedName(true);
+                setUserNameOverride(event.target.value);
+              }}
+              placeholder="Enter your name to join"
+              className="h-12 text-base"
+              maxLength={80}
+            />
+            <p className="text-sm text-muted-foreground">
+              Everyone in the meeting will see this name.
+            </p>
+          </div>
+
           <div className="flex items-center gap-4">
             <Button
               onClick={() =>
                 joinMeetingMutation.mutate({
-                  userName: displayName,
+                  userName,
                   isMicOn,
                   isCameraOn,
                 })
               }
               size="lg"
               className="h-14 flex-1 text-lg"
-              disabled={joinMeetingMutation.isPending}
+              disabled={joinMeetingMutation.isPending || !canJoinMeeting}
             >
               {joinMeetingMutation.isPending ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -374,14 +378,20 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
               Join now
             </Button>
             <Button
-              onClick={() => router.push("/dashboard")}
+              onClick={() => router.push("/")}
               variant="outline"
               size="lg"
               className="h-14 text-lg"
             >
-              Back
+              Home
             </Button>
           </div>
+
+          {!canJoinMeeting ? (
+            <p className="text-sm text-muted-foreground">
+              Enter your name to join this meeting.
+            </p>
+          ) : null}
 
           {deviceError ? <p className="text-sm text-destructive">{deviceError}</p> : null}
         </div>

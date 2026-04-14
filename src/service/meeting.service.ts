@@ -1,4 +1,5 @@
 import { sendRequest } from "@/lib/api/wrapper";
+import { readStoredAccessToken } from "@/lib/auth/auth-token";
 import { getBackendBaseUrl } from "@/lib/config/api-url";
 
 const API_URL = getBackendBaseUrl();
@@ -44,12 +45,24 @@ export const meetingApi = {
         });
     },
 
-    joinMeeting(meetingCode: string) {
+    joinMeeting(meetingCode: string, participantName?: string) {
+        const accessToken =
+            typeof window !== "undefined" ? readStoredAccessToken() : null;
+
         return sendRequest<IBackendRes<JoinMeetingResponseData>>({
             url: `${API_URL}/meetings/${encodeURIComponent(meetingCode)}/join`,
             method: "POST",
+            body: participantName
+                ? {
+                    fullName: participantName.trim(),
+                }
+                : undefined,
+            headers: accessToken
+                ? {
+                    Authorization: `Bearer ${accessToken}`,
+                }
+                : undefined,
             useCredentials: true,
-            auth: true,
         });
     },
 };
