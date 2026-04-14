@@ -3,6 +3,7 @@
 
 import queryString from "query-string";
 
+import { clearStoredAccessToken, persistAccessToken, readStoredAccessToken } from "../auth/auth-token";
 import { getBackendBaseUrl } from "../config/api-url";
 
 const isBrowser = typeof window !== "undefined";
@@ -29,7 +30,7 @@ const refreshToken = async (props?: RefreshProps): Promise<string | null> => {
 
     const data = await res.json();
 
-    return data?.data?.accessToken ?? null;
+    return data?.data?.accessToken ?? data?.data?.access_token ?? null;
 };
 
 const getFreshToken = async (props?: RefreshProps) => {
@@ -75,6 +76,14 @@ export const sendRequest = async <T>(props: IRequest): Promise<T> => {
         ...headers,
     };
 
+    if (auth) {
+        const bearerToken = props.accessToken ?? (isBrowser ? readStoredAccessToken() : null);
+
+        if (bearerToken) {
+            finalHeaders.Authorization = `Bearer ${bearerToken}`;
+        }
+    }
+
     if (!isBrowser && useCredentials && cookieHeader) {
         finalHeaders.cookie = cookieHeader;
     }
@@ -105,12 +114,14 @@ export const sendRequest = async <T>(props: IRequest): Promise<T> => {
         try {
             const newToken = await getFreshToken({ cookieHeader });
 
-            if (!newToken && !isBrowser) {
+            if (!newToken) {
                 throw new Error("Refresh failed");
             }
 
-            if (!isBrowser && newToken) {
-                finalHeaders.Authorization = `Bearer ${newToken}`;
+            finalHeaders.Authorization = `Bearer ${newToken}`;
+
+            if (isBrowser) {
+                persistAccessToken(newToken);
             }
 
             const retryOptions: RequestInit = {
@@ -124,6 +135,10 @@ export const sendRequest = async <T>(props: IRequest): Promise<T> => {
                 return getJsonResponse(res);
             }
         } catch (error) {
+            if (isBrowser) {
+                clearStoredAccessToken();
+            }
+
             if (isBrowser && redirectOnAuthFail) {
                 window.location.href = redirectOnAuthFail;
             }

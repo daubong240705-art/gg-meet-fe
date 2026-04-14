@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 import type { LoginResponseData } from "@/service/auth.service";
+import { clearStoredAccessToken, persistAccessToken } from "./auth-token";
 
 const AUTH_USER_STORAGE_KEY = "auth-user";
 const AUTH_USER_CHANGED_EVENT = "auth-user-changed";
@@ -147,6 +148,7 @@ export function clearStoredAuthUser() {
 
     authUserSnapshot = null;
     window.localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+    clearStoredAccessToken();
     notifyAuthUserChanged();
 }
 
@@ -194,6 +196,8 @@ export function syncAuthUserFromLogin(response: IBackendRes<LoginResponseData>) 
     if (!accessToken) {
         return null;
     }
+
+    persistAccessToken(accessToken);
 
     const user = extractAuthUserFromToken(accessToken);
 

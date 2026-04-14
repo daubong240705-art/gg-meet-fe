@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
+import { AudioTrackView, VideoTrackView } from "./track-view";
 import type { Participant } from "./types";
 import { getInitials } from "./utils";
 
@@ -40,7 +41,19 @@ export default function ParticipantCard({
         )}
       />
 
+      {!participant.isCameraOff && participant.cameraTrack ? (
+        <div className="absolute inset-0">
+          <VideoTrackView
+            track={participant.cameraTrack}
+            muted={participant.isLocal}
+            mirrored={participant.isLocal}
+          />
+        </div>
+      ) : null}
+
       <div className="relative flex h-full flex-col justify-between p-4">
+        {!participant.isLocal ? <AudioTrackView track={participant.audioTrack} /> : null}
+
         <div className="flex justify-end">
           {!compact ? (
             <Button
@@ -55,14 +68,16 @@ export default function ParticipantCard({
         </div>
 
         <div className="flex flex-1 items-center justify-center">
-          <div
-            className={cn(
-              "flex h-20 w-20 items-center justify-center rounded-full bg-primary text-xl font-semibold text-primary-foreground shadow-lg",
-              compact && "h-12 w-12 text-base"
-            )}
-          >
-            {initials}
-          </div>
+          {participant.isCameraOff || !participant.cameraTrack ? (
+            <div
+              className={cn(
+                "flex h-20 w-20 items-center justify-center rounded-full bg-primary text-xl font-semibold text-primary-foreground shadow-lg",
+                compact && "h-12 w-12 text-base"
+              )}
+            >
+              {initials}
+            </div>
+          ) : null}
         </div>
 
         <div className="rounded-xl border border-white/10 bg-black/45 p-3 text-white backdrop-blur-sm">

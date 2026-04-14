@@ -3,6 +3,10 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 
+import {
+  clearInstantMeetingSession,
+  readInstantMeetingSession,
+} from "@/lib/meeting/instant-meeting-session";
 import Lobby, { type LobbyJoinPayload } from "@/components/meeting/lobby";
 import MeetingRoom from "@/components/meeting/room/room";
 
@@ -11,7 +15,37 @@ export default function MeetingPage() {
   const meetingCode = Array.isArray(params?.meetingCode)
     ? params.meetingCode[0]
     : params?.meetingCode || "";
-  const [joinState, setJoinState] = useState<LobbyJoinPayload | null>(null);
+
+  return <MeetingPageContent key={meetingCode} meetingCode={meetingCode} />;
+}
+
+type MeetingPageContentProps = {
+  meetingCode: string;
+};
+
+type MeetingJoinState = LobbyJoinPayload & {
+  livekitToken?: string | null;
+};
+
+function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
+  const [joinState, setJoinState] = useState<MeetingJoinState | null>(() => {
+    if (!meetingCode) {
+      return null;
+    }
+
+    const pendingSession = readInstantMeetingSession(meetingCode);
+
+    if (!pendingSession) {
+      return null;
+    }
+
+    return {
+      userName: pendingSession.userName,
+      isMicOn: pendingSession.isMicOn,
+      isCameraOn: pendingSession.isCameraOn,
+      livekitToken: pendingSession.livekitToken ?? null,
+    };
+  });
 
   if (!joinState) {
     return <Lobby meetingCode={meetingCode} onJoin={setJoinState} />;
@@ -23,7 +57,11 @@ export default function MeetingPage() {
       userName={joinState.userName}
       isMicOn={joinState.isMicOn}
       isCameraOn={joinState.isCameraOn}
-      onLeave={() => setJoinState(null)}
+      livekitToken={joinState.livekitToken}
+      onLeave={() => {
+        clearInstantMeetingSession(meetingCode);
+        setJoinState(null);
+      }}
     />
   );
 }

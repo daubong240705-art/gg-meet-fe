@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, Mic, MicOff, User, Video, VideoOff } from "lucide-react";
 
+import { useAuthSession } from "@/lib/auth/auth-session";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,9 +25,11 @@ export type { LobbyJoinPayload };
 
 export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
   const router = useRouter();
+  const { user } = useAuthSession();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const [userName, setUserName] = useState("Guest");
+  const sessionUserName = user?.fullName?.trim() || "";
+  const [userNameOverride, setUserNameOverride] = useState<string | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [isCameraOn, setIsCameraOn] = useState(true);
   const [isMicOn, setIsMicOn] = useState(true);
@@ -37,6 +40,7 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
   const [openMenu, setOpenMenu] = useState<"camera" | "mic" | null>(null);
   const [deviceError, setDeviceError] = useState("");
 
+  const userName = userNameOverride ?? sessionUserName;
   const displayName = userName.trim() || "Guest";
   const meetingName = meetingCode ? meetingCode.toUpperCase() : "your meeting";
   const initials =
@@ -147,7 +151,7 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
                   {editingName ? (
                     <Input
                       value={userName}
-                      onChange={(event) => setUserName(event.target.value)}
+                      onChange={(event) => setUserNameOverride(event.target.value)}
                       onBlur={() => setEditingName(false)}
                       onKeyDown={(event) =>
                         event.key === "Enter" && setEditingName(false)

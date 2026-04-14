@@ -12,12 +12,16 @@ import { formatDuration } from "./utils";
 type RoomHeaderProps = {
   meetingCode: string;
   viewMode: ViewMode;
+  isRoomLive?: boolean;
+  statusLabel?: string;
   onViewModeChange: (viewMode: ViewMode) => void;
 };
 
 export default function RoomHeader({
   meetingCode,
   viewMode,
+  isRoomLive,
+  statusLabel,
   onViewModeChange,
 }: RoomHeaderProps) {
   const [meetingDuration, setMeetingDuration] = useState(0);
@@ -28,6 +32,8 @@ export default function RoomHeader({
     deferredReady && typeof window !== "undefined"
       ? `${window.location.origin}/${meetingCode}`
       : "";
+  const liveState = isRoomLive ?? deferredReady;
+  const roomStatusLabel = statusLabel ?? (liveState ? "Room live" : "Preparing room");
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
@@ -89,7 +95,7 @@ export default function RoomHeader({
           <span
             className={cn(
               "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium",
-              deferredReady
+              liveState
                 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                 : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
             )}
@@ -97,10 +103,10 @@ export default function RoomHeader({
             <span
               className={cn(
                 "mr-2 h-2 w-2 rounded-full",
-                deferredReady ? "bg-emerald-500" : "bg-amber-500"
+                liveState ? "bg-emerald-500" : "bg-amber-500"
               )}
             />
-            {deferredReady ? "Room live" : "Preparing room"}
+            {roomStatusLabel}
           </span>
 
           <div>
