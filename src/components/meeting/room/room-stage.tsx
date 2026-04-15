@@ -96,7 +96,7 @@ export default function RoomStage({
   }
 
   const renderParticipantRail = (railParticipants: Participant[]) => (
-    <Card className="flex h-full min-h-0 flex-col gap-0 overflow-hidden border border-border/70 bg-background/80 px-0 py-0">
+    <Card className="flex h-full min-h-0 flex-col gap-0 overflow-hidden border border-border/70 bg-card/90 px-0 py-0 backdrop-blur-sm">
 
 
       <div className="grid min-h-0 flex-1 auto-rows-max content-start gap-3 overflow-y-auto p-3">
@@ -115,13 +115,13 @@ export default function RoomStage({
   if (screenShareParticipant) {
     return (
       <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_280px] lg:items-stretch">
-        <Card className="order-1 relative min-h-72 flex-1 gap-0 overflow-hidden border border-slate-800 bg-slate-950 px-0 py-0 text-white lg:min-h-0">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(96,165,250,0.18),transparent_40%),linear-gradient(180deg,rgba(15,23,42,0.92),rgba(2,6,23,1))]" />
+        <Card className="order-1 relative min-h-72 flex-1 gap-0 overflow-hidden border border-border/70 bg-card/95 px-0 py-0 text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.38)] lg:min-h-0">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.16),transparent_38%),linear-gradient(180deg,rgba(30,41,59,0.96),rgba(15,23,42,0.98))]" />
 
           <div className="relative flex h-full min-h-0 flex-col gap-4 p-4 lg:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-                <div className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/85">
+                <div className="flex shrink-0 items-center gap-2 rounded-full border border-border/70 bg-background/45 px-3 py-1.5 text-xs font-medium text-foreground">
                   <Monitor className="h-3.5 w-3.5" />
                   <span className="whitespace-nowrap">Presenting</span>
                 </div>
@@ -136,8 +136,8 @@ export default function RoomStage({
                       className={cn(
                         "flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition",
                         participant.id === screenShareParticipantId
-                          ? "border-[#8ab4f8] bg-[#8ab4f8] text-slate-950"
-                          : "border-white/10 bg-white/5 text-white/75 hover:bg-white/10 hover:text-white",
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border/70 bg-background/45 text-muted-foreground hover:bg-muted hover:text-foreground",
                       )}
                     >
                       <span className="max-w-28 truncate">
@@ -153,14 +153,14 @@ export default function RoomStage({
                 variant="secondary"
                 size="sm"
                 onClick={onToggleScreenShare}
-                className="h-9 rounded-full bg-white/10 px-3 text-white hover:bg-white/20 hover:text-white"
+                className="h-9 rounded-full border border-border/70 bg-background/45 px-3 text-foreground hover:bg-muted hover:text-foreground"
               >
                 <Monitor className="h-4 w-4" />
                 {isLocalScreenSharing ? "Stop sharing" : "Present now"}
               </Button>
             </div>
 
-            <div className="relative mx-auto flex h-full min-h-0 w-full max-w-7xl flex-1 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-black/40 p-3">
+            <div className="relative mx-auto flex h-full min-h-0 w-full max-w-7xl flex-1 items-center justify-center overflow-hidden rounded-3xl border border-border/70 bg-background/70 p-3 shadow-inner shadow-black/20">
               {screenShareParticipant.screenShareTrack ? (
                 <VideoTrackView
                   track={screenShareParticipant.screenShareTrack}
@@ -176,7 +176,7 @@ export default function RoomStage({
                     <h2 className="text-3xl font-semibold tracking-tight">
                       Presentation in progress
                     </h2>
-                    <p className="max-w-2xl text-sm text-slate-300 sm:text-base">
+                    <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
                       Waiting for the shared screen track to arrive from LiveKit.
                     </p>
                   </div>

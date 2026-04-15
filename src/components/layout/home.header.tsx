@@ -8,7 +8,6 @@ import { getUserInitials, useAuthSession } from "@/lib/auth/auth-session";
 import { useLogoutMutation } from "@/hooks/auth/useLoginForm";
 
 import { Button } from "../ui/button";
-import { ThemeToggle } from "./ThemeToggle";
 
 export default function Homeheader() {
     const { isAuthenticated, user } = useAuthSession();
@@ -94,7 +93,6 @@ export default function Homeheader() {
                 </nav> */}
 
                 <div className="flex items-center gap-3">
-                    <ThemeToggle />
                     {isAuthenticated && user ? (
                         <div
                             ref={menuRef}

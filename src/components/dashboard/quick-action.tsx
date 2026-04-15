@@ -41,6 +41,7 @@ export default function QuickAction() {
                 isMicOn: true,
                 isCameraOn: true,
                 livekitToken: response.data?.livekitToken ?? null,
+                meetingToken: response.data?.meetingToken ?? null,
                 hostId: response.data?.host?.id?.toString() ?? null,
                 hostName: response.data?.host?.fullName?.trim() || null,
             });

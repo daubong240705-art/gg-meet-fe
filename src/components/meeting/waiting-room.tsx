@@ -87,7 +87,15 @@ export default function WaitingRoom({
     setIsChecking(true);
 
     try {
-      const response = await meetingApi.joinMeeting(meetingCode);
+      const response = await meetingApi.joinMeeting(
+        meetingCode,
+        joinState.guestId?.trim() && joinState.userName.trim()
+          ? {
+            guestId: joinState.guestId.trim(),
+            guestName: joinState.userName.trim(),
+          }
+          : undefined,
+      );
       const verifiedResponse = assertApiSuccess(response);
 
       if (!isMountedRef.current) {
@@ -114,6 +122,7 @@ export default function WaitingRoom({
       persistInstantMeetingSession({
         meetingCode: resolvedMeetingCode,
         userName: joinState.userName,
+        guestId: joinState.guestId ?? null,
         isMicOn: joinState.isMicOn,
         isCameraOn: joinState.isCameraOn,
         livekitToken: nextLivekitToken,

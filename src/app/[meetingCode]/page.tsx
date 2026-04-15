@@ -12,6 +12,7 @@ import Lobby, { type LobbyJoinPayload } from "@/components/meeting/lobby";
 import MeetingRoom from "@/components/meeting/room/room";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { normalizeMeetingParticipantStatus } from "@/service/meeting.service";
 
 export default function MeetingPage() {
   const params = useParams<{ meetingCode: string }>();
@@ -100,13 +101,22 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
       return null;
     }
 
+    const participantStatus = normalizeMeetingParticipantStatus(
+      pendingSession.participantStatus,
+    );
+
+    if (participantStatus === "WAITING") {
+      return null;
+    }
+
     return {
       userName: pendingSession.userName,
+      guestId: pendingSession.guestId ?? null,
       isMicOn: pendingSession.isMicOn,
       isCameraOn: pendingSession.isCameraOn,
       livekitToken: pendingSession.livekitToken ?? null,
       meetingToken: pendingSession.meetingToken ?? null,
-      participantStatus: pendingSession.participantStatus ?? null,
+      participantStatus,
       hostId: pendingSession.hostId ?? null,
       hostName: pendingSession.hostName ?? null,
     };
@@ -145,6 +155,7 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
       isMicOn={joinState.isMicOn}
       isCameraOn={joinState.isCameraOn}
       livekitToken={joinState.livekitToken}
+      meetingToken={joinState.meetingToken}
       hostId={joinState.hostId}
       hostName={joinState.hostName}
       onLeave={() => {

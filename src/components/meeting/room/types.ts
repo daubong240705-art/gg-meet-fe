@@ -11,6 +11,7 @@ export type MeetingRoomProps = {
   isMicOn: boolean;
   isCameraOn: boolean;
   livekitToken?: string | null;
+  meetingToken?: string | null;
   hostId?: string | null;
   hostName?: string | null;
   onLeave: () => void;
@@ -48,4 +49,10 @@ export type ChatMessage = {
   time: string;
   message: string;
   editTimestamp?: number;
+};
+
+export type WaitingParticipant = {
+  participantId: number;
+  name: string;
+  requestedAt: number;
 };

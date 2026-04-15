@@ -10,11 +10,10 @@ import {
   useSignupForm,
   useSignupMutation,
 } from "@/hooks/auth/useLoginForm";
-import type { LoginForm, SignupForm } from "@/types/form.type";
-import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import type { LoginForm, SignupForm } from "@/types/form.type";
 
 type AuthMode = "sign-in" | "sign-up";
 
@@ -70,10 +69,6 @@ function AuthCardShell({
               Back to home
             </Link>
           </Button>
-        </div>
-
-        <div className="absolute right-6 top-6">
-          <ThemeToggle />
         </div>
 
         <Card className="w-full max-w-md p-8">

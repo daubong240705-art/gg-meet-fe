@@ -5,6 +5,7 @@ const isBrowser = typeof window !== "undefined";
 export type InstantMeetingSession = {
     meetingCode: string;
     userName: string;
+    guestId?: string | null;
     isMicOn: boolean;
     isCameraOn: boolean;
     livekitToken?: string | null;

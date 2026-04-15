@@ -1,6 +1,7 @@
 "use client";
 
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
+import { UserPlus } from "lucide-react";
 import {
   type ChatMessage as LiveKitChatMessage,
   Participant as LiveKitParticipant,
@@ -16,6 +17,11 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getLiveKitWebsocketUrl } from "@/lib/config/api-url";
+import {
+  connectMeetingSocket,
+  decodeMeetingToken,
+  type MeetingSocketMessage,
+} from "@/lib/meeting/meeting-websocket";
 
 import { REMOTE_PARTICIPANTS } from "./constants";
 import RoomFooter from "./room-footer";
@@ -26,6 +32,7 @@ import type {
   MeetingRoomProps,
   Participant,
   SidebarPanel,
+  WaitingParticipant,
 } from "./types";
 import { getParticipantAccentClassName } from "./utils";
 
@@ -269,12 +276,17 @@ function getFallbackLocalParticipant(
   };
 }
 
+function getWaitingParticipantName(message: MeetingSocketMessage) {
+  return message.targetName?.trim() || "Guest";
+}
+
 export default function MeetingRoom({
   meetingCode,
   userName,
   isMicOn,
   isCameraOn,
   livekitToken,
+  meetingToken,
   hostId,
   hostName,
   onLeave,
@@ -282,6 +294,8 @@ export default function MeetingRoom({
   const displayName = userName.trim() || "Guest";
   const liveKitUrl = getLiveKitWebsocketUrl();
   const isLiveKitEnabled = Boolean(livekitToken && liveKitUrl);
+  const decodedMeetingToken = decodeMeetingToken(meetingToken);
+  const localMeetingRole = decodedMeetingToken.role;
   const localTokenPayload = decodeJwtPayload<{
     sub?: string;
     metadata?: string;
@@ -292,6 +306,7 @@ export default function MeetingRoom({
     || (localRole === "HOST" ? localTokenPayload?.sub?.trim() || null : null);
   const resolvedHostName = hostName?.trim() || null;
   const roomRef = useRef<LiveKitRoom | null>(null);
+  const meetingSocketRef = useRef<ReturnType<typeof connectMeetingSocket> | null>(null);
   const activePanelRef = useRef<SidebarPanel>(null);
   const seenChatMessageIdsRef = useRef<Set<string>>(new Set());
   const [isMicEnabled, setIsMicEnabled] = useState(isMicOn);
@@ -312,6 +327,9 @@ export default function MeetingRoom({
   const [isRoomConnected, setIsRoomConnected] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [activeScreenShareId, setActiveScreenShareId] = useState<string | null>(null);
+  const [waitingParticipants, setWaitingParticipants] = useState<WaitingParticipant[]>([]);
+
+  const canManageWaitingRoom = localMeetingRole === "HOST" || localRole === "HOST";
 
   const syncAvailableDevices = useCallback(async (currentRoom: LiveKitRoom | null = roomRef.current) => {
     const [microphoneResult, cameraResult] = await Promise.allSettled([
@@ -344,9 +362,103 @@ export default function MeetingRoom({
     }
   }, [activePanel]);
 
+  const upsertWaitingParticipant = useCallback((message: MeetingSocketMessage) => {
+    const participantId = message.targetParticipantId;
+
+    if (participantId === null || participantId === undefined) {
+      return;
+    }
+
+    const participantName = getWaitingParticipantName(message);
+
+    setWaitingParticipants((currentParticipants) => {
+      const existingParticipantIndex = currentParticipants.findIndex(
+        (participant) => participant.participantId === participantId,
+      );
+
+      if (existingParticipantIndex >= 0) {
+        const nextParticipants = [...currentParticipants];
+        nextParticipants[existingParticipantIndex] = {
+          ...nextParticipants[existingParticipantIndex],
+          name: participantName,
+        };
+        return nextParticipants;
+      }
+
+      return [
+        ...currentParticipants,
+        {
+          participantId,
+          name: participantName,
+          requestedAt: Date.now(),
+        },
+      ];
+    });
+  }, []);
+
+  const removeWaitingParticipant = useCallback((participantId?: number | null) => {
+    if (participantId === null || participantId === undefined) {
+      return;
+    }
+
+    setWaitingParticipants((currentParticipants) =>
+      currentParticipants.filter((participant) => participant.participantId !== participantId),
+    );
+  }, []);
+
   useEffect(() => {
     void syncAvailableDevices();
   }, [syncAvailableDevices]);
+
+  useEffect(() => {
+    meetingSocketRef.current?.disconnect();
+    meetingSocketRef.current = null;
+
+    if (!meetingToken || !canManageWaitingRoom) {
+      setWaitingParticipants([]);
+      return;
+    }
+
+    const connection = connectMeetingSocket({
+      meetingCode,
+      meetingToken,
+      subscribeToMeetingTopic: true,
+      subscribeToWaitingTopic: true,
+      onWaitingMessage: (message) => {
+        const action = message.action?.trim().toUpperCase();
+
+        if (action === "JOIN_REQUEST") {
+          upsertWaitingParticipant(message);
+
+          toast("Participant is waiting to join", {
+            description: `${getWaitingParticipantName(message)} requested access to the meeting.`,
+          });
+        }
+      },
+      onMeetingMessage: (message) => {
+        const action = message.action?.trim().toUpperCase();
+
+        if (action === "ADMITTED" || action === "REJECTED") {
+          removeWaitingParticipant(message.targetParticipantId);
+        }
+      },
+      onError: (error) => {
+        toast.error("Waiting room connection failed", {
+          description: error.message,
+        });
+      },
+    });
+
+    meetingSocketRef.current = connection;
+
+    return () => {
+      connection.disconnect();
+
+      if (meetingSocketRef.current === connection) {
+        meetingSocketRef.current = null;
+      }
+    };
+  }, [canManageWaitingRoom, meetingCode, meetingToken, removeWaitingParticipant, upsertWaitingParticipant]);
 
   useEffect(() => {
     if (!isLiveKitEnabled || !livekitToken) {
@@ -590,6 +702,7 @@ export default function MeetingRoom({
 
   const fallbackLocalParticipantIsHost =
     localRole === "HOST"
+    || localMeetingRole === "HOST"
     || (resolvedHostId !== null && localTokenPayload?.sub?.trim() === resolvedHostId)
     || (resolvedHostName !== null && displayName.trim().toLowerCase() === resolvedHostName.toLowerCase());
 
@@ -810,9 +923,63 @@ export default function MeetingRoom({
   };
 
   const handleLeaveMeeting = () => {
+    meetingSocketRef.current?.disconnect();
     roomRef.current?.disconnect();
     onLeave();
   };
+
+  const handleApproveWaitingParticipant = useCallback((participant: WaitingParticipant) => {
+    try {
+      meetingSocketRef.current?.sendAccept({
+        meetingCode,
+        targetParticipantId: participant.participantId,
+        targetName: participant.name,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unable to approve this participant.";
+
+      toast.error("Approval failed", {
+        description: errorMessage,
+      });
+    }
+  }, [meetingCode]);
+
+  const handleRejectWaitingParticipant = useCallback((participant: WaitingParticipant) => {
+    try {
+      meetingSocketRef.current?.sendReject({
+        meetingCode,
+        targetParticipantId: participant.participantId,
+        targetName: participant.name,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unable to reject this participant.";
+
+      toast.error("Rejection failed", {
+        description: errorMessage,
+      });
+    }
+  }, [meetingCode]);
+
+  const handleApproveAllWaitingParticipants = useCallback(() => {
+    waitingParticipants.forEach((participant) => {
+      try {
+        meetingSocketRef.current?.sendAccept({
+          meetingCode,
+          targetParticipantId: participant.participantId,
+          targetName: participant.name,
+        });
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unable to approve all waiting participants.";
+
+        toast.error("Bulk approval failed", {
+          description: errorMessage,
+        });
+      }
+    });
+  }, [meetingCode, waitingParticipants]);
 
   const handleSendChatMessage = () => {
     const nextMessage = chatDraft.trim();
@@ -848,9 +1015,23 @@ export default function MeetingRoom({
 
   return (
     <div className="h-screen overflow-hidden bg-background">
-      <div className="flex h-screen flex-col overflow-hidden bg-[radial-gradient(circle_at_top,hsl(var(--primary)/0.12),transparent_42%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--muted)/0.35))]">
+      <div className="flex h-screen flex-col overflow-hidden bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.12),transparent_42%),linear-gradient(180deg,rgba(15,23,42,1),rgba(30,41,59,0.9))]">
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4 lg:flex-row lg:gap-6 lg:p-6">
           <div className="order-1 flex min-h-0 flex-1 flex-col gap-4 lg:order-2">
+            {canManageWaitingRoom && waitingParticipants.length > 0 ? (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => handlePanelChange("participants")}
+                  className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/15 px-4 py-2 text-sm font-medium text-primary transition hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  {waitingParticipants.length === 1
+                    ? "Allow 1 guest in"
+                    : `Allow ${waitingParticipants.length} guests in`}
+                </button>
+              </div>
+            ) : null}
 
             {isLiveKitEnabled && !canPlaybackAudio ? (
               <Card className="flex flex-col gap-3 border border-sky-500/30 bg-sky-500/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -879,12 +1060,17 @@ export default function MeetingRoom({
             <RoomSidebar
               activePanel={activePanel}
               participants={participants}
+              waitingParticipants={waitingParticipants}
+              canManageWaitingRoom={canManageWaitingRoom}
               chatMessages={chatMessages}
               chatDraft={chatDraft}
               isChatReady={isLiveKitEnabled && isRoomConnected}
               isSendingChat={isSendingChat}
               onChatDraftChange={setChatDraft}
               onSendChatMessage={handleSendChatMessage}
+              onApproveWaitingParticipant={handleApproveWaitingParticipant}
+              onRejectWaitingParticipant={handleRejectWaitingParticipant}
+              onApproveAllWaitingParticipants={handleApproveAllWaitingParticipants}
               onPanelChange={handlePanelChange}
             />
           </div>

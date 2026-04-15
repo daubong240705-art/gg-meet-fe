@@ -28,6 +28,11 @@ export type CreateMeetingResponseData = {
 
 export type JoinMeetingResponseData = CreateMeetingResponseData;
 
+export type GuestJoinRequest = {
+    guestId: string;
+    guestName: string;
+};
+
 export const normalizeMeetingParticipantStatus = (
     status?: string | null,
 ): MeetingParticipantStatus | null => {
@@ -45,24 +50,25 @@ export const meetingApi = {
         });
     },
 
-    joinMeeting(meetingCode: string, participantName?: string) {
+    joinMeeting(meetingCode: string, guestRequest?: GuestJoinRequest | null) {
         const accessToken =
             typeof window !== "undefined" ? readStoredAccessToken() : null;
 
         return sendRequest<IBackendRes<JoinMeetingResponseData>>({
             url: `${API_URL}/meetings/${encodeURIComponent(meetingCode)}/join`,
             method: "POST",
-            body: participantName
-                ? {
-                    fullName: participantName.trim(),
-                }
-                : undefined,
-            headers: accessToken
-                ? {
-                    Authorization: `Bearer ${accessToken}`,
-                }
-                : undefined,
+            body: accessToken
+                ? undefined
+                : guestRequest && guestRequest.guestId.trim() && guestRequest.guestName.trim()
+                    ? {
+                        guestId: guestRequest.guestId.trim(),
+                        guestName: guestRequest.guestName.trim(),
+                    }
+                    : undefined,
             useCredentials: true,
+            auth: Boolean(accessToken),
+            accessToken,
+            redirectOnAuthFail: false,
         });
     },
 };
