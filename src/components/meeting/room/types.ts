@@ -11,6 +11,8 @@ export type MeetingRoomProps = {
   isMicOn: boolean;
   isCameraOn: boolean;
   livekitToken?: string | null;
+  hostId?: string | null;
+  hostName?: string | null;
   onLeave: () => void;
 };
 

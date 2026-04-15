@@ -34,6 +34,99 @@ const LIVEKIT_ROOM_OPTIONS = {
   dynacast: true,
 };
 
+function normalizeParticipantRole(role?: string | null) {
+  const normalizedRole = role?.trim().toUpperCase();
+  return normalizedRole || null;
+}
+
+function decodeJwtPayload<
+  T extends {
+    sub?: string;
+    metadata?: string;
+  },
+>(token?: string | null): T | null {
+  if (!token) {
+    return null;
+  }
+
+  const tokenParts = token.split(".");
+
+  if (tokenParts.length < 2) {
+    return null;
+  }
+
+  try {
+    const payload = tokenParts[1]
+      .replace(/-/g, "+")
+      .replace(/_/g, "/")
+      .padEnd(Math.ceil(tokenParts[1].length / 4) * 4, "=");
+    const decodedPayload =
+      typeof atob === "function"
+        ? atob(payload)
+        : Buffer.from(payload, "base64").toString("utf-8");
+
+    return JSON.parse(decodedPayload) as T;
+  } catch {
+    return null;
+  }
+}
+
+function getParticipantRoleFromMetadata(metadata?: string | null) {
+  if (!metadata) {
+    return null;
+  }
+
+  try {
+    const parsedMetadata = JSON.parse(metadata);
+
+    if (typeof parsedMetadata === "object" && parsedMetadata !== null && "role" in parsedMetadata) {
+      return normalizeParticipantRole(String(parsedMetadata.role));
+    }
+  } catch {
+    return normalizeParticipantRole(metadata);
+  }
+
+  return null;
+}
+
+function isHostParticipant({
+  participant,
+  hostId,
+  hostName,
+  localRole,
+}: {
+  participant: LiveKitParticipant;
+  hostId?: string | null;
+  hostName?: string | null;
+  localRole?: string | null;
+}) {
+  const participantRole = getParticipantRoleFromMetadata(participant.metadata);
+
+  if (participantRole === "HOST") {
+    return true;
+  }
+
+  if (participant.isLocal && localRole === "HOST") {
+    return true;
+  }
+
+  const normalizedHostId = hostId?.trim();
+  const normalizedIdentity = participant.identity?.trim();
+
+  if (normalizedHostId && normalizedIdentity && normalizedHostId === normalizedIdentity) {
+    return true;
+  }
+
+  const normalizedHostName = hostName?.trim().toLowerCase();
+  const participantName = (participant.name?.trim() || "").toLowerCase();
+
+  if (normalizedHostName && participantName && normalizedHostName === participantName) {
+    return true;
+  }
+
+  return false;
+}
+
 function formatChatTime(timestamp: number) {
   return new Intl.DateTimeFormat("vi-VN", {
     hour: "2-digit",
@@ -115,8 +208,10 @@ function getParticipantStatus(participant: LiveKitParticipant) {
 
 function mapParticipantToUiParticipant(
   participant: LiveKitParticipant,
-  localIdentity: string,
   localDisplayName: string,
+  hostId: string | null | undefined,
+  hostName: string | null | undefined,
+  localRole: string | null,
 ): Participant {
   const identity = participant.identity || participant.sid || localDisplayName || "participant";
   const cameraPublication = participant.getTrackPublication(Track.Source.Camera);
@@ -130,7 +225,12 @@ function mapParticipantToUiParticipant(
       participant.isLocal
         ? localDisplayName
         : participant.name?.trim() || participant.identity || "Guest",
-    isHost: identity === localIdentity,
+    isHost: isHostParticipant({
+      participant,
+      hostId,
+      hostName,
+      localRole,
+    }),
     isLocal: participant.isLocal,
     isMuted: !(audioPublication && !audioPublication.isMuted),
     isCameraOff: !(cameraPublication && !cameraPublication.isMuted),
@@ -149,12 +249,13 @@ function getFallbackLocalParticipant(
   isMicEnabled: boolean,
   isCameraEnabled: boolean,
   isScreenSharing: boolean,
+  isHost: boolean,
 ): Participant {
   return {
     id: "self",
     identity: "self",
     name: displayName,
-    isHost: true,
+    isHost,
     isLocal: true,
     isMuted: !isMicEnabled,
     isCameraOff: !isCameraEnabled,
@@ -174,11 +275,22 @@ export default function MeetingRoom({
   isMicOn,
   isCameraOn,
   livekitToken,
+  hostId,
+  hostName,
   onLeave,
 }: MeetingRoomProps) {
   const displayName = userName.trim() || "Guest";
   const liveKitUrl = getLiveKitWebsocketUrl();
   const isLiveKitEnabled = Boolean(livekitToken && liveKitUrl);
+  const localTokenPayload = decodeJwtPayload<{
+    sub?: string;
+    metadata?: string;
+  }>(livekitToken);
+  const localRole = getParticipantRoleFromMetadata(localTokenPayload?.metadata);
+  const resolvedHostId =
+    hostId?.trim()
+    || (localRole === "HOST" ? localTokenPayload?.sub?.trim() || null : null);
+  const resolvedHostName = hostName?.trim() || null;
   const roomRef = useRef<LiveKitRoom | null>(null);
   const activePanelRef = useRef<SidebarPanel>(null);
   const seenChatMessageIdsRef = useRef<Set<string>>(new Set());
@@ -263,14 +375,18 @@ export default function MeetingRoom({
       const nextParticipants = [
         mapParticipantToUiParticipant(
           room.localParticipant,
-          room.localParticipant.identity,
           displayName,
+          resolvedHostId,
+          resolvedHostName,
+          localRole,
         ),
         ...Array.from(room.remoteParticipants.values()).map((participant) =>
           mapParticipantToUiParticipant(
             participant,
-            room.localParticipant.identity,
             displayName,
+            resolvedHostId,
+            resolvedHostName,
+            localRole,
           ),
         ),
       ];
@@ -470,18 +586,24 @@ export default function MeetingRoom({
         roomRef.current = null;
       }
     };
-  }, [displayName, isCameraOn, isLiveKitEnabled, isMicOn, liveKitUrl, livekitToken, syncAvailableDevices]);
+  }, [displayName, isCameraOn, isLiveKitEnabled, isMicOn, liveKitUrl, livekitToken, localRole, resolvedHostId, resolvedHostName, syncAvailableDevices]);
+
+  const fallbackLocalParticipantIsHost =
+    localRole === "HOST"
+    || (resolvedHostId !== null && localTokenPayload?.sub?.trim() === resolvedHostId)
+    || (resolvedHostName !== null && displayName.trim().toLowerCase() === resolvedHostName.toLowerCase());
 
   const participants = isLiveKitEnabled
     ? liveParticipants.length > 0
       ? liveParticipants
-      : [getFallbackLocalParticipant(displayName, isMicEnabled, isCameraEnabled, false)]
+      : [getFallbackLocalParticipant(displayName, isMicEnabled, isCameraEnabled, false, fallbackLocalParticipantIsHost)]
     : [
       getFallbackLocalParticipant(
         displayName,
         isMicEnabled,
         isCameraEnabled,
         Boolean(mockScreenShareOwnerId),
+        true,
       ),
       ...REMOTE_PARTICIPANTS,
     ];

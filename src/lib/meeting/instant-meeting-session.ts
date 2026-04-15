@@ -10,6 +10,8 @@ export type InstantMeetingSession = {
     livekitToken?: string | null;
     meetingToken?: string | null;
     participantStatus?: string | null;
+    hostId?: string | null;
+    hostName?: string | null;
 };
 
 type StoredInstantMeetings = Record<string, InstantMeetingSession>;

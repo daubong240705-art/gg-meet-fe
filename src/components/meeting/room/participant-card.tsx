@@ -63,7 +63,20 @@ export default function ParticipantCard({
       <div className="relative flex h-full flex-col justify-between p-4">
         {!participant.isLocal ? <AudioTrackView track={participant.audioTrack} /> : null}
 
-        <div className="flex justify-end">
+        <div className="flex items-start justify-between gap-3">
+          {participant.isHost ? (
+            <div
+              className={cn(
+                "pointer-events-none rounded-full border border-amber-300/30 bg-amber-400/20 text-amber-50 backdrop-blur-sm",
+                compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]",
+              )}
+            >
+              <span className="font-medium">Host</span>
+            </div>
+          ) : (
+            <div />
+          )}
+
           {participant.isMuted ? (
             <div
               className={cn(

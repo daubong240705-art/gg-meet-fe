@@ -32,11 +32,9 @@ type LeftMeetingState = {
 };
 
 function LeftMeetingView({
-  meetingCode,
   onRejoin,
   onGoHome,
 }: {
-  meetingCode: string;
   onRejoin: () => void;
   onGoHome: () => void;
 }) {
@@ -109,6 +107,8 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
       livekitToken: pendingSession.livekitToken ?? null,
       meetingToken: pendingSession.meetingToken ?? null,
       participantStatus: pendingSession.participantStatus ?? null,
+      hostId: pendingSession.hostId ?? null,
+      hostName: pendingSession.hostName ?? null,
     };
   });
   const [leftMeetingState, setLeftMeetingState] = useState<LeftMeetingState | null>(null);
@@ -120,7 +120,6 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
   if (leftMeetingState) {
     return (
       <LeftMeetingView
-        meetingCode={meetingCode}
         onRejoin={() => setLeftMeetingState(null)}
         onGoHome={handleGoHome}
       />
@@ -146,6 +145,8 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
       isMicOn={joinState.isMicOn}
       isCameraOn={joinState.isCameraOn}
       livekitToken={joinState.livekitToken}
+      hostId={joinState.hostId}
+      hostName={joinState.hostName}
       onLeave={() => {
         clearInstantMeetingSession(meetingCode);
         setJoinState(null);

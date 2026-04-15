@@ -26,6 +26,8 @@ type LobbyJoinPayload = {
   livekitToken?: string | null;
   meetingToken?: string | null;
   participantStatus?: string | null;
+  hostId?: string | null;
+  hostName?: string | null;
 };
 
 type LobbyProps = {
@@ -86,6 +88,8 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
         livekitToken,
         meetingToken,
         participantStatus,
+        hostId: response.data?.host?.id?.toString() ?? null,
+        hostName: response.data?.host?.fullName?.trim() || null,
       };
 
       if (!livekitToken) {
@@ -103,6 +107,8 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
         livekitToken,
         meetingToken,
         participantStatus,
+        hostId: response.data?.host?.id?.toString() ?? null,
+        hostName: response.data?.host?.fullName?.trim() || null,
       });
 
       onJoin(nextJoinPayload);
