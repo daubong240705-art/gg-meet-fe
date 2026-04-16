@@ -1,7 +1,7 @@
 "use client";
 
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
-import { UserPlus } from "lucide-react";
+import { ChevronRight, UserPlus, Users } from "lucide-react";
 import {
   type ChatMessage as LiveKitChatMessage,
   Participant as LiveKitParticipant,
@@ -12,7 +12,6 @@ import {
   isAudioTrack,
   isVideoTrack,
 } from "livekit-client";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -24,17 +23,27 @@ import {
 } from "@/lib/meeting/meeting-websocket";
 
 import { REMOTE_PARTICIPANTS } from "./constants";
+import { isStickerKey } from "./chat-stickers";
 import RoomFooter from "./room-footer";
 import RoomSidebar from "./room-sidebar";
 import RoomStage from "./room-stage";
 import type {
   ChatMessage,
   MeetingRoomProps,
+  OutboundChatMessage,
   Participant,
   SidebarPanel,
   WaitingParticipant,
 } from "./types";
-import { getParticipantAccentClassName } from "./utils";
+import {
+  getDefaultParticipantHandState,
+  getParticipantAccentClassName,
+  getParticipantHandAttributes,
+  getParticipantHandState,
+  getInitials,
+  sortParticipantsByRaisedHand,
+  type ParticipantHandState,
+} from "./utils";
 
 const LIVEKIT_ROOM_OPTIONS = {
   adaptiveStream: true,
@@ -141,26 +150,111 @@ function formatChatTime(timestamp: number) {
   }).format(timestamp);
 }
 
+type ParsedChatPayload =
+  | {
+    type: "text";
+    content: string;
+  }
+  | {
+    type: "sticker";
+    stickerKey: string;
+  };
+
+function parseIncomingChatPayload(rawMessage: string): ParsedChatPayload | null {
+  const normalizedMessage = rawMessage.trim();
+
+  if (!normalizedMessage) {
+    return null;
+  }
+
+  try {
+    const parsedPayload = JSON.parse(rawMessage) as {
+      type?: unknown;
+      content?: unknown;
+      stickerKey?: unknown;
+    };
+
+    if (parsedPayload.type === "text" && typeof parsedPayload.content === "string") {
+      const content = parsedPayload.content.trim();
+
+      return content
+        ? {
+          type: "text",
+          content,
+        }
+        : null;
+    }
+
+    if (parsedPayload.type === "sticker" && typeof parsedPayload.stickerKey === "string") {
+      return {
+        type: "sticker",
+        stickerKey: parsedPayload.stickerKey,
+      };
+    }
+
+    console.warn("Ignoring unsupported chat payload.", parsedPayload);
+    return null;
+  } catch {
+    return {
+      type: "text",
+      content: rawMessage,
+    };
+  }
+}
+
+function serializeOutgoingChatPayload(payload: OutboundChatMessage) {
+  if (payload.type === "text") {
+    return JSON.stringify({
+      type: "text",
+      content: payload.content.trim(),
+    });
+  }
+
+  return JSON.stringify({
+    type: "sticker",
+    stickerKey: payload.stickerKey,
+  });
+}
+
 function mapChatMessageToUiMessage(
   message: LiveKitChatMessage,
   participant: LiveKitParticipant | undefined,
   localDisplayName: string,
-): ChatMessage {
+): ChatMessage | null {
+  const parsedPayload = parseIncomingChatPayload(message.message);
+
+  if (!parsedPayload) {
+    return null;
+  }
+
   const isLocal = participant?.isLocal ?? false;
   const name = isLocal
     ? localDisplayName
     : participant?.name?.trim() || participant?.identity || "Guest";
   const identity = participant?.identity || "unknown";
 
-  return {
+  const baseMessage = {
     id: message.id,
     identity,
     name,
     isLocal,
     timestamp: message.timestamp,
     time: formatChatTime(message.timestamp),
-    message: message.message,
     editTimestamp: message.editTimestamp,
+  };
+
+  if (parsedPayload.type === "sticker") {
+    return {
+      ...baseMessage,
+      type: "sticker",
+      stickerKey: parsedPayload.stickerKey,
+    };
+  }
+
+  return {
+    ...baseMessage,
+    type: "text",
+    content: parsedPayload.content,
   };
 }
 
@@ -219,11 +313,20 @@ function mapParticipantToUiParticipant(
   hostId: string | null | undefined,
   hostName: string | null | undefined,
   localRole: string | null,
+  localHandState: ParticipantHandState,
+  preferLocalHandState: boolean,
 ): Participant {
   const identity = participant.identity || participant.sid || localDisplayName || "participant";
   const cameraPublication = participant.getTrackPublication(Track.Source.Camera);
   const audioPublication = participant.getTrackPublication(Track.Source.Microphone);
   const screenSharePublication = participant.getTrackPublication(Track.Source.ScreenShare);
+  const handState =
+    participant.isLocal && preferLocalHandState
+      ? localHandState
+      : getParticipantHandState(
+        participant.attributes,
+        participant.isLocal ? localHandState : getDefaultParticipantHandState(),
+      );
 
   return {
     id: identity,
@@ -239,6 +342,8 @@ function mapParticipantToUiParticipant(
       localRole,
     }),
     isLocal: participant.isLocal,
+    handRaised: handState.handRaised,
+    handRaisedAt: handState.handRaisedAt,
     isMuted: !(audioPublication && !audioPublication.isMuted),
     isCameraOff: !(cameraPublication && !cameraPublication.isMuted),
     isSpeaking: participant.isSpeaking,
@@ -257,6 +362,7 @@ function getFallbackLocalParticipant(
   isCameraEnabled: boolean,
   isScreenSharing: boolean,
   isHost: boolean,
+  handState: ParticipantHandState,
 ): Participant {
   return {
     id: "self",
@@ -264,6 +370,8 @@ function getFallbackLocalParticipant(
     name: displayName,
     isHost,
     isLocal: true,
+    handRaised: handState.handRaised,
+    handRaisedAt: handState.handRaisedAt,
     isMuted: !isMicEnabled,
     isCameraOff: !isCameraEnabled,
     isSpeaking: isMicEnabled,
@@ -309,6 +417,8 @@ export default function MeetingRoom({
   const meetingSocketRef = useRef<ReturnType<typeof connectMeetingSocket> | null>(null);
   const activePanelRef = useRef<SidebarPanel>(null);
   const seenChatMessageIdsRef = useRef<Set<string>>(new Set());
+  const localHandStateRef = useRef<ParticipantHandState>(getDefaultParticipantHandState());
+  const preferLocalHandStateRef = useRef(false);
   const [isMicEnabled, setIsMicEnabled] = useState(isMicOn);
   const [isCameraEnabled, setIsCameraEnabled] = useState(isCameraOn);
   const [activePanel, setActivePanel] = useState<SidebarPanel>(null);
@@ -328,6 +438,16 @@ export default function MeetingRoom({
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [activeScreenShareId, setActiveScreenShareId] = useState<string | null>(null);
   const [waitingParticipants, setWaitingParticipants] = useState<WaitingParticipant[]>([]);
+  const [isWaitingMenuOpen, setIsWaitingMenuOpen] = useState(false);
+  const [isParticipantsMenuOpen, setIsParticipantsMenuOpen] = useState(false);
+  const [localHandState, setLocalHandState] = useState<ParticipantHandState>(
+    getDefaultParticipantHandState(),
+  );
+  const [preferLocalHandState, setPreferLocalHandState] = useState(false);
+  const waitingMenuRef = useRef<HTMLDivElement | null>(null);
+  const participantsMenuRef = useRef<HTMLDivElement | null>(null);
+  const waitingMenuCloseTimeoutRef = useRef<number | null>(null);
+  const participantsMenuCloseTimeoutRef = useRef<number | null>(null);
 
   const canManageWaitingRoom = localMeetingRole === "HOST" || localRole === "HOST";
 
@@ -357,10 +477,92 @@ export default function MeetingRoom({
   }, [activePanel]);
 
   useEffect(() => {
+    localHandStateRef.current = localHandState;
+  }, [localHandState]);
+
+  useEffect(() => {
+    preferLocalHandStateRef.current = preferLocalHandState;
+  }, [preferLocalHandState]);
+
+  useEffect(() => {
     if (activePanel === "chat") {
       setUnreadChatCount(0);
     }
   }, [activePanel]);
+
+  useEffect(() => {
+    if (!canManageWaitingRoom) {
+      setIsWaitingMenuOpen(false);
+    }
+  }, [canManageWaitingRoom]);
+
+  useEffect(() => {
+    if (!isWaitingMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (waitingMenuRef.current?.contains(event.target as Node)) {
+        return;
+      }
+
+      setIsWaitingMenuOpen(false);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsWaitingMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [isWaitingMenuOpen]);
+
+  useEffect(() => {
+    if (!isParticipantsMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (participantsMenuRef.current?.contains(event.target as Node)) {
+        return;
+      }
+
+      setIsParticipantsMenuOpen(false);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsParticipantsMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [isParticipantsMenuOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (waitingMenuCloseTimeoutRef.current !== null) {
+        window.clearTimeout(waitingMenuCloseTimeoutRef.current);
+      }
+
+      if (participantsMenuCloseTimeoutRef.current !== null) {
+        window.clearTimeout(participantsMenuCloseTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const upsertWaitingParticipant = useCallback((message: MeetingSocketMessage) => {
     const participantId = message.targetParticipantId;
@@ -406,6 +608,46 @@ export default function MeetingRoom({
     );
   }, []);
 
+  const clearWaitingMenuCloseTimeout = useCallback(() => {
+    if (waitingMenuCloseTimeoutRef.current !== null) {
+      window.clearTimeout(waitingMenuCloseTimeoutRef.current);
+      waitingMenuCloseTimeoutRef.current = null;
+    }
+  }, []);
+
+  const openWaitingMenu = useCallback(() => {
+    clearWaitingMenuCloseTimeout();
+    setIsWaitingMenuOpen(true);
+  }, [clearWaitingMenuCloseTimeout]);
+
+  const scheduleWaitingMenuClose = useCallback(() => {
+    clearWaitingMenuCloseTimeout();
+    waitingMenuCloseTimeoutRef.current = window.setTimeout(() => {
+      setIsWaitingMenuOpen(false);
+      waitingMenuCloseTimeoutRef.current = null;
+    }, 180);
+  }, [clearWaitingMenuCloseTimeout]);
+
+  const clearParticipantsMenuCloseTimeout = useCallback(() => {
+    if (participantsMenuCloseTimeoutRef.current !== null) {
+      window.clearTimeout(participantsMenuCloseTimeoutRef.current);
+      participantsMenuCloseTimeoutRef.current = null;
+    }
+  }, []);
+
+  const openParticipantsMenu = useCallback(() => {
+    clearParticipantsMenuCloseTimeout();
+    setIsParticipantsMenuOpen(true);
+  }, [clearParticipantsMenuCloseTimeout]);
+
+  const scheduleParticipantsMenuClose = useCallback(() => {
+    clearParticipantsMenuCloseTimeout();
+    participantsMenuCloseTimeoutRef.current = window.setTimeout(() => {
+      setIsParticipantsMenuOpen(false);
+      participantsMenuCloseTimeoutRef.current = null;
+    }, 180);
+  }, [clearParticipantsMenuCloseTimeout]);
+
   useEffect(() => {
     void syncAvailableDevices();
   }, [syncAvailableDevices]);
@@ -429,10 +671,6 @@ export default function MeetingRoom({
 
         if (action === "JOIN_REQUEST") {
           upsertWaitingParticipant(message);
-
-          toast("Participant is waiting to join", {
-            description: `${getWaitingParticipantName(message)} requested access to the meeting.`,
-          });
         }
       },
       onMeetingMessage: (message) => {
@@ -443,9 +681,7 @@ export default function MeetingRoom({
         }
       },
       onError: (error) => {
-        toast.error("Waiting room connection failed", {
-          description: error.message,
-        });
+        setLiveKitError(error.message);
       },
     });
 
@@ -491,6 +727,8 @@ export default function MeetingRoom({
           resolvedHostId,
           resolvedHostName,
           localRole,
+          localHandStateRef.current,
+          preferLocalHandStateRef.current,
         ),
         ...Array.from(room.remoteParticipants.values()).map((participant) =>
           mapParticipantToUiParticipant(
@@ -499,11 +737,13 @@ export default function MeetingRoom({
             resolvedHostId,
             resolvedHostName,
             localRole,
+            localHandStateRef.current,
+            false,
           ),
         ),
       ];
 
-      setLiveParticipants(nextParticipants);
+      setLiveParticipants(sortParticipantsByRaisedHand(nextParticipants));
     };
 
     const bindParticipantSpeakingListener = (participant: LiveKitParticipant) => {
@@ -538,9 +778,6 @@ export default function MeetingRoom({
       }
 
       setLiveKitError(error.message);
-      toast.error("Media device error", {
-        description: error.message,
-      });
     };
 
     const handleChatMessage = (
@@ -552,6 +789,11 @@ export default function MeetingRoom({
       }
 
       const nextMessage = mapChatMessageToUiMessage(message, participant, displayName);
+
+      if (!nextMessage) {
+        return;
+      }
+
       const isExistingMessage = seenChatMessageIdsRef.current.has(nextMessage.id);
 
       if (!isExistingMessage) {
@@ -616,6 +858,15 @@ export default function MeetingRoom({
         void syncAvailableDevices(room);
       })
       .on(RoomEvent.ActiveSpeakersChanged, syncParticipants)
+      .on(RoomEvent.ParticipantAttributesChanged, (_changedAttributes, participant) => {
+        if (participant.isLocal) {
+          const nextLocalHandState = getParticipantHandState(participant.attributes);
+          setLocalHandState(nextLocalHandState);
+          setPreferLocalHandState(false);
+        }
+
+        syncParticipants();
+      })
       .on(RoomEvent.ParticipantNameChanged, syncParticipants)
       .on(RoomEvent.MediaDevicesChanged, () => {
         void syncAvailableDevices(room);
@@ -675,9 +926,6 @@ export default function MeetingRoom({
           error instanceof Error ? error.message : "Unable to connect to LiveKit.";
 
         setLiveKitError(errorMessage);
-        toast.error("Unable to join LiveKit room", {
-          description: errorMessage,
-        });
       }
     };
 
@@ -706,20 +954,23 @@ export default function MeetingRoom({
     || (resolvedHostId !== null && localTokenPayload?.sub?.trim() === resolvedHostId)
     || (resolvedHostName !== null && displayName.trim().toLowerCase() === resolvedHostName.toLowerCase());
 
-  const participants = isLiveKitEnabled
-    ? liveParticipants.length > 0
-      ? liveParticipants
-      : [getFallbackLocalParticipant(displayName, isMicEnabled, isCameraEnabled, false, fallbackLocalParticipantIsHost)]
-    : [
-      getFallbackLocalParticipant(
-        displayName,
-        isMicEnabled,
-        isCameraEnabled,
-        Boolean(mockScreenShareOwnerId),
-        true,
-      ),
-      ...REMOTE_PARTICIPANTS,
-    ];
+  const participants = sortParticipantsByRaisedHand(
+    isLiveKitEnabled
+      ? liveParticipants.length > 0
+        ? liveParticipants
+        : [getFallbackLocalParticipant(displayName, isMicEnabled, isCameraEnabled, false, fallbackLocalParticipantIsHost, localHandState)]
+      : [
+        getFallbackLocalParticipant(
+          displayName,
+          isMicEnabled,
+          isCameraEnabled,
+          Boolean(mockScreenShareOwnerId),
+          true,
+          localHandState,
+        ),
+        ...REMOTE_PARTICIPANTS,
+      ],
+  );
 
   const screenShareParticipants = participants.filter((participant) => participant.isScreenSharing);
   const screenShareParticipant =
@@ -780,9 +1031,6 @@ export default function MeetingRoom({
           error instanceof Error ? error.message : "Unable to update screen sharing.";
 
         setLiveKitError(errorMessage);
-        toast.error("Screen sharing unavailable", {
-          description: errorMessage,
-        });
       });
       return;
     }
@@ -805,9 +1053,6 @@ export default function MeetingRoom({
           error instanceof Error ? error.message : "Unable to present different content.";
 
         setLiveKitError(errorMessage);
-        toast.error("Presentation update failed", {
-          description: errorMessage,
-        });
       });
       return;
     }
@@ -831,9 +1076,6 @@ export default function MeetingRoom({
 
       setIsMicEnabled(!nextValue);
       setLiveKitError(errorMessage);
-      toast.error("Microphone update failed", {
-        description: errorMessage,
-      });
     });
   };
 
@@ -853,10 +1095,31 @@ export default function MeetingRoom({
 
       setIsCameraEnabled(!nextValue);
       setLiveKitError(errorMessage);
-      toast.error("Camera update failed", {
-        description: errorMessage,
       });
-      });
+  };
+
+  const handleToggleHandRaise = () => {
+    const nextHandRaised = !localHandState.handRaised;
+    const nextHandState: ParticipantHandState = {
+      handRaised: nextHandRaised,
+      handRaisedAt: nextHandRaised ? Date.now() : null,
+    };
+
+    setLocalHandState(nextHandState);
+    setPreferLocalHandState(true);
+
+    const room = roomRef.current;
+
+    if (!room || !isLiveKitEnabled) {
+      return;
+    }
+
+    void room.localParticipant.setAttributes(getParticipantHandAttributes(nextHandState)).catch((error) => {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unable to sync raised hand status.";
+
+      setLiveKitError(errorMessage);
+    });
   };
 
   const handleSelectMicrophone = (deviceId: string) => {
@@ -875,9 +1138,7 @@ export default function MeetingRoom({
         error instanceof Error ? error.message : "Unable to switch microphone.";
 
       void syncAvailableDevices(room);
-      toast.error("Microphone switch failed", {
-        description: errorMessage,
-      });
+      setLiveKitError(errorMessage);
     });
   };
 
@@ -897,9 +1158,7 @@ export default function MeetingRoom({
         error instanceof Error ? error.message : "Unable to switch camera.";
 
       void syncAvailableDevices(room);
-      toast.error("Camera switch failed", {
-        description: errorMessage,
-      });
+      setLiveKitError(errorMessage);
     });
   };
 
@@ -916,13 +1175,13 @@ export default function MeetingRoom({
       const errorMessage =
         error instanceof Error ? error.message : "Unable to start audio playback.";
 
-      toast.error("Audio playback blocked", {
-        description: errorMessage,
-      });
+      setLiveKitError(errorMessage);
     });
   };
 
   const handleLeaveMeeting = () => {
+    setLocalHandState(getDefaultParticipantHandState());
+    setPreferLocalHandState(false);
     meetingSocketRef.current?.disconnect();
     roomRef.current?.disconnect();
     onLeave();
@@ -939,9 +1198,7 @@ export default function MeetingRoom({
       const errorMessage =
         error instanceof Error ? error.message : "Unable to approve this participant.";
 
-      toast.error("Approval failed", {
-        description: errorMessage,
-      });
+      setLiveKitError(errorMessage);
     }
   }, [meetingCode]);
 
@@ -956,9 +1213,7 @@ export default function MeetingRoom({
       const errorMessage =
         error instanceof Error ? error.message : "Unable to reject this participant.";
 
-      toast.error("Rejection failed", {
-        description: errorMessage,
-      });
+      setLiveKitError(errorMessage);
     }
   }, [meetingCode]);
 
@@ -974,40 +1229,38 @@ export default function MeetingRoom({
         const errorMessage =
           error instanceof Error ? error.message : "Unable to approve all waiting participants.";
 
-        toast.error("Bulk approval failed", {
-          description: errorMessage,
-        });
+        setLiveKitError(errorMessage);
       }
     });
   }, [meetingCode, waitingParticipants]);
 
-  const handleSendChatMessage = () => {
-    const nextMessage = chatDraft.trim();
+  const handleSendChatMessage = (payload: OutboundChatMessage) => {
+    if (payload.type === "text" && !payload.content.trim()) {
+      return;
+    }
 
-    if (!nextMessage) {
+    if (payload.type === "sticker" && !isStickerKey(payload.stickerKey)) {
       return;
     }
 
     const room = roomRef.current;
 
     if (!room || !isLiveKitEnabled) {
-      toast.error("Chat unavailable", {
-        description: "Connect to the LiveKit room before sending messages.",
-      });
+      setLiveKitError("Connect to the LiveKit room before sending messages.");
       return;
     }
 
     setIsSendingChat(true);
 
-    void room.localParticipant.sendChatMessage(nextMessage).then(() => {
-      setChatDraft("");
+    void room.localParticipant.sendChatMessage(serializeOutgoingChatPayload(payload)).then(() => {
+      if (payload.type === "text") {
+        setChatDraft("");
+      }
     }).catch((error) => {
       const errorMessage =
         error instanceof Error ? error.message : "Unable to send chat message.";
 
-      toast.error("Message failed to send", {
-        description: errorMessage,
-      });
+      setLiveKitError(errorMessage);
     }).finally(() => {
       setIsSendingChat(false);
     });
@@ -1018,20 +1271,189 @@ export default function MeetingRoom({
       <div className="flex h-screen flex-col overflow-hidden bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.12),transparent_42%),linear-gradient(180deg,rgba(15,23,42,1),rgba(30,41,59,0.9))]">
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4 lg:flex-row lg:gap-6 lg:p-6">
           <div className="order-1 flex min-h-0 flex-1 flex-col gap-4 lg:order-2">
-            {canManageWaitingRoom && waitingParticipants.length > 0 ? (
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => handlePanelChange("participants")}
-                  className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/15 px-4 py-2 text-sm font-medium text-primary transition hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                >
-                  <UserPlus className="h-4 w-4" />
-                  {waitingParticipants.length === 1
-                    ? "Allow 1 guest in"
-                    : `Allow ${waitingParticipants.length} guests in`}
-                </button>
-              </div>
-            ) : null}
+            <div className="flex h-12 justify-end">
+                <div className="flex items-center gap-2">
+                  {canManageWaitingRoom && waitingParticipants.length > 0 ? (
+                    <div
+                      ref={waitingMenuRef}
+                      className="relative after:absolute after:inset-x-0 after:top-full after:h-3 after:content-['']"
+                      onMouseEnter={openWaitingMenu}
+                      onMouseLeave={scheduleWaitingMenuClose}
+                    >
+                      <button
+                        type="button"
+                        aria-label="Open waiting room requests"
+                        aria-expanded={isWaitingMenuOpen}
+                        onClick={() => {
+                          clearWaitingMenuCloseTimeout();
+                          setIsWaitingMenuOpen((currentValue) => !currentValue);
+                        }}
+                        className="inline-flex h-11 items-center gap-2 rounded-full border border-primary/25 bg-primary/15 px-4 py-2 text-sm font-medium text-primary transition hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                      >
+                        <UserPlus className="h-4 w-4" />
+                        {waitingParticipants.length === 1
+                          ? "Allow 1 guest in"
+                          : `Allow ${waitingParticipants.length} guests in`}
+                      </button>
+
+                      {isWaitingMenuOpen ? (
+                        <Card className="absolute right-0 top-full z-30 mt-3 w-[min(26rem,calc(100vw-2rem))] border border-border/80 bg-card/95 p-4 text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.38)] backdrop-blur-xl">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-foreground">
+                                Waiting to join
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {waitingParticipants.length} request{waitingParticipants.length > 1 ? "s" : ""} pending
+                              </p>
+                            </div>
+
+                            {waitingParticipants.length > 1 ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="rounded-full border border-primary/25 bg-primary/10 px-3 text-primary hover:bg-primary/20"
+                                onClick={handleApproveAllWaitingParticipants}
+                              >
+                                Admit all
+                              </Button>
+                            ) : null}
+                          </div>
+
+                          <div className="mt-4 space-y-3">
+                            {waitingParticipants.slice(0, 3).map((participant) => (
+                              <div
+                                key={participant.participantId}
+                                className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/45 p-3"
+                              >
+                                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/20 text-sm font-semibold text-primary-foreground">
+                                  {getInitials(participant.name)}
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-sm font-medium text-foreground">
+                                    {participant.name}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Waiting for host approval
+                                  </p>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    className="rounded-full bg-primary px-3 text-primary-foreground hover:bg-primary/90"
+                                    onClick={() => handleApproveWaitingParticipant(participant)}
+                                  >
+                                    Admit
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="rounded-full"
+                                    onClick={() => handleRejectWaitingParticipant(participant)}
+                                  >
+                                    Reject
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsWaitingMenuOpen(false);
+                                handlePanelChange("participants");
+                              }}
+                              className="flex w-full items-center justify-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/10"
+                            >
+                              View all ({waitingParticipants.length})
+                              <ChevronRight className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </Card>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  <div
+                    ref={participantsMenuRef}
+                    className="relative after:absolute after:inset-x-0 after:top-full after:h-3 after:content-['']"
+                    onMouseEnter={openParticipantsMenu}
+                    onMouseLeave={scheduleParticipantsMenuClose}
+                  >
+                    <button
+                      type="button"
+                      aria-label="Open participants overview"
+                      aria-expanded={isParticipantsMenuOpen}
+                      onClick={() => {
+                        clearParticipantsMenuCloseTimeout();
+                        setIsParticipantsMenuOpen((currentValue) => !currentValue);
+                      }}
+                      className="relative flex h-11 w-11 items-center justify-center rounded-full border border-border/80 bg-card/95 text-foreground shadow-[0_12px_30px_rgba(2,6,23,0.24)] transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    >
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-primary">
+                        <Users className="h-4 w-4" />
+                      </div>
+                      <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-foreground px-1 text-[11px] font-semibold text-background">
+                        {participants.length}
+                      </span>
+                    </button>
+
+                    {isParticipantsMenuOpen ? (
+                      <Card className="absolute right-0 top-full z-30 mt-3 w-[min(22rem,calc(100vw-2rem))] border border-border/80 bg-card/95 p-4 text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.38)] backdrop-blur-xl">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">
+                              Participants
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {participants.length} in the call
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 space-y-2">
+                          {participants.slice(0, 6).map((participant) => (
+                            <div
+                              key={participant.id}
+                              className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/45 px-3 py-2.5"
+                            >
+                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 text-sm font-semibold text-primary-foreground">
+                                {getInitials(participant.name)}
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium text-foreground">
+                                  {participant.name}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {participant.isLocal ? "You" : participant.status}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsParticipantsMenuOpen(false);
+                              handlePanelChange("participants");
+                            }}
+                            className="flex w-full items-center justify-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/10"
+                          >
+                            View all participants
+                            <ChevronRight className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </Card>
+                    ) : null}
+                  </div>
+                </div>
+            </div>
 
             {isLiveKitEnabled && !canPlaybackAudio ? (
               <Card className="flex flex-col gap-3 border border-sky-500/30 bg-sky-500/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1056,7 +1478,7 @@ export default function MeetingRoom({
             </div>
           </div>
 
-          <div className="order-2 min-h-0 lg:order-1 lg:flex lg:h-full">
+          <div className="order-2 min-h-0 lg:order-1 lg:mt-16 lg:flex lg:h-[calc(100%-4rem)]">
             <RoomSidebar
               activePanel={activePanel}
               participants={participants}
@@ -1084,6 +1506,7 @@ export default function MeetingRoom({
           isMicEnabled={isMicEnabled}
           isCameraEnabled={isCameraEnabled}
           isScreenSharing={isScreenSharing}
+          isHandRaised={participants.some((participant) => participant.isLocal && participant.handRaised)}
           microphoneDevices={microphoneDevices}
           cameraDevices={cameraDevices}
           activeMicrophoneId={activeMicrophoneId}
@@ -1091,6 +1514,7 @@ export default function MeetingRoom({
           onToggleMic={handleToggleMic}
           onToggleCamera={handleToggleCamera}
           onToggleScreenShare={handleScreenShare}
+          onToggleHandRaise={handleToggleHandRaise}
           onPresentOtherContent={handlePresentOtherContent}
           onSelectMicrophone={handleSelectMicrophone}
           onSelectCamera={handleSelectCamera}

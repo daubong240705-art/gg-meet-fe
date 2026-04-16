@@ -1,6 +1,6 @@
 "use client";
 
-import { MicOff, MoreVertical } from "lucide-react";
+import { Hand, MicOff, MoreVertical } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -29,10 +29,11 @@ export default function ParticipantCard({
   return (
     <Card
       className={cn(
-        "relative w-full aspect-video min-h-48 gap-0 overflow-hidden border border-border/70 px-0 py-0",
+        "relative z-0 w-full aspect-video min-h-48 gap-0 overflow-hidden border border-border/70 px-0 py-0",
         "bg-linear-to-br from-card via-card to-muted/60 shadow-sm",
         compact && "min-h-32",
-        isActiveSpeaker && "border-[#8ab4f8]/90 shadow-[0_12px_32px_rgba(138,180,248,0.18)]",
+        isActiveSpeaker && "border-primary/90 shadow-[0_12px_32px_rgba(59,130,246,0.18)]",
+        participant.handRaised && !isActiveSpeaker && "border-amber-300/55 shadow-[0_10px_24px_rgba(251,191,36,0.12)]",
         highlighted && !isActiveSpeaker && "ring-2 ring-primary/30",
         className,
       )}
@@ -47,7 +48,7 @@ export default function ParticipantCard({
       />
 
       {!participant.isCameraOff && participant.cameraTrack ? (
-        <div className="absolute inset-0">
+        <div className="absolute inset-0 z-0">
           <VideoTrackView
             track={participant.cameraTrack}
             muted={participant.isLocal}
@@ -57,10 +58,10 @@ export default function ParticipantCard({
       ) : null}
 
       {isActiveSpeaker ? (
-        <div className="pointer-events-none absolute inset-0 z-1 rounded-[inherit] border-2 border-[#8ab4f8] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" />
+        <div className="pointer-events-none absolute inset-0 z-0 rounded-[inherit] border-2 border-primary shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" />
       ) : null}
 
-      <div className="relative flex h-full flex-col justify-between p-4">
+      <div className="relative z-10 flex h-full flex-col justify-between p-4">
         {!participant.isLocal ? <AudioTrackView track={participant.audioTrack} /> : null}
 
         <div className="flex items-start justify-between gap-3">
@@ -77,25 +78,39 @@ export default function ParticipantCard({
             <div />
           )}
 
-          {participant.isMuted ? (
-            <div
-              className={cn(
-                "flex items-center justify-center rounded-full border border-white/10 bg-black/45 text-white backdrop-blur-sm",
-                compact ? "h-8 w-8" : "h-9 w-9",
-              )}
-            >
-              <MicOff className={cn(compact ? "h-4 w-4" : "h-4.5 w-4.5")} />
-            </div>
-          ) : !compact ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="rounded-full bg-black/30 text-white hover:bg-black/45 hover:text-white"
-            >
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          ) : null}
+          <div className="flex flex-col items-end gap-2">
+            {participant.handRaised ? (
+              <div
+                className={cn(
+                  "flex items-center justify-center rounded-full border border-amber-200/30 bg-amber-300/90 text-slate-950 shadow-sm",
+                  compact ? "h-8 w-8" : "h-9 w-9",
+                )}
+                title="Raised hand"
+              >
+                <Hand className={cn(compact ? "h-4 w-4" : "h-4.5 w-4.5")} />
+              </div>
+            ) : null}
+
+            {participant.isMuted ? (
+              <div
+                className={cn(
+                  "flex items-center justify-center rounded-full border border-white/10 bg-black/45 text-white backdrop-blur-sm",
+                  compact ? "h-8 w-8" : "h-9 w-9",
+                )}
+              >
+                <MicOff className={cn(compact ? "h-4 w-4" : "h-4.5 w-4.5")} />
+              </div>
+            ) : !compact && !participant.handRaised ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="rounded-full bg-black/30 text-white hover:bg-black/45 hover:text-white"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            ) : null}
+          </div>
         </div>
 
         <div className="flex flex-1 items-center justify-center">
@@ -157,7 +172,12 @@ export default function ParticipantCard({
             compact ? "px-2.5 py-1 text-[10px]" : "px-3 py-1.5 text-xs",
           )}
         >
-          <p className="truncate font-medium">{participant.name}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="truncate font-medium">{participant.name}</p>
+            {participant.handRaised ? (
+              <Hand className="h-3.5 w-3.5 shrink-0 text-amber-300" />
+            ) : null}
+          </div>
         </div>
       </div>
     </Card>

@@ -114,7 +114,7 @@ export default function RoomStage({
 
   if (screenShareParticipant) {
     return (
-      <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_280px] lg:items-stretch">
+      <div className="relative z-0 flex h-full min-h-0 flex-col gap-4 overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_280px] lg:items-stretch">
         <Card className="order-1 relative min-h-72 flex-1 gap-0 overflow-hidden border border-border/70 bg-card/95 px-0 py-0 text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.38)] lg:min-h-0">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.16),transparent_38%),linear-gradient(180deg,rgba(30,41,59,0.96),rgba(15,23,42,0.98))]" />
 
@@ -160,7 +160,7 @@ export default function RoomStage({
               </Button>
             </div>
 
-            <div className="relative mx-auto flex h-full min-h-0 w-full max-w-7xl flex-1 items-center justify-center overflow-hidden rounded-3xl border border-border/70 bg-background/70 p-3 shadow-inner shadow-black/20">
+            <div className="relative flex h-full min-h-0 w-full flex-1 overflow-hidden rounded-[2rem]">
               {screenShareParticipant.screenShareTrack ? (
                 <VideoTrackView
                   track={screenShareParticipant.screenShareTrack}
@@ -196,7 +196,7 @@ export default function RoomStage({
   return (
     <div
       className={cn(
-        "mx-auto h-full w-full max-w-420 min-h-0 overflow-hidden",
+        "relative z-0 mx-auto h-full w-full max-w-420 min-h-0 overflow-hidden",
         getGridContainerClassName(participants.length),
       )}
     >

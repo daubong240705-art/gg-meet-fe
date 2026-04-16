@@ -1,15 +1,29 @@
 "use client";
 
-import { Clock3, MessageSquare, Mic, MicOff, Send, Users, Video, VideoOff, X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import Image from "next/image";
+import {
+  Clock3,
+  Hand,
+  MessageSquare,
+  Mic,
+  MicOff,
+  Send,
+  SmilePlus,
+  Users,
+  Video,
+  VideoOff,
+  X,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
+import { STICKER_OPTIONS, getStickerUrl } from "./chat-stickers";
 import type {
   ChatMessage,
+  OutboundChatMessage,
   Participant,
   SidebarPanel,
   SidebarTab,
@@ -27,7 +41,7 @@ type RoomSidebarProps = {
   isChatReady: boolean;
   isSendingChat: boolean;
   onChatDraftChange: (value: string) => void;
-  onSendChatMessage: () => void;
+  onSendChatMessage: (payload: OutboundChatMessage) => void;
   onApproveWaitingParticipant: (participant: WaitingParticipant) => void;
   onRejectWaitingParticipant: (participant: WaitingParticipant) => void;
   onApproveAllWaitingParticipants: () => void;
@@ -95,6 +109,8 @@ export default function RoomSidebar({
 }: RoomSidebarProps) {
   const currentTab: SidebarTab = activePanel ?? "participants";
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const stickerPickerRef = useRef<HTMLDivElement | null>(null);
+  const [isStickerPickerOpen, setIsStickerPickerOpen] = useState(false);
 
   useEffect(() => {
     if (activePanel !== "chat") {
@@ -113,12 +129,55 @@ export default function RoomSidebar({
     });
   }, [activePanel, chatMessages]);
 
+  useEffect(() => {
+    if (!isStickerPickerOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (stickerPickerRef.current?.contains(event.target as Node)) {
+        return;
+      }
+
+      setIsStickerPickerOpen(false);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsStickerPickerOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [isStickerPickerOpen]);
+
   if (!activePanel) {
     return null;
   }
 
   const handleTabChange = (panel: SidebarTab) => {
     onPanelChange(panel);
+  };
+
+  const handleSendTextMessage = () => {
+    onSendChatMessage({
+      type: "text",
+      content: chatDraft,
+    });
+  };
+
+  const handleStickerSelect = (stickerKey: string) => {
+    onSendChatMessage({
+      type: "sticker",
+      stickerKey,
+    });
+    setIsStickerPickerOpen(false);
   };
 
   return (
@@ -234,11 +293,20 @@ export default function RoomSidebar({
                             Host
                           </span>
                         ) : null}
+                        {participant.handRaised ? (
+                          <span className="flex shrink-0 items-center gap-1 rounded-full bg-amber-300/15 px-2 py-0.5 text-[11px] font-medium text-amber-300">
+                            <Hand className="h-3 w-3" />
+                            Raised hand
+                          </span>
+                        ) : null}
                       </div>
                       <p className="text-sm text-muted-foreground">{participant.status}</p>
                     </div>
 
                     <div className="flex items-center gap-1 text-muted-foreground">
+                      {participant.handRaised ? (
+                        <Hand className="h-4 w-4 text-amber-300" />
+                      ) : null}
                       {participant.isMuted ? (
                         <MicOff className="h-4 w-4" />
                       ) : (
@@ -282,12 +350,34 @@ export default function RoomSidebar({
                         </div>
                         <div
                           className={
-                            message.isLocal
-                              ? "w-fit max-w-full rounded-2xl rounded-tr-md bg-primary px-3 py-3 text-sm leading-6 text-primary-foreground"
-                              : "w-fit max-w-full rounded-2xl rounded-tl-md border border-border/70 bg-background/55 px-4 py-3 text-sm leading-6 text-foreground"
+                            message.type === "sticker"
+                              ? "w-fit max-w-full"
+                              : message.isLocal
+                                ? "w-fit max-w-full rounded-2xl rounded-tr-md bg-primary px-3 py-3 text-sm leading-6 text-primary-foreground"
+                                : "w-fit max-w-full rounded-2xl rounded-tl-md border border-border/70 bg-background/55 px-4 py-3 text-sm leading-6 text-foreground"
                           }
                         >
-                          <p className="wrap-break-word">{message.message}</p>
+                          {message.type === "sticker" ? (
+                            (() => {
+                              const stickerUrl = getStickerUrl(message.stickerKey);
+
+                              return stickerUrl ? (
+                                <div className="rounded-[1.1rem] shadow-[0_8px_24px_rgba(2,6,23,0.18)]">
+                                  <Image
+                                    src={stickerUrl}
+                                    alt={`${message.name} sticker`}
+                                    width={108}
+                                    height={108}
+                                    className="h-24 w-24 object-contain"
+                                  />
+                                </div>
+                              ) : (
+                                <p className="text-sm text-muted-foreground">Sticker unavailable</p>
+                              );
+                            })()
+                          ) : (
+                            <p className="wrap-break-word whitespace-pre-wrap">{message.content}</p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -302,30 +392,81 @@ export default function RoomSidebar({
 
             <div className="border-t border-border/70 p-4">
               <form
-                className="flex items-center gap-2"
+                className="flex items-end gap-2"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  onSendChatMessage();
+                  handleSendTextMessage();
                 }}
               >
-                <Input
-                  value={chatDraft}
-                  onChange={(event) => onChatDraftChange(event.target.value)}
-                  placeholder={
-                    isChatReady
-                      ? "Send a message to everyone"
-                      : "Chat will be available after LiveKit connects"
-                  }
-                  disabled={!isChatReady || isSendingChat}
-                  className="h-11 rounded-full border-border/70 bg-background/55 px-4 text-foreground placeholder:text-muted-foreground"
-                />
+                <div className="relative flex-1" ref={stickerPickerRef}>
+                  {isStickerPickerOpen ? (
+                    <div className="absolute bottom-full left-0 z-20 mb-3 w-56 rounded-3xl border border-border/80 bg-card/95 p-3 shadow-[0_20px_60px_rgba(2,6,23,0.42)] backdrop-blur-xl">
+                      <div className="mb-2 px-1 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                        Stickers
+                      </div>
+                      <div className="grid grid-cols-4 gap-2">
+                        {STICKER_OPTIONS.map((sticker) => (
+                          <button
+                            key={sticker.key}
+                            type="button"
+                            className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border/70 bg-background/45 transition hover:border-primary/50 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                            onClick={() => handleStickerSelect(sticker.key)}
+                          >
+                            <Image
+                              src={sticker.url}
+                              alt={sticker.key}
+                              width={40}
+                              height={40}
+                              className="h-9 w-9 object-contain"
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="flex min-h-[3.5rem] items-center gap-1 rounded-[1.75rem] border border-border/70 bg-background/55 px-4 py-2">
+                    <textarea
+                      value={chatDraft}
+                      onChange={(event) => onChatDraftChange(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.shiftKey) {
+                          event.preventDefault();
+                          handleSendTextMessage();
+                        }
+                      }}
+                      placeholder={
+                        isChatReady
+                          ? "Send a message to everyone"
+                          : "Chat will be available after LiveKit connects"
+                      }
+                      disabled={!isChatReady || isSendingChat}
+                      rows={1}
+                      className="min-h-[2rem] max-h-28 w-full resize-none bg-transparent leading-8 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                    />
+
+                    <div className="flex items-center justify-between gap-2">
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        className="h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                        disabled={!isChatReady || isSendingChat}
+                        onClick={() => setIsStickerPickerOpen((currentValue) => !currentValue)}
+                      >
+                        <SmilePlus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
                 <Button
                   type="submit"
-                  size="icon-lg"
-                  className="rounded-full"
+                  size="icon"
+                  variant="ghost"
+                  className="h-11 w-11 shrink-0 self-end rounded-full text-primary hover:bg-transparent hover:text-primary/80"
                   disabled={!isChatReady || isSendingChat || !chatDraft.trim()}
                 >
-                  <Send className="h-4 w-4" />
+                  <Send className="h-5 w-5" />
                 </Button>
               </form>
             </div>

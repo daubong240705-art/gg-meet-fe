@@ -15,6 +15,7 @@ type RoomFooterProps = {
   isMicEnabled: boolean;
   isCameraEnabled: boolean;
   isScreenSharing: boolean;
+  isHandRaised: boolean;
   microphoneDevices: MediaDeviceInfo[];
   cameraDevices: MediaDeviceInfo[];
   activeMicrophoneId: string;
@@ -22,6 +23,7 @@ type RoomFooterProps = {
   onToggleMic: () => void;
   onToggleCamera: () => void;
   onToggleScreenShare: () => void;
+  onToggleHandRaise: () => void;
   onPresentOtherContent: () => void;
   onSelectMicrophone: (deviceId: string) => void;
   onSelectCamera: (deviceId: string) => void;
@@ -69,11 +71,11 @@ function FooterMenuPanel({
   return (
     <div
       className={cn(
-        "absolute bottom-full left-1/2 z-30 mb-3 -translate-x-1/2 rounded-[28px] border border-white/10 bg-[#202124]/96 p-3 text-white shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl",
+        "absolute bottom-full left-1/2 z-30 mb-3 -translate-x-1/2 rounded-[28px] border border-border/80 bg-card/95 p-3 text-card-foreground shadow-[0_20px_60px_rgba(2,6,23,0.45)] backdrop-blur-xl",
         widthClassName,
       )}
     >
-      <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/55">
+      <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
         {title}
       </p>
       <div className="space-y-1">{children}</div>
@@ -93,27 +95,27 @@ function SplitControlButton({
   onMenuClick,
 }: SplitControlButtonProps) {
   const toneClassName = isActive
-    ? "bg-[#8ab4f8] text-slate-950"
+    ? "bg-primary text-primary-foreground"
     : isDestructive
-      ? "bg-[#ea4335] text-white"
-      : "bg-[#3c4043] text-white";
+      ? "bg-destructive text-destructive-foreground"
+      : "bg-secondary text-secondary-foreground";
 
   const hoverToneClassName = isActive
-    ? "hover:bg-[#a8c7fa]"
+    ? "hover:bg-primary/90"
     : isDestructive
-      ? "hover:bg-[#ef6c62]"
-      : "hover:bg-[#4a4d52]";
+      ? "hover:bg-destructive/90"
+      : "hover:bg-secondary/85";
 
   return (
     <div className="relative">
-      <div className="flex items-center rounded-full bg-[#2b2c2f] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+      <div className="flex items-center rounded-full bg-background/75 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
         <button
           type="button"
           aria-label={mainAriaLabel}
           title={label}
           onClick={onMainClick}
           className={cn(
-            "flex size-11 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8ab4f8]",
+            "flex size-11 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
             toneClassName,
             hoverToneClassName,
           )}
@@ -127,8 +129,8 @@ function SplitControlButton({
           aria-expanded={isMenuOpen}
           onClick={onMenuClick}
           className={cn(
-            "flex h-11 w-8 items-center justify-center rounded-full text-white/80 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8ab4f8]",
-            isMenuOpen ? "bg-white/14 text-white" : "hover:bg-white/10 hover:text-white",
+            "flex h-11 w-8 items-center justify-center rounded-full text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+            isMenuOpen ? "bg-muted text-foreground" : "hover:bg-muted hover:text-foreground",
           )}
         >
           <ChevronUp className="h-4 w-4" />
@@ -146,6 +148,7 @@ export default function RoomFooter({
   isMicEnabled,
   isCameraEnabled,
   isScreenSharing,
+  isHandRaised,
   microphoneDevices,
   cameraDevices,
   activeMicrophoneId,
@@ -153,6 +156,7 @@ export default function RoomFooter({
   onToggleMic,
   onToggleCamera,
   onToggleScreenShare,
+  onToggleHandRaise,
   onPresentOtherContent,
   onSelectMicrophone,
   onSelectCamera,
@@ -246,21 +250,21 @@ export default function RoomFooter({
   };
 
   return (
-    <footer ref={footerRef} className="px-3 pb-4 pt-2 sm:px-4 lg:px-6 lg:pb-6">
+    <footer ref={footerRef} className="relative z-30 px-3 pb-4 pt-2 sm:px-4 lg:px-6 lg:pb-6">
       <div className="mx-auto flex max-w-420 flex-col gap-3 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:items-center">
-        <div className="order-2 flex items-center justify-center gap-3 text-sm text-white/65 lg:order-1 lg:justify-start">
-          <span className="font-semibold text-white">{formatTime(now)}</span>
-          <span className="text-white/25">|</span>
+        <div className="order-2 flex items-center justify-center gap-3 text-sm text-muted-foreground lg:order-1 lg:justify-start">
+          <span className="font-semibold text-foreground">{formatTime(now)}</span>
+          <span className="text-border">|</span>
           <div className="flex items-center gap-2">
             <span className="tracking-wide">{meetingCode}</span>
             <button
               type="button"
               aria-label="Copy meeting link"
               onClick={handleCopyMeetingLink}
-              className="flex size-7 items-center justify-center rounded-full bg-white/8 text-white/80 transition hover:bg-white/12 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8ab4f8]"
+              className="flex size-7 items-center justify-center rounded-full bg-muted/80 text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
             >
               {copied ? (
-                <Check className="h-3.5 w-3.5 text-emerald-300" />
+                <Check className="h-3.5 w-3.5 text-emerald-400" />
               ) : (
                 <Copy className="h-3.5 w-3.5" />
               )}
@@ -269,7 +273,7 @@ export default function RoomFooter({
         </div>
 
         <div className="order-1 flex justify-center lg:order-2">
-          <div className="flex flex-wrap items-center justify-center gap-2 rounded-full border border-white/8 bg-[#202124]/92 px-3 py-2 text-white shadow-[0_18px_50px_rgba(0,0,0,0.32)] backdrop-blur-xl">
+          <div className="flex flex-wrap items-center justify-center gap-2 rounded-full border border-border/80 bg-card/95 px-3 py-2 text-foreground shadow-[0_18px_50px_rgba(2,6,23,0.32)] backdrop-blur-xl">
             <div className="relative">
               <SplitControlButton
                 label={isMicEnabled ? "Mute microphone" : "Unmute microphone"}
@@ -296,20 +300,20 @@ export default function RoomFooter({
                           setOpenMenu(null);
                         }}
                         className={cn(
-                          "flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm transition hover:bg-white/8",
-                          activeMicrophoneId === device.deviceId && "bg-white/8",
+                          "flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm transition hover:bg-muted",
+                          activeMicrophoneId === device.deviceId && "bg-muted",
                         )}
                       >
                         <span className="truncate">
                           {getDeviceLabel(device, "Microphone", index)}
                         </span>
                         {activeMicrophoneId === device.deviceId ? (
-                          <Check className="h-4 w-4 shrink-0 text-[#8ab4f8]" />
+                          <Check className="h-4 w-4 shrink-0 text-primary" />
                         ) : null}
                       </button>
                     ))
                   ) : (
-                    <div className="rounded-2xl px-3 py-4 text-sm text-white/60">
+                    <div className="rounded-2xl px-3 py-4 text-sm text-muted-foreground">
                       No microphone devices found.
                     </div>
                   )}
@@ -343,20 +347,20 @@ export default function RoomFooter({
                           setOpenMenu(null);
                         }}
                         className={cn(
-                          "flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm transition hover:bg-white/8",
-                          activeCameraId === device.deviceId && "bg-white/8",
+                          "flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm transition hover:bg-muted",
+                          activeCameraId === device.deviceId && "bg-muted",
                         )}
                       >
                         <span className="truncate">
                           {getDeviceLabel(device, "Camera", index)}
                         </span>
                         {activeCameraId === device.deviceId ? (
-                          <Check className="h-4 w-4 shrink-0 text-[#8ab4f8]" />
+                          <Check className="h-4 w-4 shrink-0 text-primary" />
                         ) : null}
                       </button>
                     ))
                   ) : (
-                    <div className="rounded-2xl px-3 py-4 text-sm text-white/60">
+                    <div className="rounded-2xl px-3 py-4 text-sm text-muted-foreground">
                       No camera devices found.
                     </div>
                   )}
@@ -387,10 +391,10 @@ export default function RoomFooter({
                       }
                       setOpenMenu(null);
                     }}
-                    className="flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm transition hover:bg-white/8"
+                    className="flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm transition hover:bg-muted"
                   >
                     <span>{isScreenSharing ? "Present other content" : "Present now"}</span>
-                    <Monitor className="h-4 w-4 shrink-0 text-[#8ab4f8]" />
+                    <Monitor className="h-4 w-4 shrink-0 text-primary" />
                   </button>
 
                   {isScreenSharing ? (
@@ -400,7 +404,7 @@ export default function RoomFooter({
                         onToggleScreenShare();
                         setOpenMenu(null);
                       }}
-                      className="flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm text-[#f28b82] transition hover:bg-[#ea4335]/12"
+                      className="flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm text-destructive transition hover:bg-destructive/10"
                     >
                       <span>Stop presenting</span>
                       <Monitor className="h-4 w-4 shrink-0" />
@@ -412,8 +416,15 @@ export default function RoomFooter({
 
             <button
               type="button"
-              aria-label="Raise hand"
-              className="flex size-13 items-center justify-center rounded-full bg-[#3c4043] text-white transition hover:bg-[#4a4d52] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8ab4f8]"
+              aria-label={isHandRaised ? "Lower hand" : "Raise hand"}
+              title={isHandRaised ? "Lower hand" : "Raise hand"}
+              onClick={onToggleHandRaise}
+              className={cn(
+                "flex size-13 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+                isHandRaised
+                  ? "bg-amber-300 text-slate-950 hover:bg-amber-200"
+                  : "bg-secondary text-secondary-foreground hover:bg-secondary/85",
+              )}
             >
               <Hand className="h-5 w-5" />
             </button>
@@ -422,7 +433,7 @@ export default function RoomFooter({
               type="button"
               aria-label="Leave meeting"
               onClick={onLeave}
-              className="ml-1 flex h-13 items-center justify-center rounded-full bg-[#ea4335] px-5 text-white transition hover:bg-[#ef6c62] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+              className="ml-1 flex h-13 items-center justify-center rounded-full bg-destructive px-5 text-destructive-foreground transition hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
             >
               <Phone className="h-5 w-5" />
             </button>
@@ -435,8 +446,8 @@ export default function RoomFooter({
             aria-label="Open participants"
             onClick={() => onTogglePanel("participants")}
             className={cn(
-              "relative flex size-11 items-center justify-center rounded-full border border-white/10 bg-[#202124]/92 text-white transition hover:bg-[#2b2c2f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8ab4f8]",
-              activePanel === "participants" && "bg-[#8ab4f8] text-slate-950 hover:bg-[#a8c7fa]",
+              "relative flex size-11 items-center justify-center rounded-full border border-border/80 bg-card/95 text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+              activePanel === "participants" && "bg-primary text-primary-foreground hover:bg-primary/90",
             )}
           >
             <Users className="h-5 w-5" />
@@ -444,8 +455,8 @@ export default function RoomFooter({
               className={cn(
                 "absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-semibold",
                 activePanel === "participants"
-                  ? "bg-slate-950 text-white"
-                  : "bg-[#8ab4f8] text-slate-950",
+                  ? "bg-background text-foreground"
+                  : "bg-primary text-primary-foreground",
               )}
             >
               {participantsCount}
@@ -457,8 +468,8 @@ export default function RoomFooter({
             aria-label="Open chat"
             onClick={() => onTogglePanel("chat")}
             className={cn(
-              "relative flex size-11 items-center justify-center rounded-full border border-white/10 bg-[#202124]/92 text-white transition hover:bg-[#2b2c2f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8ab4f8]",
-              activePanel === "chat" && "bg-[#8ab4f8] text-slate-950 hover:bg-[#a8c7fa]",
+              "relative flex size-11 items-center justify-center rounded-full border border-border/80 bg-card/95 text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+              activePanel === "chat" && "bg-primary text-primary-foreground hover:bg-primary/90",
             )}
           >
             <MessageSquare className="h-5 w-5" />
@@ -467,8 +478,8 @@ export default function RoomFooter({
                 className={cn(
                   "absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-semibold",
                   activePanel === "chat"
-                    ? "bg-slate-950 text-white"
-                    : "bg-[#ea4335] text-white",
+                    ? "bg-background text-foreground"
+                    : "bg-destructive text-destructive-foreground",
                 )}
               >
                 {unreadChatCount > 99 ? "99+" : unreadChatCount}

@@ -29,6 +29,8 @@ export type Participant = {
   name: string;
   isHost: boolean;
   isLocal: boolean;
+  handRaised: boolean;
+  handRaisedAt: number | null;
   isMuted: boolean;
   isCameraOff: boolean;
   isSpeaking: boolean;
@@ -40,16 +42,37 @@ export type Participant = {
   screenShareTrack: VideoTrackReference | null;
 };
 
-export type ChatMessage = {
+type ChatMessageBase = {
   id: string;
   identity: string;
   name: string;
   isLocal: boolean;
   timestamp: number;
   time: string;
-  message: string;
   editTimestamp?: number;
 };
+
+export type ChatTextMessage = ChatMessageBase & {
+  type: "text";
+  content: string;
+};
+
+export type ChatStickerMessage = ChatMessageBase & {
+  type: "sticker";
+  stickerKey: string;
+};
+
+export type ChatMessage = ChatTextMessage | ChatStickerMessage;
+
+export type OutboundChatMessage =
+  | {
+    type: "text";
+    content: string;
+  }
+  | {
+    type: "sticker";
+    stickerKey: string;
+  };
 
 export type WaitingParticipant = {
   participantId: number;
