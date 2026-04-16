@@ -110,6 +110,7 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
     }
 
     return {
+      title: pendingSession.title ?? null,
       userName: pendingSession.userName,
       guestId: pendingSession.guestId ?? null,
       isMicOn: pendingSession.isMicOn,
@@ -151,6 +152,7 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
   return (
     <MeetingRoom
       meetingCode={meetingCode}
+      title={joinState.title}
       userName={joinState.userName}
       isMicOn={joinState.isMicOn}
       isCameraOn={joinState.isCameraOn}

@@ -9,7 +9,11 @@ import { toast } from "sonner";
 import { useAuthSession } from "@/lib/auth/auth-session";
 import { persistInstantMeetingSession } from "@/lib/meeting/instant-meeting-session";
 import { assertApiSuccess } from "@/hooks/shared/mutation.utils";
-import { meetingApi, type CreateMeetingResponseData } from "@/service/meeting.service";
+import {
+    DEFAULT_INSTANT_MEETING_TITLE,
+    meetingApi,
+    type CreateMeetingResponseData,
+} from "@/service/meeting.service";
 
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
@@ -19,10 +23,14 @@ export default function QuickAction() {
     const router = useRouter();
     const { user } = useAuthSession();
     const [meetingCodeInput, setMeetingCodeInput] = useState("");
+    const defaultMeetingTitle = `${DEFAULT_INSTANT_MEETING_TITLE} ${new Date().toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+    })}`;
 
     const createMeetingMutation = useMutation<IBackendRes<CreateMeetingResponseData>, IBackendRes<unknown>, void>({
         mutationFn: async () => {
-            const response = await meetingApi.createInstantMeeting();
+            const response = await meetingApi.createInstantMeeting(defaultMeetingTitle);
             return assertApiSuccess(response);
         },
         onSuccess: (response) => {
@@ -37,6 +45,7 @@ export default function QuickAction() {
 
             persistInstantMeetingSession({
                 meetingCode,
+                title: response.data?.title?.trim() || defaultMeetingTitle,
                 userName: user?.fullName?.trim() || response.data?.host?.fullName?.trim() || "Guest",
                 isMicOn: true,
                 isCameraOn: true,

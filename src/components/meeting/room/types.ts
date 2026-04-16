@@ -7,6 +7,7 @@ import type {
 
 export type MeetingRoomProps = {
   meetingCode: string;
+  title?: string | null;
   userName: string;
   isMicOn: boolean;
   isCameraOn: boolean;

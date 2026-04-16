@@ -4,6 +4,7 @@ export const STICKERS = {
   cat: "/stickers/cat.png",
   daragon: "/stickers/daragon.png",
   hau: "/stickers/1.png",
+  giang: "/stickers/giang.png",
 } as const;
 
 export type StickerKey = keyof typeof STICKERS;

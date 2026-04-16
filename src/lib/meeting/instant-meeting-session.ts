@@ -4,6 +4,7 @@ const isBrowser = typeof window !== "undefined";
 
 export type InstantMeetingSession = {
     meetingCode: string;
+    title?: string | null;
     userName: string;
     guestId?: string | null;
     isMicOn: boolean;

@@ -26,6 +26,7 @@ import {
   persistInstantMeetingSession,
   readInstantMeetingSession,
 } from "@/lib/meeting/instant-meeting-session";
+import { ensureMeetingAudioReady, playGuestAdmittedSound } from "@/lib/meeting/lobby-audio";
 import {
   connectMeetingSocket,
   type MeetingSocketMessage,
@@ -42,6 +43,7 @@ import { Input } from "@/components/ui/input";
 import Homeheader from "../layout/home.header";
 
 type LobbyJoinPayload = {
+  title?: string | null;
   userName: string;
   guestId?: string | null;
   isMicOn: boolean;
@@ -136,6 +138,7 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
     }
 
     return {
+      title: initialMeetingSession.title ?? null,
       userName: initialMeetingSession.userName,
       guestId: initialMeetingSession.guestId ?? null,
       isMicOn: initialMeetingSession.isMicOn,
@@ -180,6 +183,7 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
   ) => {
     persistInstantMeetingSession({
       meetingCode: resolvedMeetingCode,
+      title: payload.title ?? null,
       userName: payload.userName,
       guestId: payload.guestId ?? null,
       isMicOn: payload.isMicOn,
@@ -211,6 +215,7 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
     const resolvedMeetingCode = verifiedResponse.data?.meetingCode?.trim() || meetingCode;
     const approvedJoinPayload: LobbyJoinPayload = {
       ...nextPendingJoinState,
+      title: verifiedResponse.data?.title?.trim() || nextPendingJoinState.title || null,
       isMicOn,
       isCameraOn,
       livekitToken,
@@ -254,6 +259,7 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
       const resolvedMeetingCode = response.data?.meetingCode?.trim() || meetingCode;
       const nextJoinPayload: LobbyJoinPayload = {
         ...payload,
+        title: response.data?.title?.trim() || null,
         livekitToken,
         meetingToken,
         participantStatus,
@@ -299,6 +305,10 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
   });
 
   useEffect(() => {
+    ensureMeetingAudioReady();
+  }, []);
+
+  useEffect(() => {
     if (!pendingJoinState || !isWaitingForApproval) {
       waitingSocketRef.current?.disconnect();
       waitingSocketRef.current = null;
@@ -328,6 +338,7 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
 
         if (action === "ADMITTED") {
           void requestApprovedJoin(pendingJoinState).then((approvedJoinPayload) => {
+            playGuestAdmittedSound();
             toast.success("You were admitted", {
               description: getWaitingMessage(message),
             });

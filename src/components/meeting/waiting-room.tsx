@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { assertApiSuccess } from "@/hooks/shared/mutation.utils";
 import { persistInstantMeetingSession } from "@/lib/meeting/instant-meeting-session";
+import { ensureMeetingAudioReady, playGuestAdmittedSound } from "@/lib/meeting/lobby-audio";
 import {
   meetingApi,
   normalizeMeetingParticipantStatus,
@@ -73,6 +74,10 @@ export default function WaitingRoom({
   const meetingLabel = meetingCode ? meetingCode.toUpperCase() : "your meeting";
 
   useEffect(() => {
+    ensureMeetingAudioReady();
+  }, []);
+
+  useEffect(() => {
     return () => {
       isMountedRef.current = false;
     };
@@ -110,6 +115,7 @@ export default function WaitingRoom({
       const resolvedMeetingCode = verifiedResponse.data?.meetingCode?.trim() || meetingCode;
       const nextJoinState: LobbyJoinPayload = {
         ...joinState,
+        title: verifiedResponse.data?.title?.trim() || joinState.title || null,
         livekitToken: nextLivekitToken,
         meetingToken: nextMeetingToken,
         participantStatus: nextParticipantStatus,
@@ -121,6 +127,7 @@ export default function WaitingRoom({
 
       persistInstantMeetingSession({
         meetingCode: resolvedMeetingCode,
+        title: verifiedResponse.data?.title?.trim() || joinState.title || null,
         userName: joinState.userName,
         guestId: joinState.guestId ?? null,
         isMicOn: joinState.isMicOn,
@@ -136,6 +143,7 @@ export default function WaitingRoom({
           return;
         }
 
+        playGuestAdmittedSound();
         toast.success("Host approved your request", {
           description: "Connecting you to the meeting now.",
         });

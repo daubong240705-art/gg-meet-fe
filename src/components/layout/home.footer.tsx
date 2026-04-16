@@ -4,7 +4,7 @@ export default function Homefooter() {
     return (
         <footer className="border-t border-border bg-muted/30 py-12">
             <div className="max-w-7xl mx-auto px-6">
-                <div className="grid md:grid-cols-4 gap-8 mb-8">
+                <div className="grid md:grid-cols-3 gap-8 mb-8">
                     <div>
                         <div className="flex items-center gap-2 mb-4">
                             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
@@ -16,26 +16,26 @@ export default function Homefooter() {
                             Professional video meetings made simple
                         </p>
                     </div>
-                    {/* 
+
                     <div>
-                        <h4 className="font-semibold mb-3">Product</h4>
+                        <h4 className="font-semibold mb-3">Ngô Minh Đức</h4>
                         <ul className="space-y-2 text-sm text-muted-foreground">
-                            <li><a href="#" className="hover:text-foreground transition-colors">Features</a></li>
-                            <li><a href="#" className="hover:text-foreground transition-colors">Pricing</a></li>
-                            <li><a href="#" className="hover:text-foreground transition-colors">Security</a></li>
+                            <li><a href="#" className="hover:text-foreground transition-colors">Gmail: </a></li>
+                            <li><a href="#" className="hover:text-foreground transition-colors">Github: </a></li>
+
                         </ul>
                     </div>
 
                     <div>
-                        <h4 className="font-semibold mb-3">Company</h4>
+                        <h4 className="font-semibold mb-3">Giang gay</h4>
                         <ul className="space-y-2 text-sm text-muted-foreground">
-                            <li><a href="#" className="hover:text-foreground transition-colors">About</a></li>
-                            <li><a href="#" className="hover:text-foreground transition-colors">Blog</a></li>
-                            <li><a href="#" className="hover:text-foreground transition-colors">Careers</a></li>
+                            <li><a href="#" className="hover:text-foreground transition-colors">Gmail: </a></li>
+                            <li><a href="#" className="hover:text-foreground transition-colors">Github: </a></li>
+
                         </ul>
                     </div>
 
-                    <div>
+                    {/* <div>
                         <h4 className="font-semibold mb-3">Support</h4>
                         <ul className="space-y-2 text-sm text-muted-foreground">
                             <li><a href="#" className="hover:text-foreground transition-colors">Help Center</a></li>

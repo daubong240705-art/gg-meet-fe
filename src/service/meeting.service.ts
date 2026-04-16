@@ -33,6 +33,8 @@ export type GuestJoinRequest = {
     guestName: string;
 };
 
+export const DEFAULT_INSTANT_MEETING_TITLE = "Quick Team Sync";
+
 export const normalizeMeetingParticipantStatus = (
     status?: string | null,
 ): MeetingParticipantStatus | null => {
@@ -41,10 +43,13 @@ export const normalizeMeetingParticipantStatus = (
 };
 
 export const meetingApi = {
-    createInstantMeeting() {
+    createInstantMeeting(title: string = DEFAULT_INSTANT_MEETING_TITLE) {
         return sendRequest<IBackendRes<CreateMeetingResponseData>>({
             url: `${API_URL}/meetings`,
             method: "POST",
+            queryParams: {
+                title,
+            },
             useCredentials: true,
             auth: true,
         });
