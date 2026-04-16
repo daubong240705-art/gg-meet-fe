@@ -666,6 +666,7 @@ export default function MeetingRoom({
       meetingToken,
       subscribeToMeetingTopic: true,
       subscribeToWaitingTopic: true,
+      subscribeToParticipantTopic: true,
       onWaitingMessage: (message) => {
         const action = message.action?.trim().toUpperCase();
 
@@ -676,7 +677,25 @@ export default function MeetingRoom({
       onMeetingMessage: (message) => {
         const action = message.action?.trim().toUpperCase();
 
-        if (action === "ADMITTED" || action === "REJECTED") {
+        if (
+          action === "ADMITTED"
+          || action === "REJECTED"
+          || action === "PARTICIPANT_LEFT"
+          || action === "WAITING_CANCELLED"
+          || action === "LEFT"
+        ) {
+          removeWaitingParticipant(message.targetParticipantId);
+        }
+      },
+      onParticipantMessage: (message) => {
+        const action = message.action?.trim().toUpperCase();
+
+        if (
+          action === "REJECT_SUCCESS"
+          || action === "PARTICIPANT_LEFT"
+          || action === "WAITING_CANCELLED"
+          || action === "LEFT"
+        ) {
           removeWaitingParticipant(message.targetParticipantId);
         }
       },
@@ -1194,13 +1213,14 @@ export default function MeetingRoom({
         targetParticipantId: participant.participantId,
         targetName: participant.name,
       });
+      removeWaitingParticipant(participant.participantId);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unable to approve this participant.";
 
       setLiveKitError(errorMessage);
     }
-  }, [meetingCode]);
+  }, [meetingCode, removeWaitingParticipant]);
 
   const handleRejectWaitingParticipant = useCallback((participant: WaitingParticipant) => {
     try {
@@ -1209,13 +1229,14 @@ export default function MeetingRoom({
         targetParticipantId: participant.participantId,
         targetName: participant.name,
       });
+      removeWaitingParticipant(participant.participantId);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unable to reject this participant.";
 
       setLiveKitError(errorMessage);
     }
-  }, [meetingCode]);
+  }, [meetingCode, removeWaitingParticipant]);
 
   const handleApproveAllWaitingParticipants = useCallback(() => {
     waitingParticipants.forEach((participant) => {
@@ -1225,6 +1246,7 @@ export default function MeetingRoom({
           targetParticipantId: participant.participantId,
           targetName: participant.name,
         });
+        removeWaitingParticipant(participant.participantId);
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Unable to approve all waiting participants.";
@@ -1232,7 +1254,7 @@ export default function MeetingRoom({
         setLiveKitError(errorMessage);
       }
     });
-  }, [meetingCode, waitingParticipants]);
+  }, [meetingCode, removeWaitingParticipant, waitingParticipants]);
 
   const handleSendChatMessage = (payload: OutboundChatMessage) => {
     if (payload.type === "text" && !payload.content.trim()) {

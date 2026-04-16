@@ -10,11 +10,11 @@ export default function CTASection() {
                     Ready to get started?
                 </h2>
                 <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-                    Join thousands of teams already using Kallio for their video meetings
+                    Want to host your own meeting?
                 </p>
-                <Link href="/dashboard">
+                <Link href="/sign-in">
                     <Button size="lg">
-                        Start your first meeting
+                        Sign in to start one
                     </Button>
                 </Link>
             </Card>

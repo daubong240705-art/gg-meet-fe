@@ -1,13 +1,11 @@
-import CTASection from '@/components/main/main.cta-section';
-import FeatruresSection from '@/components/main/main.features-section';
-import HeroSection from '@/components/main/main.hero-section';
+"use client";
+
+import AuthenticatedHome from "@/components/home/authenticated-home";
+import GuestHome from "@/components/home/guest-home";
+import { useAuthSession } from "@/lib/auth/auth-session";
 
 export default function HomePage() {
-  return (
-    <div className="bg-linear-to-b from-background to-muted/30">
-      <HeroSection />
-      <FeatruresSection />
-      <CTASection />
-    </div>
-  );
+  const { isAuthenticated } = useAuthSession();
+
+  return isAuthenticated ? <AuthenticatedHome /> : <GuestHome />;
 }
