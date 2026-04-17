@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation } from "@tanstack/react-query";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -10,7 +10,6 @@ import {
   Loader2,
   Mic,
   MicOff,
-  User,
   Video,
   VideoOff,
   WifiOff,
@@ -65,6 +64,13 @@ type LobbyProps = {
 export type { LobbyJoinPayload };
 
 const WAITING_APPROVAL_IMAGE_SRC = "/images/waitting.png";
+const DEVICE_MENU_MIN_WIDTH_CLASS = "min-w-57.5";
+type DeviceMenuKey =
+  | "preview-camera"
+  | "preview-mic"
+  | "selector-camera"
+  | "selector-mic"
+  | null;
 
 function createGuestId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -127,7 +133,7 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedCamera, setSelectedCamera] = useState("");
   const [selectedMic, setSelectedMic] = useState("");
-  const [openMenu, setOpenMenu] = useState<"camera" | "mic" | null>(null);
+  const [openMenu, setOpenMenu] = useState<DeviceMenuKey>(null);
   const [deviceError, setDeviceError] = useState("");
   const [waitingSocketError, setWaitingSocketError] = useState("");
   const [isWaitingSocketConnected, setIsWaitingSocketConnected] = useState(false);
@@ -162,7 +168,7 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
   const userName = rawUserName.trim();
   const displayName = userName || pendingJoinState?.userName?.trim() || "Guest";
   const canJoinMeeting = userName.length > 0;
-  const meetingName = meetingCode ? meetingCode.toUpperCase() : "your meeting";
+  const meetingName = meetingCode ? meetingCode : "your meeting";
   const initials =
     displayName
       .split(/\s+/)
@@ -473,8 +479,89 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
     };
   }, [isCameraOn, isMicOn, selectedCamera, selectedMic]);
 
+  const renderDeviceMenu = (
+    devices: MediaDeviceInfo[],
+    selectedDeviceId: string,
+    onSelect: (deviceId: string) => void,
+    fallbackPrefix: string,
+  ) => {
+    if (devices.length === 0) {
+      return (
+        <div className="rounded-lg border border-border/70 bg-card p-3 text-sm text-muted-foreground shadow-lg">
+          No devices found.
+        </div>
+      );
+    }
+
+    return (
+      <div className={`absolute bottom-full right-0 mb-2 ${DEVICE_MENU_MIN_WIDTH_CLASS} rounded-lg border border-border bg-card p-2 shadow-lg`}>
+        {devices.map((device) => (
+          <button
+            key={device.deviceId}
+            type="button"
+            onClick={() => {
+              onSelect(device.deviceId);
+              setOpenMenu(null);
+            }}
+            className="flex w-full items-center justify-between rounded px-3 py-2 text-left hover:bg-muted"
+          >
+            <span className="truncate text-sm">
+              {device.label || `${fallbackPrefix} ${device.deviceId.slice(0, 5)}`}
+            </span>
+            {selectedDeviceId === device.deviceId ? (
+              <Check className="h-4 w-4 text-primary" />
+            ) : null}
+          </button>
+        ))}
+      </div>
+    );
+  };
+
+  const renderDeviceSelector = ({
+    menuKey,
+    label,
+    devices,
+    selectedDeviceId,
+    onSelect,
+    icon,
+  }: {
+    menuKey: "selector-camera" | "selector-mic";
+    label: string;
+    devices: MediaDeviceInfo[];
+    selectedDeviceId: string;
+    onSelect: (deviceId: string) => void;
+    icon: ReactNode;
+  }) => (
+    <div className="relative min-w-0 flex-1">
+      <button
+        type="button"
+        onClick={() => setOpenMenu(openMenu === menuKey ? null : menuKey)}
+        className="flex h-12 w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-background/90 px-4 text-sm text-foreground shadow-sm transition hover:bg-muted/60"
+      >
+        <span className="flex min-w-0 items-center gap-3">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
+            {icon}
+          </span>
+          <span className="truncate">
+            {devices.find((device) => device.deviceId === selectedDeviceId)?.label || label}
+          </span>
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+      </button>
+
+      {openMenu === menuKey
+        ? renderDeviceMenu(
+          devices,
+          selectedDeviceId,
+          onSelect,
+          menuKey === "selector-camera" ? "Camera" : "Microphone",
+        )
+        : null}
+    </div>
+  );
+
   const renderPreviewCard = () => (
-    <Card className="relative aspect-video overflow-hidden bg-black p-0">
+    <Card className="relative aspect-video overflow-hidden rounded-[2rem] border border-border/70 bg-black p-0 shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
       {isCameraOn ? (
         <>
           <video
@@ -484,14 +571,6 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
             muted
             className="h-full w-full object-cover scale-x-[-1]"
           />
-          <div className="absolute bottom-20 left-6">
-            <div className="flex items-center gap-2 rounded-lg bg-black/60 px-4 py-2 text-white backdrop-blur-sm">
-              <User className="h-4 w-4" />
-              <span className="font-medium">
-                {displayName || "Enter your name below"}
-              </span>
-            </div>
-          </div>
         </>
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-gray-800 to-gray-900">
@@ -499,16 +578,16 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
             <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-primary text-4xl font-semibold text-white">
               {initials}
             </div>
-            <div className="mx-auto mb-2 flex w-fit items-center gap-2 rounded-lg bg-black/60 px-4 py-2 text-white">
-              <User className="h-4 w-4" />
-              <span className="font-medium">
-                {displayName || "Enter your name below"}
-              </span>
-            </div>
             <p className="text-sm text-white/70">Camera is off</p>
           </div>
         </div>
       )}
+
+      <div className="pointer-events-none absolute bottom-3 left-3 max-w-[70%] rounded-full border border-white/10 bg-black/55 px-3 py-1.5 text-xs text-white backdrop-blur-sm">
+        <div className="flex items-center gap-1.5">
+          <p className="truncate font-medium">{displayName || "Guest"}</p>
+        </div>
+      </div>
 
       <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 items-center gap-3">
         <div className="flex items-center gap-2 rounded-full bg-background/90 p-1 backdrop-blur-sm">
@@ -528,32 +607,13 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
               variant="ghost"
               size="icon-sm"
               className="rounded-full"
-              onClick={() => setOpenMenu(openMenu === "camera" ? null : "camera")}
+              onClick={() => setOpenMenu(openMenu === "preview-camera" ? null : "preview-camera")}
             >
               <ChevronDown className="h-4 w-4" />
             </Button>
-            {openMenu === "camera" && videoDevices.length > 0 ? (
-              <div className="absolute bottom-full right-0 mb-2 min-w-57.5 rounded-lg border border-border bg-card p-2 shadow-lg">
-                {videoDevices.map((device) => (
-                  <button
-                    key={device.deviceId}
-                    type="button"
-                    onClick={() => {
-                      setSelectedCamera(device.deviceId);
-                      setOpenMenu(null);
-                    }}
-                    className="flex w-full items-center justify-between rounded px-3 py-2 text-left hover:bg-muted"
-                  >
-                    <span className="truncate text-sm">
-                      {device.label || `Camera ${device.deviceId.slice(0, 5)}`}
-                    </span>
-                    {selectedCamera === device.deviceId ? (
-                      <Check className="h-4 w-4 text-primary" />
-                    ) : null}
-                  </button>
-                ))}
-              </div>
-            ) : null}
+            {openMenu === "preview-camera"
+              ? renderDeviceMenu(videoDevices, selectedCamera, setSelectedCamera, "Camera")
+              : null}
           </div>
         </div>
 
@@ -574,32 +634,13 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
               variant="ghost"
               size="icon-sm"
               className="rounded-full"
-              onClick={() => setOpenMenu(openMenu === "mic" ? null : "mic")}
+              onClick={() => setOpenMenu(openMenu === "preview-mic" ? null : "preview-mic")}
             >
               <ChevronDown className="h-4 w-4" />
             </Button>
-            {openMenu === "mic" && audioDevices.length > 0 ? (
-              <div className="absolute bottom-full right-0 mb-2 min-w-57.5 rounded-lg border border-border bg-card p-2 shadow-lg">
-                {audioDevices.map((device) => (
-                  <button
-                    key={device.deviceId}
-                    type="button"
-                    onClick={() => {
-                      setSelectedMic(device.deviceId);
-                      setOpenMenu(null);
-                    }}
-                    className="flex w-full items-center justify-between rounded px-3 py-2 text-left hover:bg-muted"
-                  >
-                    <span className="truncate text-sm">
-                      {device.label || `Microphone ${device.deviceId.slice(0, 5)}`}
-                    </span>
-                    {selectedMic === device.deviceId ? (
-                      <Check className="h-4 w-4 text-primary" />
-                    ) : null}
-                  </button>
-                ))}
-              </div>
-            ) : null}
+            {openMenu === "preview-mic"
+              ? renderDeviceMenu(audioDevices, selectedMic, setSelectedMic, "Microphone")
+              : null}
           </div>
         </div>
       </div>
@@ -706,76 +747,88 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
     <div className="min-h-screen bg-background">
       <Homeheader />
 
-      <div className="mx-auto grid max-w-6xl gap-8 p-6">
-        <div className="flex flex-col gap-6">
-          <div>
-            <h1 className="mb-2 text-3xl font-bold">Ready to request access?</h1>
-            <p className="text-lg text-muted-foreground">
-              Test your devices before asking to join &quot;{meetingName}&quot;
-            </p>
-          </div>
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
+        <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.8fr)] xl:gap-12">
+          <section className="space-y-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+                  {meetingName}
+                </h1>
+              </div>
+            </div>
 
-          {renderPreviewCard()}
+            {renderPreviewCard()}
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground" htmlFor="lobby-user-name">
-              Your name
-            </label>
-            <Input
-              id="lobby-user-name"
-              value={rawUserName}
-              onChange={(event) => {
-                setHasEditedName(true);
-                setUserNameOverride(event.target.value);
-              }}
-              placeholder="Enter your name to join"
-              className="h-12 text-base"
-              maxLength={80}
-              disabled={isSignedIn}
-            />
-            <p className="text-sm text-muted-foreground">
-              {isSignedIn
-                ? "You're signed in, so the meeting will use your account name."
-                : "Everyone in the meeting will see this name."}
-            </p>
-          </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {renderDeviceSelector({
+                menuKey: "selector-mic",
+                label: "Choose microphone",
+                devices: audioDevices,
+                selectedDeviceId: selectedMic,
+                onSelect: setSelectedMic,
+                icon: <Mic className="h-4 w-4" />,
+              })}
+              {renderDeviceSelector({
+                menuKey: "selector-camera",
+                label: "Choose camera",
+                devices: videoDevices,
+                selectedDeviceId: selectedCamera,
+                onSelect: setSelectedCamera,
+                icon: <Video className="h-4 w-4" />,
+              })}
+            </div>
 
-          <div className="flex items-center gap-4">
-            <Button
-              onClick={() =>
-                joinMeetingMutation.mutate({
-                  userName,
-                  guestId: isSignedIn ? null : guestId,
-                  isMicOn,
-                  isCameraOn,
-                })
-              }
-              size="lg"
-              className="h-14 flex-1 text-lg"
-              disabled={joinMeetingMutation.isPending || !canJoinMeeting}
-            >
-              {joinMeetingMutation.isPending ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : null}
-              Request to join
-            </Button>
-            <Button
-              onClick={() => router.push("/")}
-              variant="outline"
-              size="lg"
-              className="h-14 text-lg"
-            >
-              Home
-            </Button>
-          </div>
+            {deviceError ? <p className="text-sm text-destructive">{deviceError}</p> : null}
+          </section>
 
-          {!canJoinMeeting ? (
-            <p className="text-sm text-muted-foreground">
-              Enter your name before requesting access to this meeting.
-            </p>
-          ) : null}
+          <aside className="xl:pt-20">
+            <Card className="rounded-[2rem] border border-border/70 bg-card/80 p-6 shadow-sm backdrop-blur-sm sm:p-7">
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-3xl font-semibold tracking-tight text-foreground">
+                    Ready to join
+                  </h2>
+                </div>
 
-          {deviceError ? <p className="text-sm text-destructive">{deviceError}</p> : null}
+                <Input
+                  id="lobby-user-name"
+                  value={rawUserName}
+                  onChange={(event) => {
+                    setHasEditedName(true);
+                    setUserNameOverride(event.target.value);
+                  }}
+                  placeholder="Enter your name to join"
+                  className="h-12 rounded-xl text-base"
+                  maxLength={80}
+                  disabled={isSignedIn}
+                />
+
+                <Button
+                  onClick={() =>
+                    joinMeetingMutation.mutate({
+                      userName,
+                      guestId: isSignedIn ? null : guestId,
+                      isMicOn,
+                      isCameraOn,
+                    })
+                  }
+                  size="lg"
+                  className="h-14 w-full rounded-full text-base sm:text-lg"
+                  disabled={joinMeetingMutation.isPending || !canJoinMeeting}
+                >
+                  {joinMeetingMutation.isPending ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : null}
+                  Request to join
+                </Button>
+
+
+
+
+              </div>
+            </Card>
+          </aside>
         </div>
       </div>
     </div>

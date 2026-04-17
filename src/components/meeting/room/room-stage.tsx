@@ -25,22 +25,22 @@ function getGridContainerClassName(participantCount: number) {
   }
 
   if (participantCount === 2) {
-    return "grid h-full auto-rows-fr gap-4 sm:grid-cols-2";
+    return "grid h-full grid-cols-1 auto-rows-fr gap-3 md:grid-cols-2 md:gap-4";
   }
 
   if (participantCount <= 4) {
-    return "grid h-full auto-rows-fr gap-4 sm:grid-cols-2";
+    return "grid h-full grid-cols-2 auto-rows-fr content-center gap-3 md:gap-4";
   }
 
   if (participantCount <= 6) {
-    return "grid h-full auto-rows-fr gap-4 sm:grid-cols-2 xl:grid-cols-3";
+    return "grid h-full grid-cols-2 auto-rows-fr content-center gap-3 lg:grid-cols-3 md:gap-4";
   }
 
   if (participantCount <= 9) {
-    return "grid h-full auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3";
+    return "grid h-full grid-cols-2 auto-rows-fr content-center gap-3 lg:grid-cols-3 md:gap-4";
   }
 
-  return "grid h-full auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4";
+  return "grid h-full grid-cols-2 auto-rows-fr content-center gap-3 lg:grid-cols-3 2xl:grid-cols-4 md:gap-4";
 }
 
 function getGridCardClassName(participantCount: number) {
@@ -65,7 +65,11 @@ function getGridCardClassName(participantCount: number) {
 
 function getGridItemClassName(participantCount: number, index: number) {
   if (participantCount === 3 && index === 2) {
-    return "md:col-span-2 md:mx-auto md:w-full md:max-w-[calc(50%-0.5rem)]";
+    return "col-span-2 mx-auto w-full max-w-[24rem] md:max-w-[calc(50%-0.5rem)]";
+  }
+
+  if (participantCount === 5 && index === 4) {
+    return "col-span-2 mx-auto w-full max-w-[24rem] lg:col-span-1 lg:max-w-none";
   }
 
   return "";
@@ -196,7 +200,7 @@ export default function RoomStage({
   return (
     <div
       className={cn(
-        "relative z-0 mx-auto h-full w-full max-w-420 min-h-0 overflow-hidden",
+        "relative z-0 mx-auto h-full w-full max-w-420 min-h-0 overflow-y-auto",
         getGridContainerClassName(participants.length),
       )}
     >

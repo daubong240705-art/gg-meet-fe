@@ -29,9 +29,9 @@ export default function ParticipantCard({
   return (
     <Card
       className={cn(
-        "relative z-0 w-full aspect-video min-h-48 gap-0 overflow-hidden border border-border/70 px-0 py-0",
+        "relative z-0 w-full aspect-video min-h-32 gap-0 overflow-hidden border border-border/70 px-0 py-0 sm:min-h-40 lg:min-h-48",
         "bg-linear-to-br from-card via-card to-muted/60 shadow-sm",
-        compact && "min-h-32",
+        compact && "min-h-24 sm:min-h-32",
         isActiveSpeaker && "border-primary/90 shadow-[0_12px_32px_rgba(59,130,246,0.18)]",
         participant.handRaised && !isActiveSpeaker && "border-amber-300/55 shadow-[0_10px_24px_rgba(251,191,36,0.12)]",
         highlighted && !isActiveSpeaker && "ring-2 ring-primary/30",

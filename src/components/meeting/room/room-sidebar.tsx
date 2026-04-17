@@ -46,6 +46,7 @@ type RoomSidebarProps = {
   onRejectWaitingParticipant: (participant: WaitingParticipant) => void;
   onApproveAllWaitingParticipants: () => void;
   onPanelChange: (panel: SidebarPanel) => void;
+  onClose: () => void;
 };
 
 function WaitingParticipantRow({
@@ -106,6 +107,7 @@ export default function RoomSidebar({
   onRejectWaitingParticipant,
   onApproveAllWaitingParticipants,
   onPanelChange,
+  onClose,
 }: RoomSidebarProps) {
   const currentTab: SidebarTab = activePanel ?? "participants";
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
@@ -183,6 +185,24 @@ export default function RoomSidebar({
   return (
     <aside className="flex h-full w-full shrink-0 lg:w-96">
       <Card className="flex h-full min-h-0 flex-1 flex-col gap-0 overflow-hidden border border-border/80 bg-card/95 px-0 py-0 text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.42)] backdrop-blur-xl">
+        <div className="flex items-center justify-between border-b border-border/70 px-4 py-3 lg:hidden">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Meeting panel</p>
+            <p className="text-xs text-muted-foreground">
+              {currentTab === "participants" ? "Participants and waiting room" : "Chat in this meeting"}
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            className="rounded-full"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
         <div className="flex items-center gap-2 border-b border-border/70 p-4">
           <Button
             type="button"

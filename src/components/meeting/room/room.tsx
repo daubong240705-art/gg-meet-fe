@@ -12,7 +12,6 @@ import {
   isAudioTrack,
   isVideoTrack,
 } from "livekit-client";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -1336,166 +1335,73 @@ export default function MeetingRoom({
         className="hidden"
       />
       <div className="flex h-screen flex-col overflow-hidden bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.12),transparent_42%),linear-gradient(180deg,rgba(15,23,42,1),rgba(30,41,59,0.9))]">
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4 lg:flex-row lg:gap-6 lg:p-6">
-          <div className="order-1 flex min-h-0 flex-1 flex-col gap-4 lg:order-2">
-            <div className="flex h-12 items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate px-1 text-lg font-semibold text-white/95">
-                  {meetingTitle}
-                </p>
-              </div>
+        <div className="pointer-events-none fixed inset-x-0 top-0 z-40 px-4 pt-4 lg:px-6 lg:pt-6">
+          <div className="pointer-events-auto flex items-start justify-between gap-3">
+            <div className="min-w-0 max-w-[min(24rem,calc(100vw-7rem))] px-1 py-1">
+              <p className="truncate text-lg font-semibold text-white/95">
+                {meetingTitle}
+              </p>
+            </div>
 
-              <div className="flex items-center gap-2">
-                {canManageWaitingRoom && waitingParticipants.length > 0 ? (
-                  <div
-                    ref={waitingMenuRef}
-                    className="relative after:absolute after:inset-x-0 after:top-full after:h-3 after:content-['']"
-                    onMouseEnter={openWaitingMenu}
-                    onMouseLeave={scheduleWaitingMenuClose}
-                  >
-                    <button
-                      type="button"
-                      aria-label="Open waiting room requests"
-                      aria-expanded={isWaitingMenuOpen}
-                      onClick={() => {
-                        clearWaitingMenuCloseTimeout();
-                        setIsWaitingMenuOpen((currentValue) => !currentValue);
-                      }}
-                      className="inline-flex h-11 items-center gap-2 rounded-full border border-primary/25 bg-primary/15 px-4 py-2 text-sm font-medium text-primary transition hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                    >
-                      <UserPlus className="h-4 w-4" />
-                      {waitingParticipants.length === 1
-                        ? "Allow 1 guest in"
-                        : `Allow ${waitingParticipants.length} guests in`}
-                    </button>
-
-                    {isWaitingMenuOpen ? (
-                      <Card className="absolute right-0 top-full z-30 mt-3 w-[min(26rem,calc(100vw-2rem))] border border-border/80 bg-card/95 p-4 text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.38)] backdrop-blur-xl">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-foreground">
-                              Waiting to join
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {waitingParticipants.length} request{waitingParticipants.length > 1 ? "s" : ""} pending
-                            </p>
-                          </div>
-
-                          {waitingParticipants.length > 1 ? (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className="rounded-full border border-primary/25 bg-primary/10 px-3 text-primary hover:bg-primary/20"
-                              onClick={handleApproveAllWaitingParticipants}
-                            >
-                              Admit all
-                            </Button>
-                          ) : null}
-                        </div>
-
-                        <div className="mt-4 space-y-3">
-                          {waitingParticipants.slice(0, 3).map((participant) => (
-                            <div
-                              key={participant.participantId}
-                              className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/45 p-3"
-                            >
-                              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/20 text-sm font-semibold text-primary-foreground">
-                                {getInitials(participant.name)}
-                              </div>
-
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-medium text-foreground">
-                                  {participant.name}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  Waiting for host approval
-                                </p>
-                              </div>
-
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  className="rounded-full bg-primary px-3 text-primary-foreground hover:bg-primary/90"
-                                  onClick={() => handleApproveWaitingParticipant(participant)}
-                                >
-                                  Admit
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  className="rounded-full"
-                                  onClick={() => handleRejectWaitingParticipant(participant)}
-                                >
-                                  Reject
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsWaitingMenuOpen(false);
-                              handlePanelChange("participants");
-                            }}
-                            className="flex w-full items-center justify-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/10"
-                          >
-                            View all ({waitingParticipants.length})
-                            <ChevronRight className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </Card>
-                    ) : null}
-                  </div>
-                ) : null}
-
+            <div className="flex items-center gap-2">
+              {canManageWaitingRoom && waitingParticipants.length > 0 ? (
                 <div
-                  ref={participantsMenuRef}
+                  ref={waitingMenuRef}
                   className="relative after:absolute after:inset-x-0 after:top-full after:h-3 after:content-['']"
-                  onMouseEnter={openParticipantsMenu}
-                  onMouseLeave={scheduleParticipantsMenuClose}
+                  onMouseEnter={openWaitingMenu}
+                  onMouseLeave={scheduleWaitingMenuClose}
                 >
                   <button
                     type="button"
-                    aria-label="Open participants overview"
-                    aria-expanded={isParticipantsMenuOpen}
+                    aria-label="Open waiting room requests"
+                    aria-expanded={isWaitingMenuOpen}
                     onClick={() => {
-                      clearParticipantsMenuCloseTimeout();
-                      setIsParticipantsMenuOpen((currentValue) => !currentValue);
+                      clearWaitingMenuCloseTimeout();
+                      setIsWaitingMenuOpen((currentValue) => !currentValue);
                     }}
-                    className="relative flex h-11 w-11 items-center justify-center rounded-full border border-border/80 bg-card/95 text-foreground shadow-[0_12px_30px_rgba(2,6,23,0.24)] transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    className="inline-flex h-11 items-center gap-2 rounded-full border border-primary/25 bg-primary/15 px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:px-4"
                   >
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-primary">
-                      <Users className="h-4 w-4" />
-                    </div>
-                    <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-foreground px-1 text-[11px] font-semibold text-background">
-                      {participants.length}
+                    <UserPlus className="h-4 w-4" />
+                    <span className="hidden sm:inline">
+                      {waitingParticipants.length === 1
+                        ? "Allow 1 guest in"
+                        : `Allow ${waitingParticipants.length} guests in`}
                     </span>
+                    <span className="sm:hidden">{waitingParticipants.length}</span>
                   </button>
 
-                  {isParticipantsMenuOpen ? (
-                    <Card className="absolute right-0 top-full z-30 mt-3 w-[min(22rem,calc(100vw-2rem))] border border-border/80 bg-card/95 p-4 text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.38)] backdrop-blur-xl">
+                  {isWaitingMenuOpen ? (
+                    <Card className="absolute right-0 top-full z-30 mt-3 w-[min(26rem,calc(100vw-2rem))] border border-border/80 bg-card/95 p-4 text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.38)] backdrop-blur-xl">
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <p className="text-sm font-semibold text-foreground">
-                            Participants
+                            Waiting to join
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {participants.length} in the call
+                            {waitingParticipants.length} request{waitingParticipants.length > 1 ? "s" : ""} pending
                           </p>
                         </div>
+
+                        {waitingParticipants.length > 1 ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="rounded-full border border-primary/25 bg-primary/10 px-3 text-primary hover:bg-primary/20"
+                            onClick={handleApproveAllWaitingParticipants}
+                          >
+                            Admit all
+                          </Button>
+                        ) : null}
                       </div>
 
-                      <div className="mt-4 space-y-2">
-                        {participants.slice(0, 6).map((participant) => (
+                      <div className="mt-4 space-y-3">
+                        {waitingParticipants.slice(0, 3).map((participant) => (
                           <div
-                            key={participant.id}
-                            className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/45 px-3 py-2.5"
+                            key={participant.participantId}
+                            className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/45 p-3"
                           >
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 text-sm font-semibold text-primary-foreground">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/20 text-sm font-semibold text-primary-foreground">
                               {getInitials(participant.name)}
                             </div>
 
@@ -1504,8 +1410,28 @@ export default function MeetingRoom({
                                 {participant.name}
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                {participant.isLocal ? "You" : participant.status}
+                                Waiting for host approval
                               </p>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="rounded-full bg-primary px-3 text-primary-foreground hover:bg-primary/90"
+                                onClick={() => handleApproveWaitingParticipant(participant)}
+                              >
+                                Admit
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="rounded-full"
+                                onClick={() => handleRejectWaitingParticipant(participant)}
+                              >
+                                Reject
+                              </Button>
                             </div>
                           </div>
                         ))}
@@ -1513,20 +1439,129 @@ export default function MeetingRoom({
                         <button
                           type="button"
                           onClick={() => {
-                            setIsParticipantsMenuOpen(false);
+                            setIsWaitingMenuOpen(false);
                             handlePanelChange("participants");
                           }}
                           className="flex w-full items-center justify-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/10"
                         >
-                          View all participants
+                          View all ({waitingParticipants.length})
                           <ChevronRight className="h-4 w-4" />
                         </button>
                       </div>
                     </Card>
                   ) : null}
                 </div>
+              ) : null}
+
+              <div
+                ref={participantsMenuRef}
+                className="relative after:absolute after:inset-x-0 after:top-full after:h-3 after:content-['']"
+                onMouseEnter={openParticipantsMenu}
+                onMouseLeave={scheduleParticipantsMenuClose}
+              >
+                <button
+                  type="button"
+                  aria-label="Open participants overview"
+                  aria-expanded={isParticipantsMenuOpen}
+                  onClick={() => {
+                    clearParticipantsMenuCloseTimeout();
+                    setIsParticipantsMenuOpen((currentValue) => !currentValue);
+                  }}
+                  className="relative flex h-11 w-11 items-center justify-center rounded-full border border-border/80 bg-card/95 text-foreground shadow-[0_12px_30px_rgba(2,6,23,0.24)] transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                >
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-primary">
+                    <Users className="h-4 w-4" />
+                  </div>
+                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-foreground px-1 text-[11px] font-semibold text-background">
+                    {participants.length}
+                  </span>
+                </button>
+
+                {isParticipantsMenuOpen ? (
+                  <Card className="absolute right-0 top-full z-30 mt-3 w-[min(22rem,calc(100vw-2rem))] border border-border/80 bg-card/95 p-4 text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.38)] backdrop-blur-xl">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">
+                          Participants
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {participants.length} in the call
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 space-y-2">
+                      {participants.slice(0, 6).map((participant) => (
+                        <div
+                          key={participant.id}
+                          className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/45 px-3 py-2.5"
+                        >
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 text-sm font-semibold text-primary-foreground">
+                            {getInitials(participant.name)}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-foreground">
+                              {participant.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {participant.isLocal ? "You" : participant.status}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsParticipantsMenuOpen(false);
+                          handlePanelChange("participants");
+                        }}
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/10"
+                      >
+                        View all participants
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </Card>
+                ) : null}
               </div>
             </div>
+          </div>
+        </div>
+
+        {activePanel ? (
+          <>
+            <button
+              type="button"
+              aria-label="Close meeting panel"
+              className="fixed inset-0 z-30 bg-slate-950/45 backdrop-blur-[2px] lg:hidden"
+              onClick={() => handlePanelChange(null)}
+            />
+            <div className="fixed inset-x-3 bottom-24 top-24 z-40 flex lg:hidden">
+              <RoomSidebar
+                activePanel={activePanel}
+                participants={participants}
+                waitingParticipants={waitingParticipants}
+                canManageWaitingRoom={canManageWaitingRoom}
+                chatMessages={chatMessages}
+                chatDraft={chatDraft}
+                isChatReady={isLiveKitEnabled && isRoomConnected}
+                isSendingChat={isSendingChat}
+                onChatDraftChange={setChatDraft}
+                onSendChatMessage={handleSendChatMessage}
+                onApproveWaitingParticipant={handleApproveWaitingParticipant}
+                onRejectWaitingParticipant={handleRejectWaitingParticipant}
+                onApproveAllWaitingParticipants={handleApproveAllWaitingParticipants}
+                onPanelChange={handlePanelChange}
+                onClose={() => handlePanelChange(null)}
+              />
+            </div>
+          </>
+        ) : null}
+
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4 pt-24 lg:flex-row lg:gap-6 lg:p-6 lg:pt-24">
+          <div className="order-1 flex min-h-0 flex-1 flex-col gap-4 lg:order-2">
 
             {isLiveKitEnabled && !canPlaybackAudio ? (
               <Card className="flex flex-col gap-3 border border-sky-500/30 bg-sky-500/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1551,24 +1586,27 @@ export default function MeetingRoom({
             </div>
           </div>
 
-          <div className="order-2 min-h-0 lg:order-1 lg:mt-16 lg:flex lg:h-[calc(100%-4rem)]">
-            <RoomSidebar
-              activePanel={activePanel}
-              participants={participants}
-              waitingParticipants={waitingParticipants}
-              canManageWaitingRoom={canManageWaitingRoom}
-              chatMessages={chatMessages}
-              chatDraft={chatDraft}
-              isChatReady={isLiveKitEnabled && isRoomConnected}
-              isSendingChat={isSendingChat}
-              onChatDraftChange={setChatDraft}
-              onSendChatMessage={handleSendChatMessage}
-              onApproveWaitingParticipant={handleApproveWaitingParticipant}
-              onRejectWaitingParticipant={handleRejectWaitingParticipant}
-              onApproveAllWaitingParticipants={handleApproveAllWaitingParticipants}
-              onPanelChange={handlePanelChange}
-            />
-          </div>
+          {activePanel ? (
+            <div className="order-2 hidden min-h-0 lg:order-1 lg:mt-2 lg:flex lg:h-[calc(100%-0.5rem)] lg:w-96">
+              <RoomSidebar
+                activePanel={activePanel}
+                participants={participants}
+                waitingParticipants={waitingParticipants}
+                canManageWaitingRoom={canManageWaitingRoom}
+                chatMessages={chatMessages}
+                chatDraft={chatDraft}
+                isChatReady={isLiveKitEnabled && isRoomConnected}
+                isSendingChat={isSendingChat}
+                onChatDraftChange={setChatDraft}
+                onSendChatMessage={handleSendChatMessage}
+                onApproveWaitingParticipant={handleApproveWaitingParticipant}
+                onRejectWaitingParticipant={handleRejectWaitingParticipant}
+                onApproveAllWaitingParticipants={handleApproveAllWaitingParticipants}
+                onPanelChange={handlePanelChange}
+                onClose={() => handlePanelChange(null)}
+              />
+            </div>
+          ) : null}
         </div>
 
         <RoomFooter
