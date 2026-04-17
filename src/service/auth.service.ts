@@ -45,6 +45,15 @@ export const authApi = {
         return response;
     },
 
+    sendVerifyCode(email: string) {
+        return sendRequest<IBackendRes<unknown>>({
+            url: `${API_URL}/auth/send-verify-code`,
+            method: "POST",
+            queryParams: { email },
+            useCredentials: true,
+        });
+    },
+
     logout() {
         return sendRequest<IBackendRes<null>>({
             url: `${API_URL}/auth/logout`,

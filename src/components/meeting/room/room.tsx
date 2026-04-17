@@ -730,6 +730,7 @@ export default function MeetingRoom({
 
         if (
           action === "REJECT_SUCCESS"
+          || action === "CANCEL_SUCCESS"
           || action === "PARTICIPANT_LEFT"
           || action === "WAITING_CANCELLED"
           || action === "LEFT"

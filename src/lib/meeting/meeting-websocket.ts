@@ -7,6 +7,7 @@ export type MeetingSocketAction =
     | "JOIN_REQUEST"
     | "ADMITTED"
     | "REJECTED"
+    | "CANCEL_SUCCESS"
     | (string & {});
 
 export type MeetingSocketMessage = {

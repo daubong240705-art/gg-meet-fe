@@ -110,6 +110,17 @@ function getWaitingMessage(message: MeetingSocketMessage) {
   return "Waiting for the host to respond.";
 }
 
+function getGuestJoinRequest(payload?: LobbyJoinPayload | null) {
+  if (!payload?.guestId?.trim() || !payload.userName.trim()) {
+    return undefined;
+  }
+
+  return {
+    guestId: payload.guestId.trim(),
+    guestName: payload.userName.trim(),
+  };
+}
+
 export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthSession();
@@ -120,6 +131,11 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const waitingSocketRef = useRef<ReturnType<typeof connectMeetingSocket> | null>(null);
+  const pendingJoinStateRef = useRef<LobbyPendingJoinState | null>(null);
+  const cancelPendingJoinPromiseRef = useRef<Promise<boolean> | null>(null);
+  const disconnectCancelTimeoutRef = useRef<number | null>(null);
+  const hasTriggeredUnloadCancelRef = useRef(false);
+  const isMountedRef = useRef(true);
   const sessionUserName = user?.fullName?.trim() || user?.email?.trim() || "";
   const initialGuestName = !sessionUserName ? initialMeetingSession?.userName?.trim() || "" : "";
   const [userNameOverride, setUserNameOverride] = useState(initialGuestName);
@@ -182,6 +198,13 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
   const isWaitingForApproval = pendingParticipantStatus === "WAITING";
   const isRejected = pendingJoinState !== null && pendingParticipantStatus !== null && pendingParticipantStatus !== "WAITING" && pendingParticipantStatus !== "ACCEPT";
 
+  const clearDisconnectCancelTimeout = useCallback(() => {
+    if (disconnectCancelTimeoutRef.current !== null) {
+      window.clearTimeout(disconnectCancelTimeoutRef.current);
+      disconnectCancelTimeoutRef.current = null;
+    }
+  }, []);
+
   const persistLobbySession = (
     resolvedMeetingCode: string,
     payload: LobbyJoinPayload,
@@ -201,6 +224,35 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
       hostName: payload.hostName ?? null,
     });
   };
+
+  const cancelPendingJoin = useCallback(async ({ keepalive = false }: { keepalive?: boolean } = {}) => {
+    const activePendingJoinState = pendingJoinStateRef.current;
+
+    if (
+      !activePendingJoinState
+      || normalizeMeetingParticipantStatus(activePendingJoinState.participantStatus) !== "WAITING"
+    ) {
+      return false;
+    }
+
+    if (cancelPendingJoinPromiseRef.current) {
+      return cancelPendingJoinPromiseRef.current;
+    }
+
+    const cancelPromise = meetingApi.cancelJoin(
+      meetingCode,
+      getGuestJoinRequest(activePendingJoinState),
+      keepalive ? { keepalive: true } : undefined,
+    ).then((response) => {
+      assertApiSuccess(response);
+      return true;
+    }).catch(() => false).finally(() => {
+      cancelPendingJoinPromiseRef.current = null;
+    });
+
+    cancelPendingJoinPromiseRef.current = cancelPromise;
+    return cancelPromise;
+  }, [meetingCode]);
 
   const requestApprovedJoin = useCallback(async (nextPendingJoinState: LobbyPendingJoinState) => {
     const response = await meetingApi.joinMeeting(
@@ -315,6 +367,69 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
   }, []);
 
   useEffect(() => {
+    pendingJoinStateRef.current = pendingJoinState;
+  }, [pendingJoinState]);
+
+  useEffect(() => {
+    if (isWaitingForApproval && pendingJoinState) {
+      hasTriggeredUnloadCancelRef.current = false;
+      return;
+    }
+
+    clearDisconnectCancelTimeout();
+    cancelPendingJoinPromiseRef.current = null;
+  }, [clearDisconnectCancelTimeout, isWaitingForApproval, pendingJoinState]);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      clearDisconnectCancelTimeout();
+    };
+  }, [clearDisconnectCancelTimeout]);
+
+  useEffect(() => {
+    if (!pendingJoinState || !isWaitingForApproval) {
+      return;
+    }
+
+    const handlePageExit = () => {
+      if (hasTriggeredUnloadCancelRef.current) {
+        return;
+      }
+
+      const activePendingJoinState = pendingJoinStateRef.current;
+
+      if (
+        !activePendingJoinState
+        || normalizeMeetingParticipantStatus(activePendingJoinState.participantStatus) !== "WAITING"
+      ) {
+        return;
+      }
+
+      hasTriggeredUnloadCancelRef.current = true;
+      clearInstantMeetingSession(meetingCode);
+      waitingSocketRef.current?.disconnect();
+      waitingSocketRef.current = null;
+      const beaconSent = meetingApi.cancelJoinWithBeacon(
+        meetingCode,
+        getGuestJoinRequest(activePendingJoinState),
+      );
+
+      if (!beaconSent) {
+        void cancelPendingJoin({ keepalive: true });
+      }
+    };
+
+    window.addEventListener("pagehide", handlePageExit);
+    window.addEventListener("beforeunload", handlePageExit);
+
+    return () => {
+      window.removeEventListener("pagehide", handlePageExit);
+      window.removeEventListener("beforeunload", handlePageExit);
+    };
+  }, [cancelPendingJoin, isWaitingForApproval, meetingCode, pendingJoinState]);
+
+  useEffect(() => {
     if (!pendingJoinState || !isWaitingForApproval) {
       waitingSocketRef.current?.disconnect();
       waitingSocketRef.current = null;
@@ -333,11 +448,38 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
       meetingToken: pendingJoinState.meetingToken,
       subscribeToParticipantTopic: true,
       onConnect: () => {
+        clearDisconnectCancelTimeout();
         setIsWaitingSocketConnected(true);
         setWaitingSocketError("");
       },
       onDisconnect: () => {
         setIsWaitingSocketConnected(false);
+        clearDisconnectCancelTimeout();
+        disconnectCancelTimeoutRef.current = window.setTimeout(() => {
+          void cancelPendingJoin().then((didCancel) => {
+            if (!isMountedRef.current) {
+              return;
+            }
+
+            if (!didCancel) {
+              setWaitingSocketError(
+                "The waiting-room connection was lost, and we could not cancel your request automatically.",
+              );
+              return;
+            }
+
+            waitingSocketRef.current?.disconnect();
+            waitingSocketRef.current = null;
+            clearDisconnectCancelTimeout();
+            clearInstantMeetingSession(meetingCode);
+            setPendingJoinState(null);
+            setIsWaitingSocketConnected(false);
+            setWaitingSocketError("");
+            toast.error("Waiting request cancelled", {
+              description: "The waiting-room connection was lost, so your pending request was removed.",
+            });
+          });
+        }, 8000);
       },
       onParticipantMessage: (message) => {
         const action = message.action?.trim().toUpperCase();
@@ -382,12 +524,22 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
 
     return () => {
       connection.disconnect();
+      clearDisconnectCancelTimeout();
 
       if (waitingSocketRef.current === connection) {
         waitingSocketRef.current = null;
       }
     };
-  }, [isWaitingForApproval, meetingCode, onJoin, pendingJoinState, requestApprovedJoin, waitingSocketRetryKey]);
+  }, [
+    cancelPendingJoin,
+    clearDisconnectCancelTimeout,
+    isWaitingForApproval,
+    meetingCode,
+    onJoin,
+    pendingJoinState,
+    requestApprovedJoin,
+    waitingSocketRetryKey,
+  ]);
 
   useEffect(() => {
     if (!pendingJoinState || !isWaitingForApproval) {

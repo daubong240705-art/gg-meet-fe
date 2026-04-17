@@ -1,10 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { Shield, Users, Video, Zap } from "lucide-react";
+import { Loader2, Shield, Users, Video, Zap } from "lucide-react";
 import { toast } from "sonner";
+
+import { assertApiSuccess } from "@/hooks/shared/mutation.utils";
+import {
+    getMeetingApiErrorDescription,
+    isMeetingNotFoundError,
+    meetingApi,
+    type VerifyMeetingResponseData,
+} from "@/service/meeting.service";
 
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -12,6 +20,32 @@ import { Input } from "../ui/input";
 export default function HeroSection() {
     const router = useRouter();
     const [meetingCode, setMeetingCode] = useState("");
+    const verifyMeetingMutation = useMutation<
+        IBackendRes<VerifyMeetingResponseData | null>,
+        IBackendRes<unknown>,
+        string
+    >({
+        mutationFn: async (rawMeetingCode) => {
+            const response = await meetingApi.verifyMeeting(rawMeetingCode.trim());
+            return assertApiSuccess(response);
+        },
+        onSuccess: (response, rawMeetingCode) => {
+            const resolvedMeetingCode = response.data?.meetingCode?.trim() || rawMeetingCode.trim();
+            router.push(`/${resolvedMeetingCode}`);
+        },
+        onError: (error) => {
+            const title = isMeetingNotFoundError(error)
+                ? "Meeting not found"
+                : "Unable to verify meeting";
+            const fallbackDescription = isMeetingNotFoundError(error)
+                ? "Check the code and try again."
+                : "Please try again in a moment.";
+
+            toast.error(title, {
+                description: getMeetingApiErrorDescription(error) || fallbackDescription,
+            });
+        },
+    });
 
     const handleJoinMeeting = () => {
         const normalizedMeetingCode = meetingCode.trim();
@@ -23,7 +57,7 @@ export default function HeroSection() {
             return;
         }
 
-        router.push(`/${normalizedMeetingCode}`);
+        verifyMeetingMutation.mutate(normalizedMeetingCode);
     };
 
     return (
@@ -43,6 +77,7 @@ export default function HeroSection() {
                             placeholder="Enter meeting code to join"
                             value={meetingCode}
                             onChange={(event) => setMeetingCode(event.target.value)}
+                            disabled={verifyMeetingMutation.isPending}
                             onKeyDown={(event) => {
                                 if (event.key === "Enter") {
                                     handleJoinMeeting();
@@ -50,8 +85,17 @@ export default function HeroSection() {
                             }}
                             className="h-12 flex-1 rounded-2xl"
                         />
-                        <Button size="lg" className="h-12 rounded-2xl sm:px-8" onClick={handleJoinMeeting}>
-                            <Video className="w-5 h-5" />
+                        <Button
+                            size="lg"
+                            className="h-12 rounded-2xl sm:px-8"
+                            onClick={handleJoinMeeting}
+                            disabled={verifyMeetingMutation.isPending}
+                        >
+                            {verifyMeetingMutation.isPending ? (
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                            ) : (
+                                <Video className="w-5 h-5" />
+                            )}
                             Join room
                         </Button>
                     </div>

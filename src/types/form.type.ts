@@ -28,6 +28,10 @@ export const signupSchema = z
         confirmPassword: z
             .string()
             .min(1, "Please confirm your password."),
+        verifyCode: z
+            .string()
+            .trim()
+            .regex(/^\d{6}$/, "Verification code must be exactly 6 digits."),
     })
     .refine((data) => data.password === data.confirmPassword, {
         message: "Passwords do not match.",

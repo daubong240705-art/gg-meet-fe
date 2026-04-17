@@ -11,8 +11,11 @@ import { persistInstantMeetingSession } from "@/lib/meeting/instant-meeting-sess
 import { assertApiSuccess } from "@/hooks/shared/mutation.utils";
 import {
     DEFAULT_INSTANT_MEETING_TITLE,
+    getMeetingApiErrorDescription,
+    isMeetingNotFoundError,
     meetingApi,
     type CreateMeetingResponseData,
+    type VerifyMeetingResponseData,
 } from "@/service/meeting.service";
 
 import { Card } from "../ui/card";
@@ -71,6 +74,32 @@ export default function QuickAction() {
             });
         },
     });
+    const verifyMeetingMutation = useMutation<
+        IBackendRes<VerifyMeetingResponseData | null>,
+        IBackendRes<unknown>,
+        string
+    >({
+        mutationFn: async (rawMeetingCode) => {
+            const response = await meetingApi.verifyMeeting(rawMeetingCode.trim());
+            return assertApiSuccess(response);
+        },
+        onSuccess: (response, rawMeetingCode) => {
+            const resolvedMeetingCode = response.data?.meetingCode?.trim() || rawMeetingCode.trim();
+            router.push(`/${resolvedMeetingCode}`);
+        },
+        onError: (error) => {
+            const title = isMeetingNotFoundError(error)
+                ? "Meeting not found"
+                : "Unable to verify meeting";
+            const fallbackDescription = isMeetingNotFoundError(error)
+                ? "Check the code and try again."
+                : "Please try again in a moment.";
+
+            toast.error(title, {
+                description: getMeetingApiErrorDescription(error) || fallbackDescription,
+            });
+        },
+    });
 
     const handleJoinMeeting = () => {
         const meetingCode = meetingCodeInput.trim();
@@ -82,7 +111,7 @@ export default function QuickAction() {
             return;
         }
 
-        router.push(`/${meetingCode}`);
+        verifyMeetingMutation.mutate(meetingCode);
     };
 
     return (
@@ -123,13 +152,17 @@ export default function QuickAction() {
                         placeholder="Enter meeting code"
                         value={meetingCodeInput}
                         onChange={(event) => setMeetingCodeInput(event.target.value)}
+                        disabled={verifyMeetingMutation.isPending}
                         onKeyDown={(event) => {
                             if (event.key === "Enter") {
                                 handleJoinMeeting();
                             }
                         }}
                     />
-                    <Button onClick={handleJoinMeeting}>
+                    <Button onClick={handleJoinMeeting} disabled={verifyMeetingMutation.isPending}>
+                        {verifyMeetingMutation.isPending ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : null}
                         Join
                     </Button>
                 </div>
