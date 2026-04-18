@@ -15,7 +15,7 @@ export type MeetingRoomProps = {
   meetingToken?: string | null;
   hostId?: string | null;
   hostName?: string | null;
-  onLeave: () => void;
+  onLeave: (reason?: "left" | "ended") => void;
 };
 
 export type SidebarPanel = "participants" | "chat" | null;

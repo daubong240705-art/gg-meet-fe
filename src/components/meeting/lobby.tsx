@@ -28,11 +28,14 @@ import {
 import { ensureMeetingAudioReady, playGuestAdmittedSound } from "@/lib/meeting/lobby-audio";
 import {
   connectMeetingSocket,
+  decodeMeetingToken,
   type MeetingSocketMessage,
 } from "@/lib/meeting/meeting-websocket";
 import {
+  isMeetingParticipantAwaitingApproval,
   meetingApi,
   normalizeMeetingParticipantStatus,
+  shouldHandleMeetingParticipantInLobby,
   type JoinMeetingResponseData,
   type MeetingParticipantStatus,
 } from "@/service/meeting.service";
@@ -121,6 +124,33 @@ function getGuestJoinRequest(payload?: LobbyJoinPayload | null) {
   };
 }
 
+function getCancelJoinMessage(payload?: LobbyJoinPayload | null): MeetingSocketMessage | undefined {
+  if (!payload) {
+    return undefined;
+  }
+
+  const decodedMeetingToken = decodeMeetingToken(payload.meetingToken);
+  const normalizedTargetName = payload.userName.trim();
+  const normalizedMeetingToken = payload.meetingToken?.trim() || null;
+  const normalizedGuestRequest = getGuestJoinRequest(payload);
+
+  if (
+    decodedMeetingToken.participantId === null
+    && !normalizedTargetName
+    && !normalizedMeetingToken
+    && !normalizedGuestRequest
+  ) {
+    return undefined;
+  }
+
+  return {
+    targetParticipantId: decodedMeetingToken.participantId,
+    targetName: normalizedTargetName || null,
+    meetingCode: decodedMeetingToken.meetingCode || null,
+    action: "CANCEL_SUCCESS",
+  };
+}
+
 export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthSession();
@@ -132,7 +162,6 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
   const streamRef = useRef<MediaStream | null>(null);
   const waitingSocketRef = useRef<ReturnType<typeof connectMeetingSocket> | null>(null);
   const pendingJoinStateRef = useRef<LobbyPendingJoinState | null>(null);
-  const cancelPendingJoinPromiseRef = useRef<Promise<boolean> | null>(null);
   const disconnectCancelTimeoutRef = useRef<number | null>(null);
   const hasTriggeredUnloadCancelRef = useRef(false);
   const isMountedRef = useRef(true);
@@ -155,7 +184,7 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
   const [isWaitingSocketConnected, setIsWaitingSocketConnected] = useState(false);
   const [waitingSocketRetryKey, setWaitingSocketRetryKey] = useState(0);
   const [pendingJoinState, setPendingJoinState] = useState<LobbyPendingJoinState | null>(() => {
-    if (!initialMeetingSession || initialParticipantStatus !== "WAITING") {
+    if (!initialMeetingSession || !shouldHandleMeetingParticipantInLobby(initialParticipantStatus)) {
       return null;
     }
 
@@ -195,8 +224,12 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
   const pendingParticipantStatus = normalizeMeetingParticipantStatus(
     pendingJoinState?.participantStatus,
   );
-  const isWaitingForApproval = pendingParticipantStatus === "WAITING";
-  const isRejected = pendingJoinState !== null && pendingParticipantStatus !== null && pendingParticipantStatus !== "WAITING" && pendingParticipantStatus !== "ACCEPT";
+  const isWaitingForApproval = isMeetingParticipantAwaitingApproval(pendingParticipantStatus);
+  const isRejected =
+    pendingJoinState !== null
+    && pendingParticipantStatus !== null
+    && !isWaitingForApproval
+    && pendingParticipantStatus !== "ACCEPT";
 
   const clearDisconnectCancelTimeout = useCallback(() => {
     if (disconnectCancelTimeoutRef.current !== null) {
@@ -224,35 +257,6 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
       hostName: payload.hostName ?? null,
     });
   };
-
-  const cancelPendingJoin = useCallback(async ({ keepalive = false }: { keepalive?: boolean } = {}) => {
-    const activePendingJoinState = pendingJoinStateRef.current;
-
-    if (
-      !activePendingJoinState
-      || normalizeMeetingParticipantStatus(activePendingJoinState.participantStatus) !== "WAITING"
-    ) {
-      return false;
-    }
-
-    if (cancelPendingJoinPromiseRef.current) {
-      return cancelPendingJoinPromiseRef.current;
-    }
-
-    const cancelPromise = meetingApi.cancelJoin(
-      meetingCode,
-      getGuestJoinRequest(activePendingJoinState),
-      keepalive ? { keepalive: true } : undefined,
-    ).then((response) => {
-      assertApiSuccess(response);
-      return true;
-    }).catch(() => false).finally(() => {
-      cancelPendingJoinPromiseRef.current = null;
-    });
-
-    cancelPendingJoinPromiseRef.current = cancelPromise;
-    return cancelPromise;
-  }, [meetingCode]);
 
   const requestApprovedJoin = useCallback(async (nextPendingJoinState: LobbyPendingJoinState) => {
     const response = await meetingApi.joinMeeting(
@@ -326,7 +330,7 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
         hostName: response.data?.host?.fullName?.trim() || null,
       };
 
-      if (participantStatus === "WAITING") {
+      if (isMeetingParticipantAwaitingApproval(participantStatus)) {
         if (!meetingToken) {
           toast.error("Unable to send join request", {
             description: "The server did not return a meeting token for the waiting room.",
@@ -377,7 +381,6 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
     }
 
     clearDisconnectCancelTimeout();
-    cancelPendingJoinPromiseRef.current = null;
   }, [clearDisconnectCancelTimeout, isWaitingForApproval, pendingJoinState]);
 
   useEffect(() => {
@@ -401,23 +404,28 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
 
       if (
         !activePendingJoinState
-        || normalizeMeetingParticipantStatus(activePendingJoinState.participantStatus) !== "WAITING"
+        || !isMeetingParticipantAwaitingApproval(activePendingJoinState.participantStatus)
       ) {
         return;
       }
 
       hasTriggeredUnloadCancelRef.current = true;
       clearInstantMeetingSession(meetingCode);
+      const cancelMessage = getCancelJoinMessage(activePendingJoinState);
+
+      try {
+        if (cancelMessage && waitingSocketRef.current?.isConnected()) {
+          waitingSocketRef.current.sendCancel({
+            ...cancelMessage,
+            meetingCode,
+          });
+        }
+      } catch {
+        // Browser may be tearing down the page; best-effort only.
+      }
+
       waitingSocketRef.current?.disconnect();
       waitingSocketRef.current = null;
-      const beaconSent = meetingApi.cancelJoinWithBeacon(
-        meetingCode,
-        getGuestJoinRequest(activePendingJoinState),
-      );
-
-      if (!beaconSent) {
-        void cancelPendingJoin({ keepalive: true });
-      }
     };
 
     window.addEventListener("pagehide", handlePageExit);
@@ -427,7 +435,7 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
       window.removeEventListener("pagehide", handlePageExit);
       window.removeEventListener("beforeunload", handlePageExit);
     };
-  }, [cancelPendingJoin, isWaitingForApproval, meetingCode, pendingJoinState]);
+  }, [isWaitingForApproval, meetingCode, pendingJoinState]);
 
   useEffect(() => {
     if (!pendingJoinState || !isWaitingForApproval) {
@@ -456,29 +464,13 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
         setIsWaitingSocketConnected(false);
         clearDisconnectCancelTimeout();
         disconnectCancelTimeoutRef.current = window.setTimeout(() => {
-          void cancelPendingJoin().then((didCancel) => {
-            if (!isMountedRef.current) {
-              return;
-            }
+          if (!isMountedRef.current) {
+            return;
+          }
 
-            if (!didCancel) {
-              setWaitingSocketError(
-                "The waiting-room connection was lost, and we could not cancel your request automatically.",
-              );
-              return;
-            }
-
-            waitingSocketRef.current?.disconnect();
-            waitingSocketRef.current = null;
-            clearDisconnectCancelTimeout();
-            clearInstantMeetingSession(meetingCode);
-            setPendingJoinState(null);
-            setIsWaitingSocketConnected(false);
-            setWaitingSocketError("");
-            toast.error("Waiting request cancelled", {
-              description: "The waiting-room connection was lost, so your pending request was removed.",
-            });
-          });
+          setWaitingSocketError(
+            "The waiting-room connection was lost. If the server handles disconnect cleanup, your request should be removed automatically.",
+          );
         }, 8000);
       },
       onParticipantMessage: (message) => {
@@ -531,7 +523,6 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
       }
     };
   }, [
-    cancelPendingJoin,
     clearDisconnectCancelTimeout,
     isWaitingForApproval,
     meetingCode,
@@ -554,9 +545,16 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
         isMicOn,
         isCameraOn,
       },
-      "WAITING",
+      pendingParticipantStatus ?? "WAITING",
     );
-  }, [isCameraOn, isMicOn, isWaitingForApproval, meetingCode, pendingJoinState]);
+  }, [
+    isCameraOn,
+    isMicOn,
+    isWaitingForApproval,
+    meetingCode,
+    pendingJoinState,
+    pendingParticipantStatus,
+  ]);
 
   function stopStream() {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -713,7 +711,7 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
   );
 
   const renderPreviewCard = () => (
-    <Card className="relative aspect-video overflow-hidden rounded-[2rem] border border-border/70 bg-black p-0 shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
+    <Card className="relative aspect-video overflow-hidden rounded-4xl border border-border/70 bg-black p-0 shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
       {isCameraOn ? (
         <>
           <video
@@ -803,7 +801,7 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
     return (
       <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-6 py-10 text-foreground">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.12),transparent_42%)]" />
-        <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-card/35 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-48 bg-linear-to-t from-card/35 to-transparent" />
 
         <div className="relative flex w-full max-w-3xl flex-col items-center justify-center text-center">
           {WAITING_APPROVAL_IMAGE_SRC ? (
@@ -816,7 +814,7 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
               className="h-auto w-full max-w-md object-contain"
             />
           ) : (
-            <div className="flex h-72 w-full max-w-md items-center justify-center rounded-[2rem] border border-dashed border-border/70 bg-card/20 px-6 text-sm text-muted-foreground">
+            <div className="flex h-72 w-full max-w-md items-center justify-center rounded-4xl border border-dashed border-border/70 bg-card/20 px-6 text-sm text-muted-foreground">
               Set your waiting-room image here
             </div>
           )}
@@ -935,7 +933,7 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
           </section>
 
           <aside className="xl:pt-20">
-            <Card className="rounded-[2rem] border border-border/70 bg-card/80 p-6 shadow-sm backdrop-blur-sm sm:p-7">
+            <Card className="rounded-4xl border border-border/70 bg-card/80 p-6 shadow-sm backdrop-blur-sm sm:p-7">
               <div className="space-y-6">
                 <div>
                   <h2 className="text-3xl font-semibold tracking-tight text-foreground">

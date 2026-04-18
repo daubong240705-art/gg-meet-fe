@@ -45,6 +45,7 @@ type MeetingSocketConnection = {
     sendJoinRequest: (message: MeetingSocketMessage) => void;
     sendAccept: (message: MeetingSocketMessage) => void;
     sendReject: (message: MeetingSocketMessage) => void;
+    sendCancel: (message: MeetingSocketMessage) => void;
     isConnected: () => boolean;
 };
 
@@ -255,6 +256,9 @@ export function connectMeetingSocket({
         },
         sendReject: (message) => {
             publishMeetingAction(client, "/api/meeting/reject", message);
+        },
+        sendCancel: (message) => {
+            publishMeetingAction(client, "/api/meeting/cancel-join", message);
         },
         isConnected: () => client.connected,
     };

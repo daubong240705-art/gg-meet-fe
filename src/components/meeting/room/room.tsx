@@ -12,9 +12,11 @@ import {
   isAudioTrack,
   isVideoTrack,
 } from "livekit-client";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { assertApiSuccess } from "@/hooks/shared/mutation.utils";
 import { getLiveKitWebsocketUrl } from "@/lib/config/api-url";
 import {
   ensureMeetingAudioReady,
@@ -26,6 +28,7 @@ import {
   decodeMeetingToken,
   type MeetingSocketMessage,
 } from "@/lib/meeting/meeting-websocket";
+import { meetingApi } from "@/service/meeting.service";
 
 import { REMOTE_PARTICIPANTS } from "./constants";
 import { isStickerKey } from "./chat-stickers";
@@ -427,6 +430,7 @@ export default function MeetingRoom({
   const seenChatMessageIdsRef = useRef<Set<string>>(new Set());
   const localHandStateRef = useRef<ParticipantHandState>(getDefaultParticipantHandState());
   const preferLocalHandStateRef = useRef(false);
+  const hasExitedMeetingRef = useRef(false);
   const [isMicEnabled, setIsMicEnabled] = useState(isMicOn);
   const [isCameraEnabled, setIsCameraEnabled] = useState(isCameraOn);
   const [activePanel, setActivePanel] = useState<SidebarPanel>(null);
@@ -449,6 +453,7 @@ export default function MeetingRoom({
   const waitingParticipantsRef = useRef<WaitingParticipant[]>([]);
   const [isWaitingMenuOpen, setIsWaitingMenuOpen] = useState(false);
   const [isParticipantsMenuOpen, setIsParticipantsMenuOpen] = useState(false);
+  const [isEndingMeeting, setIsEndingMeeting] = useState(false);
   const [localHandState, setLocalHandState] = useState<ParticipantHandState>(
     getDefaultParticipantHandState(),
   );
@@ -459,6 +464,20 @@ export default function MeetingRoom({
   const participantsMenuCloseTimeoutRef = useRef<number | null>(null);
 
   const canManageWaitingRoom = localMeetingRole === "HOST" || localRole === "HOST";
+
+  const exitMeeting = useCallback((reason: "left" | "ended" = "left") => {
+    if (hasExitedMeetingRef.current) {
+      return;
+    }
+
+    hasExitedMeetingRef.current = true;
+    setLocalHandState(getDefaultParticipantHandState());
+    setPreferLocalHandState(false);
+    meetingSocketRef.current?.disconnect();
+    meetingSocketRef.current = null;
+    roomRef.current?.disconnect();
+    onLeave(reason);
+  }, [onLeave]);
 
   const syncAvailableDevices = useCallback(async (currentRoom: LiveKitRoom | null = roomRef.current) => {
     const [microphoneResult, cameraResult] = await Promise.allSettled([
@@ -694,7 +713,7 @@ export default function MeetingRoom({
     meetingSocketRef.current?.disconnect();
     meetingSocketRef.current = null;
 
-    if (!meetingToken || !canManageWaitingRoom) {
+    if (!meetingToken) {
       setWaitingParticipants([]);
       return;
     }
@@ -703,8 +722,8 @@ export default function MeetingRoom({
       meetingCode,
       meetingToken,
       subscribeToMeetingTopic: true,
-      subscribeToWaitingTopic: true,
-      subscribeToParticipantTopic: true,
+      subscribeToWaitingTopic: canManageWaitingRoom,
+      subscribeToParticipantTopic: canManageWaitingRoom,
       onWaitingMessage: (message) => {
         const action = message.action?.trim().toUpperCase();
 
@@ -723,6 +742,14 @@ export default function MeetingRoom({
           || action === "LEFT"
         ) {
           removeWaitingParticipant(message.targetParticipantId);
+          return;
+        }
+
+        if (action === "MEETING_ENDED") {
+          toast.error("Meeting ended", {
+            description: "The host ended the meeting for everyone.",
+          });
+          exitMeeting("ended");
         }
       },
       onParticipantMessage: (message) => {
@@ -752,7 +779,14 @@ export default function MeetingRoom({
         meetingSocketRef.current = null;
       }
     };
-  }, [canManageWaitingRoom, meetingCode, meetingToken, removeWaitingParticipant, upsertWaitingParticipant]);
+  }, [
+    canManageWaitingRoom,
+    exitMeeting,
+    meetingCode,
+    meetingToken,
+    removeWaitingParticipant,
+    upsertWaitingParticipant,
+  ]);
 
   useEffect(() => {
     if (!isLiveKitEnabled || !livekitToken) {
@@ -1238,12 +1272,36 @@ export default function MeetingRoom({
   };
 
   const handleLeaveMeeting = () => {
-    setLocalHandState(getDefaultParticipantHandState());
-    setPreferLocalHandState(false);
-    meetingSocketRef.current?.disconnect();
-    roomRef.current?.disconnect();
-    onLeave();
+    exitMeeting("left");
   };
+
+  const handleEndMeeting = useCallback(() => {
+    if (isEndingMeeting) {
+      return;
+    }
+
+    setIsEndingMeeting(true);
+
+    void meetingApi.endMeeting(meetingCode).then((response) => {
+      assertApiSuccess(response);
+      toast.success("Meeting ended", {
+        description: "Everyone has been removed from the room.",
+      });
+      exitMeeting("ended");
+    }).catch((error) => {
+      const errorMessage =
+        error && typeof error === "object" && "message" in error
+          ? String((error as IBackendRes<unknown>).message || "Unable to end the meeting.")
+          : "Unable to end the meeting.";
+
+      setLiveKitError(errorMessage);
+      toast.error("Unable to end meeting", {
+        description: errorMessage,
+      });
+    }).finally(() => {
+      setIsEndingMeeting(false);
+    });
+  }, [exitMeeting, isEndingMeeting, meetingCode]);
 
   const handleApproveWaitingParticipant = useCallback((participant: WaitingParticipant) => {
     try {
@@ -1634,6 +1692,9 @@ export default function MeetingRoom({
             void syncAvailableDevices();
           }}
           onTogglePanel={togglePanel}
+          isHost={canManageWaitingRoom}
+          isEndingMeeting={isEndingMeeting}
+          onEndMeeting={handleEndMeeting}
           onLeave={handleLeaveMeeting}
         />
       </div>

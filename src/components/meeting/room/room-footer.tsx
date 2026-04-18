@@ -3,6 +3,7 @@
 import { Check, ChevronUp, Copy, Hand, MessageSquare, Mic, MicOff, Monitor, Phone, Users, Video, VideoOff, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 import type { SidebarPanel } from "./types";
@@ -30,6 +31,9 @@ type RoomFooterProps = {
   onRefreshDevices: () => void;
   onTogglePanel: (panel: Exclude<SidebarPanel, null>) => void;
   onLeave: () => void;
+  isHost?: boolean;
+  isEndingMeeting?: boolean;
+  onEndMeeting?: () => void;
 };
 
 type FooterMenuKey = "microphone" | "camera" | "screen" | null;
@@ -163,12 +167,16 @@ export default function RoomFooter({
   onRefreshDevices,
   onTogglePanel,
   onLeave,
+  isHost = false,
+  isEndingMeeting = false,
+  onEndMeeting,
 }: RoomFooterProps) {
   const footerRef = useRef<HTMLElement | null>(null);
   const copyTimeoutRef = useRef<number | null>(null);
   const [openMenu, setOpenMenu] = useState<FooterMenuKey>(null);
   const [now, setNow] = useState(() => new Date());
   const [copied, setCopied] = useState(false);
+  const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -215,6 +223,24 @@ export default function RoomFooter({
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [openMenu]);
+
+  useEffect(() => {
+    if (!isLeaveDialogOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsLeaveDialogOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isLeaveDialogOpen]);
 
   const handleToggleMenu = (menu: Exclude<FooterMenuKey, null>) => {
     setOpenMenu((currentMenu) => {
@@ -432,7 +458,16 @@ export default function RoomFooter({
             <button
               type="button"
               aria-label="Leave meeting"
-              onClick={onLeave}
+              onClick={() => {
+                setOpenMenu(null);
+
+                if (isHost) {
+                  setIsLeaveDialogOpen(true);
+                  return;
+                }
+
+                onLeave();
+              }}
               className="ml-1 flex h-13 items-center justify-center rounded-full bg-destructive px-5 text-destructive-foreground transition hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
             >
               <Phone className="h-5 w-5" />
@@ -488,6 +523,63 @@ export default function RoomFooter({
           </button>
         </div>
       </div>
+
+      {isHost && isLeaveDialogOpen ? (
+        <>
+          <button
+            type="button"
+            aria-label="Close leave meeting dialog"
+            className="fixed inset-0 z-40 bg-slate-950/55 backdrop-blur-[2px]"
+            onClick={() => setIsLeaveDialogOpen(false)}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <Card className="w-full max-w-md border border-border/80 bg-card/95 p-6 text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.38)] backdrop-blur-xl">
+              <div className="space-y-3">
+                <p className="text-sm font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  Leave Meeting
+                </p>
+                <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                  Leave or end the meeting?
+                </h2>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  You can leave now and keep the room running, or end the meeting for everyone.
+                </p>
+              </div>
+
+              <div className="mt-6 flex flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsLeaveDialogOpen(false);
+                    onLeave();
+                  }}
+                  className="flex h-12 items-center justify-center rounded-full border border-border/80 bg-background/80 px-4 text-sm font-medium text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                >
+                  Leave without ending
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsLeaveDialogOpen(false);
+                    onEndMeeting?.();
+                  }}
+                  disabled={isEndingMeeting}
+                  className="flex h-12 items-center justify-center rounded-full bg-destructive px-4 text-sm font-medium text-destructive-foreground transition hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isEndingMeeting ? "Ending meeting..." : "End meeting for everyone"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsLeaveDialogOpen(false)}
+                  className="flex h-11 items-center justify-center rounded-full px-4 text-sm font-medium text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </Card>
+          </div>
+        </>
+      ) : null}
     </footer>
   );
 }

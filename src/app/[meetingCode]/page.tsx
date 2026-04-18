@@ -20,6 +20,7 @@ import {
   isMeetingNotFoundError,
   meetingApi,
   normalizeMeetingParticipantStatus,
+  shouldHandleMeetingParticipantInLobby,
   type VerifyMeetingResponseData,
 } from "@/service/meeting.service";
 
@@ -37,14 +38,17 @@ type MeetingPageContentProps = {
 };
 
 type MeetingJoinState = LobbyJoinPayload;
-type LeftMeetingState = {
+type MeetingExitState = {
   leftAt: number;
+  reason: "left" | "ended";
 };
 
 function LeftMeetingView({
+  reason,
   onRejoin,
   onGoHome,
 }: {
+  reason: "left" | "ended";
   onRejoin: () => void;
   onGoHome: () => void;
 }) {
@@ -76,17 +80,23 @@ function LeftMeetingView({
         </div>
 
         <div className="space-y-3">
-          <h1 className="text-3xl font-semibold tracking-tight">You have left the meeting</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            {reason === "ended" ? "This meeting has ended" : "You have left the meeting"}
+          </h1>
           <p className="text-sm text-muted-foreground">
-            Automatically returning to the homepage in <span className="font-semibold text-foreground">{secondsRemaining}s</span>.
+            {reason === "ended"
+              ? <>The host ended this meeting. Returning to the homepage in <span className="font-semibold text-foreground">{secondsRemaining}s</span>.</>
+              : <>Automatically returning to the homepage in <span className="font-semibold text-foreground">{secondsRemaining}s</span>.</>}
           </p>
         </div>
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-          <Button type="button" size="lg" className="flex-1" onClick={onRejoin}>
-            <ArrowLeft className="h-4 w-4" />
-            Return to meeting
-          </Button>
+          {reason === "left" ? (
+            <Button type="button" size="lg" className="flex-1" onClick={onRejoin}>
+              <ArrowLeft className="h-4 w-4" />
+              Return to meeting
+            </Button>
+          ) : null}
           <Button type="button" variant="outline" size="lg" className="flex-1" onClick={onGoHome}>
             <Home className="h-4 w-4" />
             Go to homepage
@@ -173,7 +183,7 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
       pendingSession.participantStatus,
     );
 
-    if (participantStatus === "WAITING") {
+    if (shouldHandleMeetingParticipantInLobby(participantStatus)) {
       return null;
     }
 
@@ -190,7 +200,7 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
       hostName: pendingSession.hostName ?? null,
     };
   });
-  const [leftMeetingState, setLeftMeetingState] = useState<LeftMeetingState | null>(null);
+  const [leftMeetingState, setLeftMeetingState] = useState<MeetingExitState | null>(null);
   const verifyMeetingQuery = useQuery<
     IBackendRes<VerifyMeetingResponseData | null>,
     IBackendRes<unknown>
@@ -219,6 +229,7 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
   if (leftMeetingState) {
     return (
       <LeftMeetingView
+        reason={leftMeetingState.reason}
         onRejoin={() => setLeftMeetingState(null)}
         onGoHome={handleGoHome}
       />
@@ -244,19 +255,18 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
 
   if (verifyMeetingQuery.isPending) {
     return (
-      <MeetingLinkStateView
-        badge="Checking meeting"
-        title="Verifying this meeting link"
-        description="Please wait a moment while we confirm that this room is available before opening the lobby."
-        meetingCode={normalizedMeetingCode}
-        icon={<Loader2 className="h-7 w-7 animate-spin text-primary" />}
-        actions={(
-          <Button type="button" variant="outline" size="lg" className="h-12 sm:w-auto" onClick={handleGoHome}>
-            <Home className="h-4 w-4" />
-            Go to homepage
-          </Button>
-        )}
-      />
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="absolute inset-0 bg-black/70" />
+        <div className="relative z-10 flex flex-col items-center gap-4 text-center text-foreground">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <div className="space-y-1">
+            <p className="text-lg font-semibold tracking-tight">Checking meeting...</p>
+            <p className="text-sm text-muted-foreground">
+              Please wait while we verify this room.
+            </p>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -328,11 +338,12 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
       meetingToken={joinState.meetingToken}
       hostId={joinState.hostId}
       hostName={joinState.hostName}
-      onLeave={() => {
+      onLeave={(reason = "left") => {
         clearInstantMeetingSession(normalizedMeetingCode);
         setJoinState(null);
         setLeftMeetingState({
           leftAt: Date.now(),
+          reason,
         });
       }}
     />
