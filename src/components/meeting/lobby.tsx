@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
 import { useMutation } from "@tanstack/react-query";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -62,6 +62,7 @@ type LobbyPendingJoinState = LobbyJoinPayload;
 type LobbyProps = {
   meetingCode: string;
   onJoin: (payload: LobbyJoinPayload) => void;
+  onMeetingEnded: () => void;
 };
 
 export type { LobbyJoinPayload };
@@ -151,7 +152,7 @@ function getCancelJoinMessage(payload?: LobbyJoinPayload | null): MeetingSocketM
   };
 }
 
-export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
+export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProps) {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthSession();
   const initialMeetingSession = readInstantMeetingSession(meetingCode);
@@ -164,6 +165,7 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
   const pendingJoinStateRef = useRef<LobbyPendingJoinState | null>(null);
   const disconnectCancelTimeoutRef = useRef<number | null>(null);
   const hasTriggeredUnloadCancelRef = useRef(false);
+  const hasHandledMeetingEndedRef = useRef(false);
   const isMountedRef = useRef(true);
   const sessionUserName = user?.fullName?.trim() || user?.email?.trim() || "";
   const initialGuestName = !sessionUserName ? initialMeetingSession?.userName?.trim() || "" : "";
@@ -294,6 +296,25 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
     persistLobbySession(resolvedMeetingCode, approvedJoinPayload, participantStatus);
     return approvedJoinPayload;
   }, [isCameraOn, isMicOn, meetingCode]);
+
+  const handleMeetingEnded = useEffectEvent(() => {
+    if (hasHandledMeetingEndedRef.current) {
+      return;
+    }
+
+    hasHandledMeetingEndedRef.current = true;
+    clearDisconnectCancelTimeout();
+    waitingSocketRef.current?.disconnect();
+    waitingSocketRef.current = null;
+    clearInstantMeetingSession(meetingCode);
+    setPendingJoinState(null);
+    setIsWaitingSocketConnected(false);
+    setWaitingSocketError("");
+    toast.error("Meeting ended", {
+      description: "The host ended this meeting while your join request was still pending.",
+    });
+    onMeetingEnded();
+  });
 
   const joinMeetingMutation = useMutation<
     IBackendRes<JoinMeetingResponseData>,
@@ -454,6 +475,7 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
     const connection = connectMeetingSocket({
       meetingCode,
       meetingToken: pendingJoinState.meetingToken,
+      subscribeToMeetingTopic: true,
       subscribeToParticipantTopic: true,
       onConnect: () => {
         clearDisconnectCancelTimeout();
@@ -473,8 +495,20 @@ export default function Lobby({ meetingCode, onJoin }: LobbyProps) {
           );
         }, 8000);
       },
+      onMeetingMessage: (message) => {
+        const action = message.action?.trim().toUpperCase();
+
+        if (action === "MEETING_ENDED") {
+          handleMeetingEnded();
+        }
+      },
       onParticipantMessage: (message) => {
         const action = message.action?.trim().toUpperCase();
+
+        if (action === "MEETING_ENDED") {
+          handleMeetingEnded();
+          return;
+        }
 
         if (action === "ADMITTED") {
           void requestApprovedJoin(pendingJoinState).then((approvedJoinPayload) => {

@@ -319,6 +319,14 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
     return (
       <Lobby
         meetingCode={normalizedMeetingCode}
+        onMeetingEnded={() => {
+          clearInstantMeetingSession(normalizedMeetingCode);
+          setJoinState(null);
+          setLeftMeetingState({
+            leftAt: Date.now(),
+            reason: "ended",
+          });
+        }}
         onJoin={(payload) => {
           setLeftMeetingState(null);
           setJoinState(payload);
