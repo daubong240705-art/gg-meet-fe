@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 import type { LoginResponseData } from "@/service/auth.service";
+import { getAvatarInitials } from "@/lib/user/avatar";
 import { clearStoredAccessToken, persistAccessToken } from "./auth-token";
 
 const AUTH_USER_STORAGE_KEY = "auth-user";
@@ -92,15 +93,8 @@ const normalizeAuthUser = (source: JwtAuthPayload["user"], fallbackEmail?: strin
     };
 };
 
-export function getUserInitials(name: string) {
-    return (
-        name
-            .split(/\s+/)
-            .map((part) => part[0] || "")
-            .join("")
-            .slice(0, 2)
-            .toUpperCase() || "U"
-    );
+export function getUserInitials(source: string) {
+    return getAvatarInitials(source, "U");
 }
 
 function readStoredAuthUserFromStorage() {

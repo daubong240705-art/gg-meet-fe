@@ -1,3 +1,5 @@
+import { getAvatarInitials } from "@/lib/user/avatar";
+
 import type { Participant } from "./types";
 
 export function formatDuration(totalSeconds: number) {
@@ -11,14 +13,7 @@ export function formatDuration(totalSeconds: number) {
 }
 
 export function getInitials(name: string) {
-  return (
-    name
-      .split(/\s+/)
-      .map((part) => part[0] || "")
-      .join("")
-      .slice(0, 2)
-      .toUpperCase() || "G"
-  );
+  return getAvatarInitials(name, "G");
 }
 
 export type ParticipantHandState = {

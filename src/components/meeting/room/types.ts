@@ -28,6 +28,7 @@ export type Participant = {
   id: string;
   identity: string;
   name: string;
+  avatarSource: string;
   isHost: boolean;
   isLocal: boolean;
   handRaised: boolean;
@@ -47,6 +48,7 @@ type ChatMessageBase = {
   id: string;
   identity: string;
   name: string;
+  avatarSource: string;
   isLocal: boolean;
   timestamp: number;
   time: string;

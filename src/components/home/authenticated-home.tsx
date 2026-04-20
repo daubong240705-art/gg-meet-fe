@@ -8,7 +8,6 @@ import QuickAction from "../dashboard/quick-action";
 import AuthenticatedHomeHero from "./authenticated-home-hero";
 import AuthenticatedHomeRecent from "./authenticated-home-recent";
 import AuthenticatedHomeScheduleBanner from "./authenticated-home-schedule-banner";
-import AuthenticatedHomeStats from "./authenticated-home-stats";
 import AuthenticatedHomeUpcoming from "./authenticated-home-upcoming";
 
 export default function AuthenticatedHome() {

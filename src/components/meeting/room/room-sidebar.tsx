@@ -302,7 +302,7 @@ export default function RoomSidebar({
                     className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/35 p-3"
                   >
                     <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground">
-                      {getInitials(participant.name)}
+                      {getInitials(participant.avatarSource)}
                     </div>
 
                     <div className="min-w-0 flex-1">
@@ -355,7 +355,7 @@ export default function RoomSidebar({
                     <div className={message.isLocal ? "flex max-w-[82%] min-w-0 justify-end" : "flex max-w-[82%] min-w-0 gap-3"}>
                       {!message.isLocal ? (
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-                          {getInitials(message.name)}
+                          {getInitials(message.avatarSource)}
                         </div>
                       ) : null}
 

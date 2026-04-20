@@ -33,6 +33,16 @@ export type CreateMeetingResponseData = {
     participantStatus?: string | null;
 };
 
+export type ScheduleMeetingRequest = {
+    title: string;
+    isScheduled: true;
+    meetingDate: string;
+    meetingTime: string;
+    description: string;
+    emailList: string[];
+};
+
+export type ScheduleMeetingResponseData = CreateMeetingResponseData;
 export type JoinMeetingResponseData = CreateMeetingResponseData;
 export type VerifyMeetingResponseData = {
     meetingCode?: string | null;
@@ -41,6 +51,10 @@ export type VerifyMeetingResponseData = {
     host?: MeetingHost | null;
 };
 export type EndMeetingResponseData = null;
+export type MeetingApiFieldError = {
+    field: string;
+    message: string;
+};
 
 export type GuestJoinRequest = {
     guestId: string;
@@ -82,6 +96,73 @@ const containsRoomNotFoundError = (errors: unknown) => {
     return false;
 };
 
+const getApiErrorMessage = (value: unknown): string | null => {
+    if (typeof value === "string") {
+        const normalizedValue = value.trim();
+        return normalizedValue || null;
+    }
+
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            const nestedMessage = getApiErrorMessage(item);
+
+            if (nestedMessage) {
+                return nestedMessage;
+            }
+        }
+
+        return null;
+    }
+
+    if (!value || typeof value !== "object") {
+        return null;
+    }
+
+    const record = value as Record<string, unknown>;
+    const directMessageCandidates = [
+        record.defaultMessage,
+        record.message,
+        record.error,
+    ];
+
+    for (const candidate of directMessageCandidates) {
+        const resolvedCandidate = getApiErrorMessage(candidate);
+
+        if (resolvedCandidate) {
+            return resolvedCandidate;
+        }
+    }
+
+    for (const nestedValue of Object.values(record)) {
+        const nestedMessage = getApiErrorMessage(nestedValue);
+
+        if (nestedMessage) {
+            return nestedMessage;
+        }
+    }
+
+    return null;
+};
+
+const getFieldErrorFromObject = (value: unknown): MeetingApiFieldError | null => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return null;
+    }
+
+    const record = value as Record<string, unknown>;
+    const field = typeof record.field === "string" ? record.field.trim() : "";
+    const message = getApiErrorMessage(record.defaultMessage ?? record.message ?? record.error ?? value);
+
+    if (!field || !message) {
+        return null;
+    }
+
+    return {
+        field,
+        message,
+    };
+};
+
 export const normalizeMeetingParticipantStatus = (
     status?: string | null,
 ): MeetingParticipantStatus | null => {
@@ -105,19 +186,37 @@ export const shouldHandleMeetingParticipantInLobby = (
 };
 
 export const getMeetingApiErrorDescription = (error: IBackendRes<unknown>) => {
+    return getApiErrorMessage(error.errors)
+        || getApiErrorMessage(error.error)
+        || getApiErrorMessage(error.message);
+};
+
+export const getMeetingApiFieldErrors = (error: IBackendRes<unknown>): MeetingApiFieldError[] => {
     if (Array.isArray(error.errors)) {
-        return error.errors[0];
+        return error.errors
+            .map((item) => getFieldErrorFromObject(item))
+            .filter((item): item is MeetingApiFieldError => Boolean(item));
     }
 
-    if (typeof error.errors === "string") {
-        return error.errors;
+    if (!error.errors || typeof error.errors !== "object") {
+        return [];
     }
 
-    if (typeof error.error === "string") {
-        return error.error;
-    }
+    return Object.entries(error.errors)
+        .map(([field, value]) => {
+            const normalizedField = field.trim();
+            const message = getApiErrorMessage(value);
 
-    return error.message;
+            if (!normalizedField || !message) {
+                return null;
+            }
+
+            return {
+                field: normalizedField,
+                message,
+            } satisfies MeetingApiFieldError;
+        })
+        .filter((item): item is MeetingApiFieldError => Boolean(item));
 };
 
 export const isMeetingNotFoundError = (error: IBackendRes<unknown>) => {
@@ -171,6 +270,16 @@ export const meetingApi = {
             queryParams: {
                 title,
             },
+            useCredentials: true,
+            auth: true,
+        });
+    },
+
+    scheduleMeeting(meetingData: ScheduleMeetingRequest) {
+        return sendRequest<IBackendRes<ScheduleMeetingResponseData>>({
+            url: `${API_URL}/meetings/schedule`,
+            method: "POST",
+            body: meetingData,
             useCredentials: true,
             auth: true,
         });

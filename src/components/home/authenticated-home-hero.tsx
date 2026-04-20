@@ -1,7 +1,5 @@
 "use client";
 
-import { Card } from "../ui/card";
-
 export default function AuthenticatedHomeHero({
   greeting,
   firstName,

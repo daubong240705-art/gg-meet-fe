@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { assertApiSuccess } from "@/hooks/shared/mutation.utils";
+import { useAuthSession } from "@/lib/auth/auth-session";
 import { getLiveKitWebsocketUrl } from "@/lib/config/api-url";
 import {
   ensureMeetingAudioReady,
@@ -228,6 +229,7 @@ function mapChatMessageToUiMessage(
   message: LiveKitChatMessage,
   participant: LiveKitParticipant | undefined,
   localDisplayName: string,
+  localEmail?: string | null,
 ): ChatMessage | null {
   const parsedPayload = parseIncomingChatPayload(message.message);
 
@@ -240,11 +242,15 @@ function mapChatMessageToUiMessage(
     ? localDisplayName
     : participant?.name?.trim() || participant?.identity || "Guest";
   const identity = participant?.identity || "unknown";
+  const avatarSource = isLocal
+    ? localEmail?.trim() || identity || name
+    : participant?.identity?.trim() || name;
 
   const baseMessage = {
     id: message.id,
     identity,
     name,
+    avatarSource,
     isLocal,
     timestamp: message.timestamp,
     time: formatChatTime(message.timestamp),
@@ -318,6 +324,7 @@ function getParticipantStatus(participant: LiveKitParticipant) {
 function mapParticipantToUiParticipant(
   participant: LiveKitParticipant,
   localDisplayName: string,
+  localEmail: string | null,
   hostId: string | null | undefined,
   hostName: string | null | undefined,
   localRole: string | null,
@@ -343,6 +350,9 @@ function mapParticipantToUiParticipant(
       participant.isLocal
         ? localDisplayName
         : participant.name?.trim() || participant.identity || "Guest",
+    avatarSource: participant.isLocal
+      ? localEmail?.trim() || identity
+      : participant.identity?.trim() || participant.name?.trim() || identity,
     isHost: isHostParticipant({
       participant,
       hostId,
@@ -366,6 +376,7 @@ function mapParticipantToUiParticipant(
 
 function getFallbackLocalParticipant(
   displayName: string,
+  localEmail: string | null,
   isMicEnabled: boolean,
   isCameraEnabled: boolean,
   isScreenSharing: boolean,
@@ -376,6 +387,7 @@ function getFallbackLocalParticipant(
     id: "self",
     identity: "self",
     name: displayName,
+    avatarSource: localEmail?.trim() || displayName,
     isHost,
     isLocal: true,
     handRaised: handState.handRaised,
@@ -396,6 +408,33 @@ function getWaitingParticipantName(message: MeetingSocketMessage) {
   return message.targetName?.trim() || "Guest";
 }
 
+function areParticipantsEqual(currentParticipants: Participant[], nextParticipants: Participant[]) {
+  if (currentParticipants.length !== nextParticipants.length) {
+    return false;
+  }
+
+  return currentParticipants.every((participant, index) => {
+    const nextParticipant = nextParticipants[index];
+
+    return participant.id === nextParticipant.id
+      && participant.identity === nextParticipant.identity
+      && participant.name === nextParticipant.name
+      && participant.isHost === nextParticipant.isHost
+      && participant.isLocal === nextParticipant.isLocal
+      && participant.handRaised === nextParticipant.handRaised
+      && participant.handRaisedAt === nextParticipant.handRaisedAt
+      && participant.isMuted === nextParticipant.isMuted
+      && participant.isCameraOff === nextParticipant.isCameraOff
+      && participant.isSpeaking === nextParticipant.isSpeaking
+      && participant.isScreenSharing === nextParticipant.isScreenSharing
+      && participant.accentClassName === nextParticipant.accentClassName
+      && participant.status === nextParticipant.status
+      && participant.cameraTrack === nextParticipant.cameraTrack
+      && participant.audioTrack === nextParticipant.audioTrack
+      && participant.screenShareTrack === nextParticipant.screenShareTrack;
+  });
+}
+
 export default function MeetingRoom({
   meetingCode,
   title,
@@ -408,6 +447,8 @@ export default function MeetingRoom({
   hostName,
   onLeave,
 }: MeetingRoomProps) {
+  const { user } = useAuthSession();
+  const localEmail = user?.email?.trim() || null;
   const displayName = userName.trim() || "Guest";
   const meetingTitle = title?.trim() || "Untitled meeting";
   const liveKitUrl = getLiveKitWebsocketUrl();
@@ -799,6 +840,7 @@ export default function MeetingRoom({
     }
 
     let isDisposed = false;
+    let syncParticipantsFrameId: number | null = null;
     const room = new LiveKitRoom(LIVEKIT_ROOM_OPTIONS);
     roomRef.current = room;
     setChatMessages([]);
@@ -807,15 +849,16 @@ export default function MeetingRoom({
     seenChatMessageIdsRef.current = new Set();
     const participantSpeakingListeners = new Map<LiveKitParticipant, () => void>();
 
-    const syncParticipants = () => {
+    const syncParticipantsNow = () => {
       if (isDisposed) {
         return;
       }
 
-      const nextParticipants = [
+      const nextParticipants = sortParticipantsByRaisedHand([
         mapParticipantToUiParticipant(
           room.localParticipant,
           displayName,
+          localEmail,
           resolvedHostId,
           resolvedHostName,
           localRole,
@@ -826,6 +869,7 @@ export default function MeetingRoom({
           mapParticipantToUiParticipant(
             participant,
             displayName,
+            localEmail,
             resolvedHostId,
             resolvedHostName,
             localRole,
@@ -833,9 +877,24 @@ export default function MeetingRoom({
             false,
           ),
         ),
-      ];
+      ]);
 
-      setLiveParticipants(sortParticipantsByRaisedHand(nextParticipants));
+      setLiveParticipants((currentParticipants) =>
+        areParticipantsEqual(currentParticipants, nextParticipants)
+          ? currentParticipants
+          : nextParticipants,
+      );
+    };
+
+    const scheduleSyncParticipants = () => {
+      if (isDisposed || syncParticipantsFrameId !== null) {
+        return;
+      }
+
+      syncParticipantsFrameId = window.requestAnimationFrame(() => {
+        syncParticipantsFrameId = null;
+        syncParticipantsNow();
+      });
     };
 
     const bindParticipantSpeakingListener = (participant: LiveKitParticipant) => {
@@ -848,7 +907,7 @@ export default function MeetingRoom({
           return;
         }
 
-        syncParticipants();
+        scheduleSyncParticipants();
       };
 
       participant.on(ParticipantEvent.IsSpeakingChanged, handleSpeakingChange);
@@ -880,7 +939,7 @@ export default function MeetingRoom({
         return;
       }
 
-      const nextMessage = mapChatMessageToUiMessage(message, participant, displayName);
+      const nextMessage = mapChatMessageToUiMessage(message, participant, displayName, localEmail);
 
       if (!nextMessage) {
         return;
@@ -916,11 +975,11 @@ export default function MeetingRoom({
     room
       .on(RoomEvent.Connected, () => {
         setIsRoomConnected(true);
-        syncParticipants();
+        scheduleSyncParticipants();
       })
       .on(RoomEvent.Reconnected, () => {
         setIsRoomConnected(true);
-        syncParticipants();
+        scheduleSyncParticipants();
       })
       .on(RoomEvent.Disconnected, () => {
         if (isDisposed) {
@@ -931,25 +990,25 @@ export default function MeetingRoom({
       })
       .on(RoomEvent.ParticipantConnected, (participant) => {
         bindParticipantSpeakingListener(participant);
-        syncParticipants();
+        scheduleSyncParticipants();
       })
       .on(RoomEvent.ParticipantDisconnected, (participant) => {
         unbindParticipantSpeakingListener(participant);
-        syncParticipants();
+        scheduleSyncParticipants();
       })
-      .on(RoomEvent.TrackSubscribed, syncParticipants)
-      .on(RoomEvent.TrackUnsubscribed, syncParticipants)
-      .on(RoomEvent.TrackMuted, syncParticipants)
-      .on(RoomEvent.TrackUnmuted, syncParticipants)
+      .on(RoomEvent.TrackSubscribed, scheduleSyncParticipants)
+      .on(RoomEvent.TrackUnsubscribed, scheduleSyncParticipants)
+      .on(RoomEvent.TrackMuted, scheduleSyncParticipants)
+      .on(RoomEvent.TrackUnmuted, scheduleSyncParticipants)
       .on(RoomEvent.LocalTrackPublished, () => {
-        syncParticipants();
+        scheduleSyncParticipants();
         void syncAvailableDevices(room);
       })
       .on(RoomEvent.LocalTrackUnpublished, () => {
-        syncParticipants();
+        scheduleSyncParticipants();
         void syncAvailableDevices(room);
       })
-      .on(RoomEvent.ActiveSpeakersChanged, syncParticipants)
+      .on(RoomEvent.ActiveSpeakersChanged, scheduleSyncParticipants)
       .on(RoomEvent.ParticipantAttributesChanged, (_changedAttributes, participant) => {
         if (participant.isLocal) {
           const nextLocalHandState = getParticipantHandState(participant.attributes);
@@ -957,9 +1016,9 @@ export default function MeetingRoom({
           setPreferLocalHandState(false);
         }
 
-        syncParticipants();
+        scheduleSyncParticipants();
       })
-      .on(RoomEvent.ParticipantNameChanged, syncParticipants)
+      .on(RoomEvent.ParticipantNameChanged, scheduleSyncParticipants)
       .on(RoomEvent.MediaDevicesChanged, () => {
         void syncAvailableDevices(room);
       })
@@ -968,7 +1027,7 @@ export default function MeetingRoom({
           return;
         }
 
-        syncParticipants();
+        scheduleSyncParticipants();
       })
       .on(RoomEvent.AudioPlaybackStatusChanged, (playing) => {
         if (isDisposed) {
@@ -1008,7 +1067,7 @@ export default function MeetingRoom({
         }
 
         await syncAvailableDevices(room);
-        syncParticipants();
+        syncParticipantsNow();
       } catch (error) {
         if (isDisposed) {
           return;
@@ -1031,6 +1090,9 @@ export default function MeetingRoom({
         disposeListener();
       });
       participantSpeakingListeners.clear();
+      if (syncParticipantsFrameId !== null) {
+        window.cancelAnimationFrame(syncParticipantsFrameId);
+      }
       room.removeAllListeners();
       room.disconnect();
 
@@ -1038,7 +1100,7 @@ export default function MeetingRoom({
         roomRef.current = null;
       }
     };
-  }, [displayName, isCameraOn, isLiveKitEnabled, isMicOn, liveKitUrl, livekitToken, localRole, resolvedHostId, resolvedHostName, syncAvailableDevices]);
+  }, [displayName, isCameraOn, isLiveKitEnabled, isMicOn, liveKitUrl, livekitToken, localEmail, localRole, resolvedHostId, resolvedHostName, syncAvailableDevices]);
 
   const fallbackLocalParticipantIsHost =
     localRole === "HOST"
@@ -1050,10 +1112,11 @@ export default function MeetingRoom({
     isLiveKitEnabled
       ? liveParticipants.length > 0
         ? liveParticipants
-        : [getFallbackLocalParticipant(displayName, isMicEnabled, isCameraEnabled, false, fallbackLocalParticipantIsHost, localHandState)]
+        : [getFallbackLocalParticipant(displayName, localEmail, isMicEnabled, isCameraEnabled, false, fallbackLocalParticipantIsHost, localHandState)]
       : [
         getFallbackLocalParticipant(
           displayName,
+          localEmail,
           isMicEnabled,
           isCameraEnabled,
           Boolean(mockScreenShareOwnerId),
@@ -1556,7 +1619,7 @@ export default function MeetingRoom({
                           className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/45 px-3 py-2.5"
                         >
                           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 text-sm font-semibold text-primary-foreground">
-                            {getInitials(participant.name)}
+                            {getInitials(participant.avatarSource)}
                           </div>
 
                           <div className="min-w-0 flex-1">

@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GG Meet Frontend
 
-## Getting Started
+## Run Locally
 
-First, run the development server:
+Install dependencies and start the development server:
 
 ```bash
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Run With Docker
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Build and start the production container:
 
-## Learn More
+```bash
+docker compose up --build -d
+```
 
-To learn more about Next.js, take a look at the following resources:
+If your Docker installation still uses the legacy CLI, run `docker-compose up --build -d` instead.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The frontend will be available at [http://localhost:3000](http://localhost:3000).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Default Docker assumptions:
 
-## Deploy on Vercel
+- Backend API is reachable from the browser at `http://localhost:8080/api`
+- Backend API is reachable from inside the frontend container at `http://host.docker.internal:8080/api`
+- LiveKit websocket is reachable at `ws://localhost:7880`
+- Meeting socket endpoint is reachable at `http://localhost:8080/server`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+You can override those values before running Docker. In PowerShell, for example:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```powershell
+$env:BACKEND_INTERNAL_URL="http://backend:8080/api"
+docker compose up --build -d
+```
+
+## Notes
+
+- Docker Compose will reuse matching variables from the root `.env` file when they already exist. The defaults in `docker-compose.yml` are only used when a variable is missing.
+- `NEXT_PUBLIC_*` variables are injected at build time, so rerun `docker compose up --build` after changing frontend-facing URLs.
+- The production image uses Next.js `standalone` output to keep the runtime container smaller.

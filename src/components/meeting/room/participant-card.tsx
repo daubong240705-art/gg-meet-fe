@@ -23,7 +23,7 @@ export default function ParticipantCard({
   highlighted = false,
   className,
 }: ParticipantCardProps) {
-  const initials = getInitials(participant.name);
+  const initials = getInitials(participant.avatarSource);
   const isActiveSpeaker = !participant.isMuted && participant.isSpeaking;
 
   return (

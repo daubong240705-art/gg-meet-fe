@@ -26,6 +26,7 @@ import {
   readInstantMeetingSession,
 } from "@/lib/meeting/instant-meeting-session";
 import { ensureMeetingAudioReady, playGuestAdmittedSound } from "@/lib/meeting/lobby-audio";
+import { getAvatarInitials } from "@/lib/user/avatar";
 import {
   connectMeetingSocket,
   decodeMeetingToken,
@@ -216,13 +217,7 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
   const displayName = userName || pendingJoinState?.userName?.trim() || "Guest";
   const canJoinMeeting = userName.length > 0;
   const meetingName = meetingCode ? meetingCode : "your meeting";
-  const initials =
-    displayName
-      .split(/\s+/)
-      .map((part) => part[0] || "")
-      .join("")
-      .slice(0, 2)
-      .toUpperCase() || "G";
+  const initials = getAvatarInitials(user?.email?.trim() || displayName, "G");
   const pendingParticipantStatus = normalizeMeetingParticipantStatus(
     pendingJoinState?.participantStatus,
   );

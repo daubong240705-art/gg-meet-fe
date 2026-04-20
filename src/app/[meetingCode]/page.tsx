@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Home, Loader2, TimerReset, WifiOff, XCircle } from "lucide-react";
@@ -212,11 +212,38 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
     },
     enabled: Boolean(normalizedMeetingCode),
     retry: false,
+    staleTime: 60_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
-  const handleGoHome = () => {
+  const handleGoHome = useCallback(() => {
     router.replace("/");
-  };
+  }, [router]);
+
+  const handleMeetingEnded = useCallback(() => {
+    clearInstantMeetingSession(normalizedMeetingCode);
+    setJoinState(null);
+    setLeftMeetingState({
+      leftAt: Date.now(),
+      reason: "ended",
+    });
+  }, [normalizedMeetingCode]);
+
+  const handleLobbyJoin = useCallback((payload: MeetingJoinState) => {
+    setLeftMeetingState(null);
+    setJoinState(payload);
+  }, []);
+
+  const handleLeaveMeeting = useCallback((reason: "left" | "ended" = "left") => {
+    clearInstantMeetingSession(normalizedMeetingCode);
+    setJoinState(null);
+    setLeftMeetingState({
+      leftAt: Date.now(),
+      reason,
+    });
+  }, [normalizedMeetingCode]);
 
   useEffect(() => {
     if (leftMeetingState || verifyMeetingQuery.isPending || verifyMeetingQuery.isSuccess) {
@@ -319,18 +346,8 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
     return (
       <Lobby
         meetingCode={normalizedMeetingCode}
-        onMeetingEnded={() => {
-          clearInstantMeetingSession(normalizedMeetingCode);
-          setJoinState(null);
-          setLeftMeetingState({
-            leftAt: Date.now(),
-            reason: "ended",
-          });
-        }}
-        onJoin={(payload) => {
-          setLeftMeetingState(null);
-          setJoinState(payload);
-        }}
+        onMeetingEnded={handleMeetingEnded}
+        onJoin={handleLobbyJoin}
       />
     );
   }
@@ -346,14 +363,7 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
       meetingToken={joinState.meetingToken}
       hostId={joinState.hostId}
       hostName={joinState.hostName}
-      onLeave={(reason = "left") => {
-        clearInstantMeetingSession(normalizedMeetingCode);
-        setJoinState(null);
-        setLeftMeetingState({
-          leftAt: Date.now(),
-          reason,
-        });
-      }}
+      onLeave={handleLeaveMeeting}
     />
   );
 }

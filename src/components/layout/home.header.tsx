@@ -111,7 +111,7 @@ export default function Homeheader() {
                                 className="flex items-center gap-3 rounded-full  bg-background/85 px-2 py-1.5 transition hover:bg-muted/70"
                             >
                                 <div className="flex size-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-                                    {getUserInitials(user.fullName)}
+                                    {getUserInitials(user.email || user.fullName)}
                                 </div>
 
                                 {/* <div className="hidden text-left sm:block">
