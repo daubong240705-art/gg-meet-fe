@@ -44,11 +44,19 @@ export type ScheduleMeetingRequest = {
 
 export type ScheduleMeetingResponseData = CreateMeetingResponseData;
 export type JoinMeetingResponseData = CreateMeetingResponseData;
+export type JoinRequestStatusResponseData = JoinMeetingResponseData;
 export type VerifyMeetingResponseData = {
     meetingCode?: string | null;
     title?: string | null;
     status?: string | null;
     host?: MeetingHost | null;
+};
+export type WaitingRoomRequestData = {
+    participantId?: number | null;
+    name?: string | null;
+    email?: string | null;
+    participantStatus?: string | null;
+    requestedAt?: string | null;
 };
 export type EndMeetingResponseData = null;
 export type MeetingApiFieldError = {
@@ -262,6 +270,18 @@ const normalizeCancelJoinRequest = (request?: CancelJoinRequest | null) => {
     return Object.keys(normalizedRequest).length > 0 ? normalizedRequest : null;
 };
 
+const getMeetingTokenHeaders = (meetingToken?: string | null) => {
+    const normalizedMeetingToken = meetingToken?.trim();
+
+    if (!normalizedMeetingToken) {
+        return undefined;
+    }
+
+    return {
+        "Meeting-Token": normalizedMeetingToken,
+    };
+};
+
 export const meetingApi = {
     createInstantMeeting(title: string = DEFAULT_INSTANT_MEETING_TITLE) {
         return sendRequest<IBackendRes<CreateMeetingResponseData>>({
@@ -318,6 +338,26 @@ export const meetingApi = {
         });
     },
 
+    getWaitingRoomRequests(meetingCode: string, meetingToken?: string | null) {
+        return sendRequest<IBackendRes<WaitingRoomRequestData[]>>({
+            url: `${API_URL}/meetings/${encodeURIComponent(meetingCode)}/waiting-room`,
+            method: "GET",
+            headers: getMeetingTokenHeaders(meetingToken),
+            useCredentials: true,
+            redirectOnAuthFail: false,
+        });
+    },
+
+    getJoinRequestStatus(meetingCode: string, meetingToken?: string | null) {
+        return sendRequest<IBackendRes<JoinRequestStatusResponseData>>({
+            url: `${API_URL}/meetings/${encodeURIComponent(meetingCode)}/join-status`,
+            method: "GET",
+            headers: getMeetingTokenHeaders(meetingToken),
+            useCredentials: true,
+            redirectOnAuthFail: false,
+        });
+    },
+
     endMeeting(meetingCode: string) {
         const accessToken =
             typeof window !== "undefined" ? readStoredAccessToken() : null;
@@ -357,12 +397,8 @@ export const meetingApi = {
     },
 
     cancelJoinWithBeacon(meetingCode: string, cancelJoinRequest?: CancelJoinRequest | null) {
-        const accessToken =
-            typeof window !== "undefined" ? readStoredAccessToken() : null;
-
         if (
-            accessToken
-            || typeof navigator === "undefined"
+            typeof navigator === "undefined"
             || typeof navigator.sendBeacon !== "function"
         ) {
             return false;

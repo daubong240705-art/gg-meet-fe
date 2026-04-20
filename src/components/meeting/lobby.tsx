@@ -33,11 +33,13 @@ import {
   type MeetingSocketMessage,
 } from "@/lib/meeting/meeting-websocket";
 import {
+  getMeetingApiErrorDescription,
   isMeetingParticipantAwaitingApproval,
   meetingApi,
   normalizeMeetingParticipantStatus,
   shouldHandleMeetingParticipantInLobby,
   type JoinMeetingResponseData,
+  type JoinRequestStatusResponseData,
   type MeetingParticipantStatus,
 } from "@/service/meeting.service";
 import { Button } from "@/components/ui/button";
@@ -153,6 +155,65 @@ function getCancelJoinMessage(payload?: LobbyJoinPayload | null): MeetingSocketM
   };
 }
 
+function getCancelJoinRequest(payload?: LobbyJoinPayload | null) {
+  if (!payload) {
+    return undefined;
+  }
+
+  const decodedMeetingToken = decodeMeetingToken(payload.meetingToken);
+  const normalizedTargetName = payload.userName.trim();
+  const normalizedMeetingToken = payload.meetingToken?.trim() || null;
+  const normalizedGuestRequest = getGuestJoinRequest(payload);
+
+  if (!normalizedMeetingToken && decodedMeetingToken.participantId === null) {
+    return undefined;
+  }
+
+  return {
+    targetParticipantId: decodedMeetingToken.participantId,
+    targetName: normalizedTargetName || null,
+    guestId: normalizedGuestRequest?.guestId ?? null,
+    guestName: normalizedGuestRequest?.guestName ?? null,
+    meetingToken: normalizedMeetingToken,
+  };
+}
+
+function getApiStatusCode(value?: number | string) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const parsedValue = Number(value);
+  return Number.isFinite(parsedValue) ? parsedValue : null;
+}
+
+function shouldTreatPendingJoinErrorAsMeetingEnded(error: IBackendRes<unknown>) {
+  const statusCode = getApiStatusCode(error.statusCode ?? error.status);
+  const description = getMeetingApiErrorDescription(error)?.toLowerCase() || "";
+
+  return statusCode === 404 || description.includes("already ended");
+}
+
+function areLobbyJoinStatesEqual(
+  currentState?: LobbyPendingJoinState | null,
+  nextState?: LobbyPendingJoinState | null,
+) {
+  if (!currentState || !nextState) {
+    return currentState === nextState;
+  }
+
+  return currentState.title === nextState.title
+    && currentState.userName === nextState.userName
+    && currentState.guestId === nextState.guestId
+    && currentState.isMicOn === nextState.isMicOn
+    && currentState.isCameraOn === nextState.isCameraOn
+    && currentState.livekitToken === nextState.livekitToken
+    && currentState.meetingToken === nextState.meetingToken
+    && currentState.participantStatus === nextState.participantStatus
+    && currentState.hostId === nextState.hostId
+    && currentState.hostName === nextState.hostName;
+}
+
 export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProps) {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthSession();
@@ -167,6 +228,7 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
   const disconnectCancelTimeoutRef = useRef<number | null>(null);
   const hasTriggeredUnloadCancelRef = useRef(false);
   const hasHandledMeetingEndedRef = useRef(false);
+  const hasCompletedPendingJoinRef = useRef(false);
   const isMountedRef = useRef(true);
   const sessionUserName = user?.fullName?.trim() || user?.email?.trim() || "";
   const initialGuestName = !sessionUserName ? initialMeetingSession?.userName?.trim() || "" : "";
@@ -235,7 +297,7 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
     }
   }, []);
 
-  const persistLobbySession = (
+  const persistLobbySession = useCallback((
     resolvedMeetingCode: string,
     payload: LobbyJoinPayload,
     participantStatus: MeetingParticipantStatus | null,
@@ -253,43 +315,44 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
       hostId: payload.hostId ?? null,
       hostName: payload.hostName ?? null,
     });
-  };
+  }, []);
 
-  const requestApprovedJoin = useCallback(async (nextPendingJoinState: LobbyPendingJoinState) => {
-    const response = await meetingApi.joinMeeting(
-      meetingCode,
-      nextPendingJoinState.guestId?.trim() && nextPendingJoinState.userName.trim()
-        ? {
-          guestId: nextPendingJoinState.guestId.trim(),
-          guestName: nextPendingJoinState.userName.trim(),
-        }
-        : undefined,
-    );
-    const verifiedResponse = assertApiSuccess(response);
+  const updatePendingJoinState = useCallback((nextPendingJoinState: LobbyPendingJoinState | null) => {
+    setPendingJoinState((currentState) => {
+      if (areLobbyJoinStatesEqual(currentState, nextPendingJoinState)) {
+        return currentState;
+      }
+
+      return nextPendingJoinState;
+    });
+  }, []);
+
+  const buildResolvedJoinPayload = useCallback((
+    responseData: JoinMeetingResponseData | JoinRequestStatusResponseData | null | undefined,
+    baseState: LobbyPendingJoinState,
+  ) => {
     const participantStatus = normalizeMeetingParticipantStatus(
-      verifiedResponse.data?.participantStatus,
+      responseData?.participantStatus,
     );
-    const livekitToken = verifiedResponse.data?.livekitToken?.trim() || null;
-    const meetingToken = verifiedResponse.data?.meetingToken?.trim() || nextPendingJoinState.meetingToken || null;
-    const resolvedMeetingCode = verifiedResponse.data?.meetingCode?.trim() || meetingCode;
-    const approvedJoinPayload: LobbyJoinPayload = {
-      ...nextPendingJoinState,
-      title: verifiedResponse.data?.title?.trim() || nextPendingJoinState.title || null,
-      isMicOn,
-      isCameraOn,
-      livekitToken,
-      meetingToken,
+    const livekitToken = responseData?.livekitToken?.trim() || null;
+    const meetingToken = responseData?.meetingToken?.trim() || baseState.meetingToken || null;
+    const resolvedMeetingCode = responseData?.meetingCode?.trim() || meetingCode;
+
+    return {
       participantStatus,
-      hostId: verifiedResponse.data?.host?.id?.toString() ?? nextPendingJoinState.hostId ?? null,
-      hostName: verifiedResponse.data?.host?.fullName?.trim() || nextPendingJoinState.hostName || null,
+      resolvedMeetingCode,
+      joinPayload: {
+        ...baseState,
+        title: responseData?.title?.trim() || baseState.title || null,
+        isMicOn,
+        isCameraOn,
+        livekitToken,
+        meetingToken,
+        participantStatus,
+        hostId: responseData?.host?.id?.toString() ?? baseState.hostId ?? null,
+        hostName: responseData?.host?.fullName?.trim() || baseState.hostName || null,
+      } satisfies LobbyJoinPayload,
     };
-
-    if (!livekitToken) {
-      throw new Error("The host approved you, but the server did not provide a LiveKit token yet.");
-    }
-
-    persistLobbySession(resolvedMeetingCode, approvedJoinPayload, participantStatus);
-    return approvedJoinPayload;
   }, [isCameraOn, isMicOn, meetingCode]);
 
   const handleMeetingEnded = useEffectEvent(() => {
@@ -311,6 +374,143 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
     onMeetingEnded();
   });
 
+  const completeApprovedJoin = useEffectEvent((
+    approvedJoinPayload: LobbyJoinPayload,
+    description: string,
+  ) => {
+    if (hasCompletedPendingJoinRef.current) {
+      return;
+    }
+
+    hasCompletedPendingJoinRef.current = true;
+    playGuestAdmittedSound();
+    toast.success("You were admitted", {
+      description,
+    });
+    onJoin(approvedJoinPayload);
+  });
+
+  const requestApprovedJoin = useCallback(async (nextPendingJoinState: LobbyPendingJoinState) => {
+    const response = await meetingApi.joinMeeting(
+      meetingCode,
+      nextPendingJoinState.guestId?.trim() && nextPendingJoinState.userName.trim()
+        ? {
+          guestId: nextPendingJoinState.guestId.trim(),
+          guestName: nextPendingJoinState.userName.trim(),
+        }
+        : undefined,
+    );
+    const verifiedResponse = assertApiSuccess(response);
+    const {
+      participantStatus,
+      resolvedMeetingCode,
+      joinPayload: approvedJoinPayload,
+    } = buildResolvedJoinPayload(verifiedResponse.data, nextPendingJoinState);
+
+    if (!approvedJoinPayload.livekitToken) {
+      throw new Error("The host approved you, but the server did not provide a LiveKit token yet.");
+    }
+
+    persistLobbySession(resolvedMeetingCode, approvedJoinPayload, participantStatus);
+    return approvedJoinPayload;
+  }, [buildResolvedJoinPayload, meetingCode, persistLobbySession]);
+
+  const syncPendingJoinStatus = useCallback(async (
+    nextPendingJoinState: LobbyPendingJoinState,
+    silent: boolean,
+  ) => {
+    if (!nextPendingJoinState.meetingToken) {
+      return;
+    }
+
+    try {
+      const response = await meetingApi.getJoinRequestStatus(
+        meetingCode,
+        nextPendingJoinState.meetingToken,
+      );
+      const verifiedResponse = assertApiSuccess(response);
+
+      if (!isMountedRef.current) {
+        return;
+      }
+
+      const {
+        participantStatus,
+        resolvedMeetingCode,
+        joinPayload,
+      } = buildResolvedJoinPayload(verifiedResponse.data, nextPendingJoinState);
+      const normalizedParticipantStatus =
+        participantStatus === "REJECT" ? "REJECTED" : participantStatus;
+      const nextResolvedPendingJoinState: LobbyPendingJoinState = {
+        ...joinPayload,
+        participantStatus: normalizedParticipantStatus,
+      };
+
+      if (participantStatus === "ACCEPT") {
+        if (!joinPayload.livekitToken) {
+          throw new Error("The host approved you, but the server did not provide a LiveKit token yet.");
+        }
+
+        persistLobbySession(resolvedMeetingCode, joinPayload, participantStatus);
+        completeApprovedJoin(joinPayload, "The host admitted you to the meeting.");
+        return;
+      }
+
+      if (normalizedParticipantStatus === "REJECTED") {
+        clearInstantMeetingSession(meetingCode);
+        updatePendingJoinState(nextResolvedPendingJoinState);
+        setIsWaitingSocketConnected(false);
+        setWaitingSocketError("");
+
+        if (!silent) {
+          toast.error("Join request declined", {
+            description: "The host declined this join request.",
+          });
+        }
+        return;
+      }
+
+      persistLobbySession(
+        resolvedMeetingCode,
+        nextResolvedPendingJoinState,
+        normalizedParticipantStatus ?? "WAITING",
+      );
+      updatePendingJoinState(nextResolvedPendingJoinState);
+      setWaitingSocketError("");
+    } catch (error) {
+      if (!isMountedRef.current) {
+        return;
+      }
+
+      const apiError = error as IBackendRes<unknown>;
+      if (shouldTreatPendingJoinErrorAsMeetingEnded(apiError)) {
+        handleMeetingEnded();
+        return;
+      }
+
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : getApiErrorDescription(apiError) || "Please try again in a moment.";
+
+      setWaitingSocketError(errorMessage);
+
+      if (!silent) {
+        toast.error("Unable to refresh your join request", {
+          description: errorMessage,
+        });
+      }
+    }
+  }, [
+    buildResolvedJoinPayload,
+    completeApprovedJoin,
+    handleMeetingEnded,
+    meetingCode,
+    onJoin,
+    persistLobbySession,
+    updatePendingJoinState,
+  ]);
+
   const joinMeetingMutation = useMutation<
     IBackendRes<JoinMeetingResponseData>,
     IBackendRes<unknown>,
@@ -329,34 +529,25 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
       return assertApiSuccess(response);
     },
     onSuccess: (response, payload) => {
-      const participantStatus = normalizeMeetingParticipantStatus(
-        response.data?.participantStatus,
-      );
-      const livekitToken = response.data?.livekitToken?.trim() || null;
-      const meetingToken = response.data?.meetingToken?.trim() || null;
-      const resolvedMeetingCode = response.data?.meetingCode?.trim() || meetingCode;
-      const nextJoinPayload: LobbyJoinPayload = {
-        ...payload,
-        title: response.data?.title?.trim() || null,
-        livekitToken,
-        meetingToken,
+      const {
         participantStatus,
-        guestId: payload.guestId ?? null,
-        hostId: response.data?.host?.id?.toString() ?? null,
-        hostName: response.data?.host?.fullName?.trim() || null,
-      };
+        resolvedMeetingCode,
+        joinPayload: nextJoinPayload,
+      } = buildResolvedJoinPayload(response.data, payload);
 
       if (isMeetingParticipantAwaitingApproval(participantStatus)) {
-        if (!meetingToken) {
+        if (!nextJoinPayload.meetingToken) {
           toast.error("Unable to send join request", {
             description: "The server did not return a meeting token for the waiting room.",
           });
           return;
         }
 
+        // OLD: the waiting view relied on websocket events only after the first join request.
+        // NEW: keep the pending request in session/state and let the API resync current status after reconnect.
         persistLobbySession(resolvedMeetingCode, nextJoinPayload, participantStatus);
         setIsWaitingSocketConnected(false);
-        setPendingJoinState(nextJoinPayload);
+        updatePendingJoinState(nextJoinPayload);
         setWaitingSocketError("");
         setWaitingSocketRetryKey((currentValue) => currentValue + 1);
         toast.success("Request sent", {
@@ -365,7 +556,7 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
         return;
       }
 
-      if (!livekitToken) {
+      if (!nextJoinPayload.livekitToken) {
         toast.error("Unable to join meeting", {
           description: "The server did not return a valid LiveKit token.",
         });
@@ -393,6 +584,7 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
   useEffect(() => {
     if (isWaitingForApproval && pendingJoinState) {
       hasTriggeredUnloadCancelRef.current = false;
+      hasCompletedPendingJoinRef.current = false;
       return;
     }
 
@@ -405,6 +597,43 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
       clearDisconnectCancelTimeout();
     };
   }, [clearDisconnectCancelTimeout]);
+
+  useEffect(() => {
+    if (!pendingJoinState || !isWaitingForApproval || !pendingJoinState.meetingToken) {
+      return;
+    }
+
+    void syncPendingJoinStatus(pendingJoinState, true);
+  }, [isWaitingForApproval, pendingJoinState, syncPendingJoinStatus]);
+
+  useEffect(() => {
+    if (
+      !pendingJoinState
+      || !isWaitingForApproval
+      || !pendingJoinState.meetingToken
+      || isWaitingSocketConnected
+    ) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      const activePendingJoinState = pendingJoinStateRef.current;
+
+      if (
+        !activePendingJoinState
+        || !activePendingJoinState.meetingToken
+        || !isMeetingParticipantAwaitingApproval(activePendingJoinState.participantStatus)
+      ) {
+        return;
+      }
+
+      void syncPendingJoinStatus(activePendingJoinState, true);
+    }, 5000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isWaitingForApproval, isWaitingSocketConnected, pendingJoinState, syncPendingJoinStatus]);
 
   useEffect(() => {
     if (!pendingJoinState || !isWaitingForApproval) {
@@ -428,6 +657,7 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
       hasTriggeredUnloadCancelRef.current = true;
       clearInstantMeetingSession(meetingCode);
       const cancelMessage = getCancelJoinMessage(activePendingJoinState);
+      const cancelJoinRequest = getCancelJoinRequest(activePendingJoinState);
 
       try {
         if (cancelMessage && waitingSocketRef.current?.isConnected()) {
@@ -438,6 +668,10 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
         }
       } catch {
         // Browser may be tearing down the page; best-effort only.
+      }
+
+      if (cancelJoinRequest) {
+        meetingApi.cancelJoinWithBeacon(meetingCode, cancelJoinRequest);
       }
 
       waitingSocketRef.current?.disconnect();
@@ -476,6 +710,10 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
         clearDisconnectCancelTimeout();
         setIsWaitingSocketConnected(true);
         setWaitingSocketError("");
+        // OLD: reconnect only restored the websocket subscription, so approvals/rejections that happened
+        // while this tab was offline could be missed silently.
+        // NEW: resync the persisted join request from the API on every successful reconnect.
+        void syncPendingJoinStatus(pendingJoinState, true);
       },
       onDisconnect: () => {
         setIsWaitingSocketConnected(false);
@@ -507,11 +745,7 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
 
         if (action === "ADMITTED") {
           void requestApprovedJoin(pendingJoinState).then((approvedJoinPayload) => {
-            playGuestAdmittedSound();
-            toast.success("You were admitted", {
-              description: getWaitingMessage(message),
-            });
-            onJoin(approvedJoinPayload);
+            completeApprovedJoin(approvedJoinPayload, getWaitingMessage(message));
           }).catch((error) => {
             const errorMessage =
               error instanceof Error ? error.message : "Unable to finish joining the meeting.";
@@ -523,12 +757,13 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
 
         if (action === "REJECTED") {
           clearInstantMeetingSession(meetingCode);
-          setPendingJoinState((currentState) => currentState
+          const activePendingJoinState = pendingJoinStateRef.current ?? pendingJoinState;
+          updatePendingJoinState(activePendingJoinState
             ? {
-              ...currentState,
+              ...activePendingJoinState,
               participantStatus: "REJECTED",
             }
-            : currentState);
+            : pendingJoinState);
           setIsWaitingSocketConnected(false);
           toast.error("Join request declined", {
             description: getWaitingMessage(message),
@@ -553,11 +788,14 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
     };
   }, [
     clearDisconnectCancelTimeout,
+    completeApprovedJoin,
     isWaitingForApproval,
     meetingCode,
     onJoin,
     pendingJoinState,
     requestApprovedJoin,
+    syncPendingJoinStatus,
+    updatePendingJoinState,
     waitingSocketRetryKey,
   ]);
 

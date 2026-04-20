@@ -29,7 +29,7 @@ import {
   decodeMeetingToken,
   type MeetingSocketMessage,
 } from "@/lib/meeting/meeting-websocket";
-import { meetingApi } from "@/service/meeting.service";
+import { meetingApi, type WaitingRoomRequestData } from "@/service/meeting.service";
 
 import { REMOTE_PARTICIPANTS } from "./constants";
 import { isStickerKey } from "./chat-stickers";
@@ -408,6 +408,22 @@ function getWaitingParticipantName(message: MeetingSocketMessage) {
   return message.targetName?.trim() || "Guest";
 }
 
+function mapWaitingRoomRequestToParticipant(request: WaitingRoomRequestData): WaitingParticipant | null {
+  const participantId = request.participantId;
+
+  if (typeof participantId !== "number" || !Number.isFinite(participantId)) {
+    return null;
+  }
+
+  const requestedAtTimestamp = request.requestedAt ? Date.parse(request.requestedAt) : Number.NaN;
+
+  return {
+    participantId,
+    name: request.name?.trim() || request.email?.trim() || "Guest",
+    requestedAt: Number.isFinite(requestedAtTimestamp) ? requestedAtTimestamp : Date.now(),
+  };
+}
+
 function areParticipantsEqual(currentParticipants: Participant[], nextParticipants: Participant[]) {
   if (currentParticipants.length !== nextParticipants.length) {
     return false;
@@ -706,6 +722,55 @@ export default function MeetingRoom({
     );
   }, []);
 
+  const syncWaitingParticipants = useCallback(async () => {
+    if (!canManageWaitingRoom || !meetingToken) {
+      setWaitingParticipants([]);
+      return;
+    }
+
+    const syncStartedAt = Date.now();
+
+    try {
+      const response = await meetingApi.getWaitingRoomRequests(meetingCode, meetingToken);
+      const verifiedResponse = assertApiSuccess(response);
+      const serverWaitingParticipants = (verifiedResponse.data ?? [])
+        .map((request) => mapWaitingRoomRequestToParticipant(request))
+        .filter((participant): participant is WaitingParticipant => Boolean(participant));
+
+      setWaitingParticipants((currentParticipants) => {
+        const mergedParticipants = new Map<number, WaitingParticipant>();
+
+        serverWaitingParticipants.forEach((participant) => {
+          mergedParticipants.set(participant.participantId, participant);
+        });
+
+        currentParticipants.forEach((participant) => {
+          if (
+            !mergedParticipants.has(participant.participantId)
+            && participant.requestedAt >= syncStartedAt
+          ) {
+            mergedParticipants.set(participant.participantId, participant);
+          }
+        });
+
+        return Array.from(mergedParticipants.values()).sort(
+          (leftParticipant, rightParticipant) => leftParticipant.requestedAt - rightParticipant.requestedAt,
+        );
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unable to refresh waiting-room requests.";
+
+      setLiveKitError(errorMessage);
+    }
+  }, [canManageWaitingRoom, meetingCode, meetingToken]);
+
+  const requestWaitingRoomResync = useCallback(() => {
+    window.setTimeout(() => {
+      void syncWaitingParticipants();
+    }, 300);
+  }, [syncWaitingParticipants]);
+
   const clearWaitingMenuCloseTimeout = useCallback(() => {
     if (waitingMenuCloseTimeoutRef.current !== null) {
       window.clearTimeout(waitingMenuCloseTimeoutRef.current);
@@ -751,6 +816,18 @@ export default function MeetingRoom({
   }, [syncAvailableDevices]);
 
   useEffect(() => {
+    if (!canManageWaitingRoom || !meetingToken) {
+      setWaitingParticipants([]);
+      return;
+    }
+
+    // OLD: host waiting room only accumulated JOIN_REQUEST websocket events, so any request
+    // created while the host tab was away disappeared from the UI after rejoin.
+    // NEW: fetch the current pending list from the API whenever the host enters/re-enters the room.
+    void syncWaitingParticipants();
+  }, [canManageWaitingRoom, meetingToken, syncWaitingParticipants]);
+
+  useEffect(() => {
     meetingSocketRef.current?.disconnect();
     meetingSocketRef.current = null;
 
@@ -759,12 +836,21 @@ export default function MeetingRoom({
       return;
     }
 
+    if (!canManageWaitingRoom) {
+      setWaitingParticipants([]);
+    }
+
     const connection = connectMeetingSocket({
       meetingCode,
       meetingToken,
       subscribeToMeetingTopic: true,
       subscribeToWaitingTopic: canManageWaitingRoom,
       subscribeToParticipantTopic: canManageWaitingRoom,
+      onConnect: () => {
+        if (canManageWaitingRoom) {
+          void syncWaitingParticipants();
+        }
+      },
       onWaitingMessage: (message) => {
         const action = message.action?.trim().toUpperCase();
 
@@ -826,6 +912,7 @@ export default function MeetingRoom({
     meetingCode,
     meetingToken,
     removeWaitingParticipant,
+    syncWaitingParticipants,
     upsertWaitingParticipant,
   ]);
 
@@ -1374,13 +1461,14 @@ export default function MeetingRoom({
         targetName: participant.name,
       });
       removeWaitingParticipant(participant.participantId);
+      requestWaitingRoomResync();
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unable to approve this participant.";
 
       setLiveKitError(errorMessage);
     }
-  }, [meetingCode, removeWaitingParticipant]);
+  }, [meetingCode, removeWaitingParticipant, requestWaitingRoomResync]);
 
   const handleRejectWaitingParticipant = useCallback((participant: WaitingParticipant) => {
     try {
@@ -1390,15 +1478,18 @@ export default function MeetingRoom({
         targetName: participant.name,
       });
       removeWaitingParticipant(participant.participantId);
+      requestWaitingRoomResync();
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unable to reject this participant.";
 
       setLiveKitError(errorMessage);
     }
-  }, [meetingCode, removeWaitingParticipant]);
+  }, [meetingCode, removeWaitingParticipant, requestWaitingRoomResync]);
 
   const handleApproveAllWaitingParticipants = useCallback(() => {
+    let hasQueuedResync = false;
+
     waitingParticipants.forEach((participant) => {
       try {
         meetingSocketRef.current?.sendAccept({
@@ -1407,6 +1498,7 @@ export default function MeetingRoom({
           targetName: participant.name,
         });
         removeWaitingParticipant(participant.participantId);
+        hasQueuedResync = true;
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Unable to approve all waiting participants.";
@@ -1414,7 +1506,11 @@ export default function MeetingRoom({
         setLiveKitError(errorMessage);
       }
     });
-  }, [meetingCode, removeWaitingParticipant, waitingParticipants]);
+
+    if (hasQueuedResync) {
+      requestWaitingRoomResync();
+    }
+  }, [meetingCode, removeWaitingParticipant, requestWaitingRoomResync, waitingParticipants]);
 
   const handleSendChatMessage = (payload: OutboundChatMessage) => {
     if (payload.type === "text" && !payload.content.trim()) {
