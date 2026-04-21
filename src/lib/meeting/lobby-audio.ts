@@ -1,5 +1,7 @@
-export const GUEST_ADMITTED_AUDIO_SRC = "/audio/waitting-join.mp3";
-export const HOST_WAITING_REQUEST_AUDIO_SRC = "/audio/hihi.mp3";
+import { MEETING_AUDIO } from "./assets";
+
+export const GUEST_ADMITTED_AUDIO_SRC = MEETING_AUDIO.guestAdmitted;
+export const HOST_WAITING_REQUEST_AUDIO_SRC = MEETING_AUDIO.hostWaitingRequest;
 
 type MeetingAudioKey = "guestAdmitted" | "hostWaitingRequest";
 

@@ -1,11 +1,6 @@
-export const STICKERS = {
-  dogshit: "/stickers/waitting.png",
-  dog: "/stickers/dog.png",
-  cat: "/stickers/cat.png",
-  daragon: "/stickers/daragon.png",
-  hau: "/stickers/1.png",
-  gianggay: "/stickers/gianggay.png",
-} as const;
+import { MEETING_STICKERS } from "@/lib/meeting/assets";
+
+export const STICKERS = MEETING_STICKERS;
 
 export type StickerKey = keyof typeof STICKERS;
 

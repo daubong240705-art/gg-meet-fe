@@ -26,6 +26,7 @@ import {
   persistInstantMeetingSession,
   readInstantMeetingSession,
 } from "@/lib/meeting/instant-meeting-session";
+import { MEETING_IMAGES } from "@/lib/meeting/assets";
 import { ensureMeetingAudioReady, playGuestAdmittedSound } from "@/lib/meeting/lobby-audio";
 import {
   connectMeetingSocket,
@@ -74,7 +75,7 @@ type LobbyProps = {
 
 export type { LobbyJoinPayload };
 
-const WAITING_APPROVAL_IMAGE_SRC = "/images/waitting.png";
+const WAITING_APPROVAL_IMAGE_SRC = MEETING_IMAGES.waitingApproval;
 type DeviceMenuKey =
   | "selector-camera"
   | "selector-mic"

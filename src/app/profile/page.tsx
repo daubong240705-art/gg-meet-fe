@@ -29,6 +29,14 @@ export default function ProfilePage() {
     const updateProfileMutation = useUpdateProfile();
     const [draft, setDraft] = useState<ProfileDraft | null>(null);
     const [isAvatarDialogOpen, setIsAvatarDialogOpen] = useState(false);
+    const avatarOptions = useMemo(() => (
+        Array.from(new Set<string>(SYSTEM_AVATARS)).map((avatar, index) => ({
+            id: `system-avatar-${index + 1}`,
+            label: `Avatar ${index + 1}`,
+            url: avatar,
+        }))
+    ), []);
+    const quickAvatarOptions = avatarOptions.slice(0, 4);
 
     const profile = profileQuery.data;
     const profileSnapshot = useMemo(() => {
@@ -224,22 +232,22 @@ export default function ProfilePage() {
                                                     className="h-14 w-14"
                                                 />
                                             </button>
-                                            {SYSTEM_AVATARS.slice(0, 4).map((avatar) => {
-                                                const isSelected = selectedAvatarUrl === avatar;
+                                            {quickAvatarOptions.map((avatarOption) => {
+                                                const isSelected = selectedAvatarUrl === avatarOption.url;
 
                                                 return (
                                                     <button
-                                                        key={avatar}
+                                                        key={`quick-${avatarOption.id}`}
                                                         type="button"
-                                                        onClick={() => updateDraft({ avatarUrl: avatar })}
+                                                        onClick={() => updateDraft({ avatarUrl: avatarOption.url })}
                                                         className={cn(
                                                             "rounded-full p-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
                                                             isSelected ? "bg-muted ring-2 ring-primary/50" : "hover:bg-muted",
                                                         )}
-                                                        aria-label="Select avatar"
+                                                        aria-label={`Select ${avatarOption.label}`}
                                                     >
                                                         <UserAvatar
-                                                            avatarUrl={avatar}
+                                                            avatarUrl={avatarOption.url}
                                                             name={profile.fullName}
                                                             email={profile.email}
                                                             className="h-14 w-14"
@@ -312,15 +320,15 @@ export default function ProfilePage() {
                                             </span>
                                         ) : null}
                                     </button>
-                                    {SYSTEM_AVATARS.map((avatar) => {
-                                        const isSelected = selectedAvatarUrl === avatar;
+                                    {avatarOptions.map((avatarOption) => {
+                                        const isSelected = selectedAvatarUrl === avatarOption.url;
 
                                         return (
                                             <button
-                                                key={avatar}
+                                                key={avatarOption.id}
                                                 type="button"
                                                 onClick={() => {
-                                                    updateDraft({ avatarUrl: avatar });
+                                                    updateDraft({ avatarUrl: avatarOption.url });
                                                     setIsAvatarDialogOpen(false);
                                                 }}
                                                 className={cn(
@@ -329,12 +337,12 @@ export default function ProfilePage() {
                                                 )}
                                             >
                                                 <UserAvatar
-                                                    avatarUrl={avatar}
+                                                    avatarUrl={avatarOption.url}
                                                     name={profile.fullName}
                                                     email={profile.email}
                                                     className="h-24 w-24"
                                                 />
-                                                <span className="text-sm font-medium">Avatar {SYSTEM_AVATARS.indexOf(avatar) + 1}</span>
+                                                <span className="text-sm font-medium">{avatarOption.label}</span>
                                                 {isSelected ? (
                                                     <span className="absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
                                                         <Check className="h-4 w-4" />

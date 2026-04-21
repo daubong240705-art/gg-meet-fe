@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 import Homeheader from "@/components/layout/home.header";
+import { MEETING_IMAGES } from "@/lib/meeting/assets";
 import {
   clearInstantMeetingSession,
   readInstantMeetingSession,
@@ -81,6 +83,8 @@ function LeftMeetingView({
       description={reason === "ended"
         ? `The host ended this meeting. Returning to the homepage in ${secondsRemaining}s.`
         : `Returning to the homepage in ${secondsRemaining}s.`}
+      imageSrc={MEETING_IMAGES.bye}
+      imageAlt={reason === "ended" ? "Meeting ended" : "Left meeting"}
       actions={(
         <>
           {reason === "left" ? (
@@ -100,10 +104,14 @@ function LeftMeetingView({
 function MeetingStatusView({
   title,
   description,
+  imageSrc = MEETING_IMAGES.loading,
+  imageAlt = "",
   actions,
 }: {
   title: string;
   description: string;
+  imageSrc?: string;
+  imageAlt?: string;
   actions: ReactNode;
 }) {
   return (
@@ -111,10 +119,21 @@ function MeetingStatusView({
       <Homeheader />
 
       <div className="mx-auto flex min-h-[calc(100vh-88px)] max-w-4xl flex-col items-center justify-center px-6 py-12 text-center">
-        <div className="space-y-4">
+
+
+
+        <div className="space-y-4 ">
           <h1 className="text-4xl font-normal tracking-tight text-foreground sm:text-5xl">
             {title}
           </h1>
+          <Image
+            src={imageSrc}
+            alt={imageAlt}
+            width={520}
+            height={390}
+            priority
+            className="mb-8 h-auto w-full max-w-sm object-contain sm:max-w-md"
+          />
           <p className="mx-auto max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
             {description}
           </p>
