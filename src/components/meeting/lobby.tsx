@@ -20,13 +20,13 @@ import { toast } from "sonner";
 import { useAuthSession } from "@/lib/auth/auth-session";
 import { readStoredAccessToken } from "@/lib/auth/auth-token";
 import { assertApiSuccess } from "@/hooks/shared/mutation.utils";
+import { UserAvatar } from "@/components/user/user-avatar";
 import {
   clearInstantMeetingSession,
   persistInstantMeetingSession,
   readInstantMeetingSession,
 } from "@/lib/meeting/instant-meeting-session";
 import { ensureMeetingAudioReady, playGuestAdmittedSound } from "@/lib/meeting/lobby-audio";
-import { getAvatarInitials } from "@/lib/user/avatar";
 import {
   connectMeetingSocket,
   decodeMeetingToken,
@@ -284,7 +284,6 @@ export default function Lobby({
   const displayName = userName || pendingJoinState?.userName?.trim() || "Guest";
   const canJoinMeeting = userName.length > 0;
   const meetingName = meetingTitle?.trim() || meetingCode || "your meeting";
-  const initials = getAvatarInitials(user?.email?.trim() || displayName, "G");
   const pendingParticipantStatus = normalizeMeetingParticipantStatus(
     pendingJoinState?.participantStatus,
   );
@@ -1006,9 +1005,13 @@ export default function Lobby({
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-gray-800 to-gray-900">
           <div className="text-center">
-            <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-primary text-4xl font-semibold text-white">
-              {initials}
-            </div>
+            <UserAvatar
+              avatarUrl={user?.avatarUrl}
+              name={displayName}
+              email={user?.email}
+              className="mx-auto mb-4 h-24 w-24 text-4xl shadow-lg"
+              initialsClassName="text-4xl"
+            />
             <p className="text-sm text-white/70">Camera is off</p>
           </div>
         </div>

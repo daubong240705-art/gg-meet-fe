@@ -11,7 +11,7 @@ function shouldRenderSiteShell(pathname: string | null) {
         return false;
     }
 
-    return pathname === "/" || pathname.startsWith("/dashboard") || pathname.startsWith("/schedule");
+    return pathname === "/" || pathname.startsWith("/profile") || pathname.startsWith("/schedule");
 }
 
 export function SiteShell({ children }: { children: ReactNode }) {

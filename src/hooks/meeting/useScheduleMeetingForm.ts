@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { type Path, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -23,6 +23,7 @@ import {
 } from "@/service/meeting.service";
 
 import { assertApiSuccess } from "../shared/mutation.utils";
+import { UPCOMING_MEETINGS_QUERY_KEY } from "./useUpcomingMeetings";
 
 const SCHEDULE_FIELD_NAME_MAP = {
     title: "title",
@@ -103,6 +104,7 @@ const handleScheduleApiError = (
 
 export function useScheduleMeetingForm() {
     const router = useRouter();
+    const queryClient = useQueryClient();
     const { user } = useAuthSession();
     const hostEmail = user?.email?.trim() || "";
     const form = useForm<ScheduleMeetingFormValues>({
@@ -148,6 +150,7 @@ export function useScheduleMeetingForm() {
             toast.success("Meeting scheduled", {
                 description: response.message?.trim() || "Your meeting has been scheduled successfully.",
             });
+            void queryClient.invalidateQueries({ queryKey: UPCOMING_MEETINGS_QUERY_KEY });
 
             form.reset({
                 ...DEFAULT_SCHEDULE_MEETING_FORM_VALUES,

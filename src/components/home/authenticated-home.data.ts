@@ -1,6 +1,6 @@
 import { Clock, Users, Video } from "lucide-react";
 
-import type { MeetingStat, RecentMeeting, UpcomingMeeting } from "./authenticated-home.types";
+import type { MeetingStat, RecentMeeting } from "./authenticated-home.types";
 
 export const quickStats: MeetingStat[] = [
   {
@@ -23,40 +23,6 @@ export const quickStats: MeetingStat[] = [
     change: "+12 this week",
     icon: Users,
     trend: "up",
-  },
-];
-
-export const upcomingMeetings: UpcomingMeeting[] = [
-  {
-    id: 1,
-    title: "Team Standup - Engineering",
-    time: "Today, 10:00 AM",
-    timeRemaining: "Starts in 25 min",
-    participants: 8,
-    code: "abc-defg-hij",
-    host: "You",
-    isUrgent: true,
-    avatars: ["JD", "SC", "MK", "AL"],
-  },
-  {
-    id: 2,
-    title: "Product Review & Planning",
-    time: "Today, 2:30 PM",
-    timeRemaining: "In 4 hours",
-    participants: 12,
-    code: "xyz-1234-567",
-    host: "Sarah Chen",
-    avatars: ["SC", "JD", "TP", "RW"],
-  },
-  {
-    id: 3,
-    title: "Client Presentation - Q1 Results",
-    time: "Tomorrow, 11:00 AM",
-    timeRemaining: "Tomorrow",
-    participants: 6,
-    code: "cli-ent-789",
-    host: "You",
-    avatars: ["JD", "MK", "AL"],
   },
 ];
 

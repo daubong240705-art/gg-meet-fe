@@ -16,6 +16,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { UserAvatar } from "@/components/user/user-avatar";
 import { assertApiSuccess } from "@/hooks/shared/mutation.utils";
 import { useAuthSession } from "@/lib/auth/auth-session";
 import { getLiveKitWebsocketUrl } from "@/lib/config/api-url";
@@ -120,6 +121,25 @@ function getParticipantRoleFromMetadata(metadata?: string | null) {
   }
 
   return null;
+}
+
+function getParticipantAvatarFromMetadata(metadata?: string | null) {
+  if (!metadata) {
+    return null;
+  }
+
+  try {
+    const parsedMetadata = JSON.parse(metadata);
+
+    if (typeof parsedMetadata !== "object" || parsedMetadata === null || !("avatar" in parsedMetadata)) {
+      return null;
+    }
+
+    const avatar = String(parsedMetadata.avatar ?? "").trim();
+    return avatar || null;
+  } catch {
+    return null;
+  }
 }
 
 function isHostParticipant({
@@ -238,6 +258,7 @@ function mapChatMessageToUiMessage(
   participant: LiveKitParticipant | undefined,
   localDisplayName: string,
   localEmail?: string | null,
+  localAvatarUrl?: string | null,
   localIdentity?: string | null,
 ): ChatMessage | null {
   const parsedPayload = parseIncomingChatPayload(message.message);
@@ -257,12 +278,16 @@ function mapChatMessageToUiMessage(
   const avatarSource = isLocal
     ? localEmail?.trim() || identity || name
     : participant?.identity?.trim() || name;
+  const avatarUrl = isLocal
+    ? localAvatarUrl?.trim() || null
+    : getParticipantAvatarFromMetadata(participant?.metadata);
 
   const baseMessage = {
     id: message.id,
     identity,
     name,
     avatarSource,
+    avatarUrl,
     isLocal,
     timestamp: message.timestamp,
     time: formatChatTime(message.timestamp),
@@ -337,6 +362,7 @@ function mapParticipantToUiParticipant(
   participant: LiveKitParticipant,
   localDisplayName: string,
   localEmail: string | null,
+  localAvatarUrl: string | null,
   hostId: string | null | undefined,
   hostName: string | null | undefined,
   localRole: string | null,
@@ -347,6 +373,9 @@ function mapParticipantToUiParticipant(
   const cameraPublication = participant.getTrackPublication(Track.Source.Camera);
   const audioPublication = participant.getTrackPublication(Track.Source.Microphone);
   const screenSharePublication = participant.getTrackPublication(Track.Source.ScreenShare);
+  const participantAvatarUrl = participant.isLocal
+    ? localAvatarUrl
+    : getParticipantAvatarFromMetadata(participant.metadata);
   const handState =
     participant.isLocal && preferLocalHandState
       ? localHandState
@@ -365,6 +394,7 @@ function mapParticipantToUiParticipant(
     avatarSource: participant.isLocal
       ? localEmail?.trim() || identity
       : participant.identity?.trim() || participant.name?.trim() || identity,
+    avatarUrl: participantAvatarUrl,
     isHost: isHostParticipant({
       participant,
       hostId,
@@ -389,6 +419,7 @@ function mapParticipantToUiParticipant(
 function getFallbackLocalParticipant(
   displayName: string,
   localEmail: string | null,
+  localAvatarUrl: string | null,
   isMicEnabled: boolean,
   isCameraEnabled: boolean,
   isScreenSharing: boolean,
@@ -400,6 +431,7 @@ function getFallbackLocalParticipant(
     identity: "self",
     name: displayName,
     avatarSource: localEmail?.trim() || displayName,
+    avatarUrl: localAvatarUrl,
     isHost,
     isLocal: true,
     handRaised: handState.handRaised,
@@ -447,6 +479,7 @@ function areParticipantsEqual(currentParticipants: Participant[], nextParticipan
     return participant.id === nextParticipant.id
       && participant.identity === nextParticipant.identity
       && participant.name === nextParticipant.name
+      && participant.avatarUrl === nextParticipant.avatarUrl
       && participant.isHost === nextParticipant.isHost
       && participant.isLocal === nextParticipant.isLocal
       && participant.handRaised === nextParticipant.handRaised
@@ -477,6 +510,7 @@ export default function MeetingRoom({
 }: MeetingRoomProps) {
   const { user } = useAuthSession();
   const localEmail = user?.email?.trim() || null;
+  const localAvatarUrl = user?.avatarUrl?.trim() || null;
   const displayName = userName.trim() || "Guest";
   const meetingTitle = title?.trim() || "Untitled meeting";
   const liveKitUrl = getLiveKitWebsocketUrl();
@@ -1058,6 +1092,7 @@ export default function MeetingRoom({
           room.localParticipant,
           displayName,
           localEmail,
+          localAvatarUrl,
           resolvedHostId,
           resolvedHostName,
           localRole,
@@ -1069,6 +1104,7 @@ export default function MeetingRoom({
             participant,
             displayName,
             localEmail,
+            localAvatarUrl,
             resolvedHostId,
             resolvedHostName,
             localRole,
@@ -1143,6 +1179,7 @@ export default function MeetingRoom({
         participant,
         displayName,
         localEmail,
+        localAvatarUrl,
         room.localParticipant.identity,
       );
 
@@ -1305,7 +1342,7 @@ export default function MeetingRoom({
         roomRef.current = null;
       }
     };
-  }, [displayName, isCameraOn, isLiveKitEnabled, isMicOn, liveKitUrl, livekitToken, localEmail, localRole, resolvedHostId, resolvedHostName, syncAvailableDevices]);
+  }, [displayName, isCameraOn, isLiveKitEnabled, isMicOn, liveKitUrl, livekitToken, localAvatarUrl, localEmail, localRole, resolvedHostId, resolvedHostName, syncAvailableDevices]);
 
   const fallbackLocalParticipantIsHost =
     localRole === "HOST"
@@ -1317,11 +1354,12 @@ export default function MeetingRoom({
     isLiveKitEnabled
       ? liveParticipants.length > 0
         ? liveParticipants
-        : [getFallbackLocalParticipant(displayName, localEmail, isMicEnabled, isCameraEnabled, false, fallbackLocalParticipantIsHost, localHandState)]
+        : [getFallbackLocalParticipant(displayName, localEmail, localAvatarUrl, isMicEnabled, isCameraEnabled, false, fallbackLocalParticipantIsHost, localHandState)]
       : [
         getFallbackLocalParticipant(
           displayName,
           localEmail,
+          localAvatarUrl,
           isMicEnabled,
           isCameraEnabled,
           Boolean(mockScreenShareOwnerId),
@@ -1854,9 +1892,13 @@ export default function MeetingRoom({
                           key={participant.id}
                           className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/45 px-3 py-2.5"
                         >
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 text-sm font-semibold text-primary-foreground">
-                            {getInitials(participant.avatarSource)}
-                          </div>
+                          <UserAvatar
+                            avatarUrl={participant.avatarUrl}
+                            name={participant.name}
+                            email={participant.avatarSource}
+                            className="h-10 w-10 bg-primary/20 text-sm"
+                            initialsClassName="text-sm"
+                          />
 
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-medium text-foreground">

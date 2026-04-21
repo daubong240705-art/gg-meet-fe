@@ -4,8 +4,9 @@ import { Loader2, LogOut, UserRound, Video } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-import { getUserInitials, useAuthSession } from "@/lib/auth/auth-session";
+import { useAuthSession } from "@/lib/auth/auth-session";
 import { useLogoutMutation } from "@/hooks/auth/useLoginForm";
+import { UserAvatar } from "@/components/user/user-avatar";
 
 import { Button } from "../ui/button";
 
@@ -110,9 +111,13 @@ export default function Homeheader() {
                                 }}
                                 className="flex items-center gap-3 rounded-full  bg-background/85 px-2 py-1.5 transition hover:bg-muted/70"
                             >
-                                <div className="flex size-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-                                    {getUserInitials(user.email || user.fullName)}
-                                </div>
+                                <UserAvatar
+                                    avatarUrl={user.avatarUrl}
+                                    name={user.fullName}
+                                    email={user.email}
+                                    className="size-9 text-sm"
+                                    initialsClassName="text-sm"
+                                />
 
                                 {/* <div className="hidden text-left sm:block">
                                     <p className="max-w-32 truncate text-sm font-medium leading-none text-foreground">
@@ -131,16 +136,27 @@ export default function Homeheader() {
                                     className="absolute right-0 top-full z-50 mt-3 w-64 rounded-2xl border border-border/70 bg-background/95 p-2 shadow-[0_24px_60px_-30px_rgba(15,23,42,0.35)] backdrop-blur-xl"
                                 >
                                     <div className="mb-2 rounded-xl bg-muted/60 px-3 py-3">
-                                        <p className="truncate text-sm font-semibold text-foreground">
-                                            {user.fullName}
-                                        </p>
-                                        <p className="truncate text-xs text-muted-foreground">
-                                            {user.email}
-                                        </p>
+                                        <div className="flex items-center gap-3">
+                                            <UserAvatar
+                                                avatarUrl={user.avatarUrl}
+                                                name={user.fullName}
+                                                email={user.email}
+                                                className="size-10 text-sm"
+                                                initialsClassName="text-sm"
+                                            />
+                                            <div className="min-w-0">
+                                                <p className="truncate text-sm font-semibold text-foreground">
+                                                    {user.fullName}
+                                                </p>
+                                                <p className="truncate text-xs text-muted-foreground">
+                                                    {user.email}
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <Link
-                                        href="/"
+                                        href="/profile"
                                         role="menuitem"
                                         onClick={() => setMenuOpen(false)}
                                         className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground transition hover:bg-muted"

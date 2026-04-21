@@ -5,9 +5,23 @@ import { LoginForm, SignupForm } from "@/types/form.type";
 const API_URL = getBackendBaseUrl();
 
 export type SignupPayload = Omit<SignupForm, "confirmPassword">;
+export type AuthUserResponseData = {
+    id?: number | string | null;
+    email?: string | null;
+    fullName?: string | null;
+    avatar?: string | null;
+    avatarUrl?: string | null;
+    role?: Role | string | null;
+    createdAt?: string | null;
+};
 export type LoginResponseData = {
     access_token?: string;
     accessToken?: string;
+    user?: AuthUserResponseData | null;
+};
+export type UpdateAccountRequestData = {
+    fullName: string;
+    avatarUrl?: string | null;
 };
 
 const getResponseStatus = (response: IBackendRes<unknown>) => {
@@ -61,6 +75,30 @@ export const authApi = {
             useCredentials: true,
             auth: true,
             redirectOnAuthFail: false,
+        });
+    },
+
+    getAccount() {
+        return sendRequest<AuthUserResponseData & Partial<IBackendRes<unknown>>>({
+            url: `${API_URL}/auth/account`,
+            method: "GET",
+            useCredentials: true,
+            auth: true,
+        });
+    },
+
+    updateAccount(data: UpdateAccountRequestData) {
+        const avatarUrl = data.avatarUrl?.trim();
+
+        return sendRequest<IBackendRes<AuthUserResponseData>>({
+            url: `${API_URL}/auth/account`,
+            method: "PUT",
+            body: {
+                fullName: data.fullName.trim(),
+                avatar: avatarUrl || null,
+            },
+            useCredentials: true,
+            auth: true,
         });
     },
 };

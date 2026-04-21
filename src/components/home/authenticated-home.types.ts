@@ -8,18 +8,6 @@ export type MeetingStat = {
   trend?: "up" | "neutral";
 };
 
-export type UpcomingMeeting = {
-  id: number;
-  title: string;
-  time: string;
-  timeRemaining: string;
-  participants: number;
-  code: string;
-  host: string;
-  isUrgent?: boolean;
-  avatars: string[];
-};
-
 export type RecentMeeting = {
   id: number;
   title: string;

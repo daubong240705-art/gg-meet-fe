@@ -6,7 +6,6 @@ import { useAuthSession } from "@/lib/auth/auth-session";
 
 import QuickAction from "../dashboard/quick-action";
 import AuthenticatedHomeHero from "./authenticated-home-hero";
-import AuthenticatedHomeRecent from "./authenticated-home-recent";
 import AuthenticatedHomeScheduleBanner from "./authenticated-home-schedule-banner";
 import AuthenticatedHomeUpcoming from "./authenticated-home-upcoming";
 
@@ -43,9 +42,9 @@ export default function AuthenticatedHome() {
         {/* <AuthenticatedHomeStats /> */}
         <AuthenticatedHomeScheduleBanner />
 
-        <section className="grid gap-8 lg:grid-cols-2">
+        <section className="grid gap-8 mb-20 lg:grid-cols-1">
           <AuthenticatedHomeUpcoming />
-          <AuthenticatedHomeRecent />
+          {/* <AuthenticatedHomeRecent /> */}
         </section>
       </div>
     </div>

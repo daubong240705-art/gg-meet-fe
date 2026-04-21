@@ -29,6 +29,7 @@ export type Participant = {
   identity: string;
   name: string;
   avatarSource: string;
+  avatarUrl?: string | null;
   isHost: boolean;
   isLocal: boolean;
   handRaised: boolean;
@@ -49,6 +50,7 @@ type ChatMessageBase = {
   identity: string;
   name: string;
   avatarSource: string;
+  avatarUrl?: string | null;
   isLocal: boolean;
   timestamp: number;
   time: string;

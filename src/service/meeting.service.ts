@@ -33,6 +33,28 @@ export type CreateMeetingResponseData = {
     participantStatus?: string | null;
 };
 
+export type MeetingStatus = "SCHEDULED" | "ACTIVE" | "ENDED" | (string & {});
+
+export type PagedResponse<T> = {
+    content?: T[] | null;
+    page?: number | null;
+    size?: number | null;
+    totalElements?: number | null;
+    totalPages?: number | null;
+    last?: boolean | null;
+};
+
+export type UpcomingMeetingResponseData = {
+    title?: string | null;
+    startTime?: string | null;
+    endTime?: string | null;
+    hostName?: string | null;
+    meetingCode?: string | null;
+    status?: MeetingStatus | null;
+};
+
+export type UpcomingMeetingsResponseData = PagedResponse<UpcomingMeetingResponseData>;
+
 export type ScheduleMeetingRequest = {
     title: string;
     isScheduled: true;
@@ -332,6 +354,19 @@ export const meetingApi = {
             url: `${API_URL}/meetings/schedule`,
             method: "POST",
             body: meetingData,
+            useCredentials: true,
+            auth: true,
+        });
+    },
+
+    getUpcomingMeetings({ page = 0, size = 3 }: { page?: number; size?: number } = {}) {
+        return sendRequest<IBackendRes<UpcomingMeetingsResponseData>>({
+            url: `${API_URL}/meetings/upcoming`,
+            method: "GET",
+            queryParams: {
+                page,
+                size,
+            },
             useCredentials: true,
             auth: true,
         });

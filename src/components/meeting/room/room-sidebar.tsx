@@ -18,6 +18,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { UserAvatar } from "@/components/user/user-avatar";
 import { cn } from "@/lib/utils";
 
 import { STICKER_OPTIONS, getStickerUrl } from "./chat-stickers";
@@ -335,9 +336,13 @@ export default function RoomSidebar({
                     key={participant.id}
                     className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/35 p-3 motion-safe:transition-[transform,opacity,background-color,border-color] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none hover:bg-background/50"
                   >
-                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground">
-                      {getInitials(participant.avatarSource)}
-                    </div>
+                    <UserAvatar
+                      avatarUrl={participant.avatarUrl}
+                      name={participant.name}
+                      email={participant.avatarSource}
+                      className="h-11 w-11"
+                      initialsClassName="text-sm"
+                    />
 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
@@ -391,9 +396,13 @@ export default function RoomSidebar({
                   >
                     <div className={message.isLocal ? "ml-auto flex w-fit max-w-[82%] min-w-0 justify-end" : "mr-auto flex w-fit max-w-[82%] min-w-0 gap-3"}>
                       {!message.isLocal ? (
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-                          {getInitials(message.avatarSource)}
-                        </div>
+                        <UserAvatar
+                          avatarUrl={message.avatarUrl}
+                          name={message.name}
+                          email={message.avatarSource}
+                          className="h-9 w-9 text-sm"
+                          initialsClassName="text-sm"
+                        />
                       ) : null}
 
                       <div className={message.isLocal ? "flex min-w-0 flex-col items-end" : "flex min-w-0 flex-col items-start"}>

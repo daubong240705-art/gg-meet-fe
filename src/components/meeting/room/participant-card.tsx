@@ -4,11 +4,11 @@ import { Hand, MicOff, MoreVertical } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { UserAvatar } from "@/components/user/user-avatar";
 import { cn } from "@/lib/utils";
 
 import { AudioTrackView, VideoTrackView } from "./track-view";
 import type { Participant } from "./types";
-import { getInitials } from "./utils";
 
 type ParticipantCardProps = {
   participant: Participant;
@@ -29,7 +29,6 @@ export default function ParticipantCard({
   renderAudio = true,
   renderVideo = true,
 }: ParticipantCardProps) {
-  const initials = getInitials(participant.avatarSource);
   const isActiveSpeaker = !participant.isMuted && participant.isSpeaking;
   const shouldRenderVideo = renderVideo && !participant.isCameraOff && participant.cameraTrack;
 
@@ -71,7 +70,22 @@ export default function ParticipantCard({
         <div className="pointer-events-none absolute inset-0 z-0 rounded-[inherit] border-2 border-primary shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 motion-reduce:animate-none" />
       ) : null}
 
-      <div className="relative z-10 flex h-full flex-col justify-between p-4">
+      {!shouldRenderVideo ? (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-200 motion-reduce:animate-none">
+          <UserAvatar
+            avatarUrl={participant.avatarUrl}
+            name={participant.name}
+            email={participant.avatarSource}
+            className={cn(
+              "h-20 w-20 text-xl shadow-lg",
+              compact && "h-14 w-14 text-base",
+            )}
+            initialsClassName={compact ? "text-base" : "text-xl"}
+          />
+        </div>
+      ) : null}
+
+      <div className="relative z-20 flex h-full flex-col justify-between p-4">
         {renderAudio && !participant.isLocal ? <AudioTrackView track={participant.audioTrack} /> : null}
 
         <div className="flex items-start justify-between gap-3">
@@ -121,19 +135,6 @@ export default function ParticipantCard({
               </Button>
             ) : null}
           </div>
-        </div>
-
-        <div className="flex flex-1 items-center justify-center">
-          {!shouldRenderVideo ? (
-            <div
-              className={cn(
-                "flex h-20 w-20 items-center justify-center rounded-full bg-primary text-xl font-semibold text-primary-foreground shadow-lg motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-200 motion-reduce:animate-none",
-                compact && "h-14 w-14 text-base"
-              )}
-            >
-              {initials}
-            </div>
-          ) : null}
         </div>
 
         {/* <div className="rounded-xl border border-white/10 bg-black/45 p-3 text-white backdrop-blur-sm">

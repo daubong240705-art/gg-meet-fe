@@ -75,7 +75,7 @@ const formatDisplayName = (email: string) => {
     );
 };
 
-const normalizeAuthUser = (source: JwtAuthPayload["user"], fallbackEmail?: string, fallbackRole?: string): AuthUser | null => {
+export const normalizeAuthUser = (source: unknown, fallbackEmail?: string, fallbackRole?: string): AuthUser | null => {
     const record = isRecord(source) ? source : {};
     const email = toStringValue(record.email) || fallbackEmail || "";
 
@@ -87,7 +87,7 @@ const normalizeAuthUser = (source: JwtAuthPayload["user"], fallbackEmail?: strin
         id: toNumberValue(record.id) ?? 0,
         email,
         fullName: toStringValue(record.fullName) || toStringValue(record.name) || formatDisplayName(email),
-        avatarUrl: toStringValue(record.avatarUrl),
+        avatarUrl: toStringValue(record.avatarUrl) || toStringValue(record.avatar),
         role: record.role === "ADMIN" || fallbackRole === "ADMIN" ? "ADMIN" : "USER",
         createdAt: toStringValue(record.createdAt),
     };
@@ -193,7 +193,10 @@ export function syncAuthUserFromLogin(response: IBackendRes<LoginResponseData>) 
 
     persistAccessToken(accessToken);
 
-    const user = extractAuthUserFromToken(accessToken);
+    const responseUser = isRecord(response.data) && isRecord(response.data.user)
+        ? normalizeAuthUser(response.data.user)
+        : null;
+    const user = responseUser ?? extractAuthUserFromToken(accessToken);
 
     if (user) {
         persistAuthUser(user);
