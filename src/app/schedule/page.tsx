@@ -58,85 +58,85 @@ export default function SchedulePage() {
                         <div className="grid gap-8 lg:grid-cols-3">
                             <div className="space-y-6 lg:col-span-2">
                                 <Card className="p-6">
-                                <h2 className="mb-6 text-xl font-semibold">Meeting Details</h2>
+                                    <h2 className="mb-6 text-xl font-semibold">Meeting Details</h2>
 
-                                <div className="space-y-5">
-                                    <div>
-                                        <label htmlFor="meeting-title" className="mb-2 block text-sm">
-                                            Meeting title *
-                                        </label>
-                                        <Input
-                                            id="meeting-title"
-                                            type="text"
-                                            placeholder="e.g., Weekly Team Sync"
-                                            aria-invalid={Boolean(errors.title)}
-                                            disabled={isSubmitting}
-                                            {...register("title")}
-                                        />
-                                        <FieldError
-                                            message={errors.title?.message ? String(errors.title.message) : undefined}
-                                        />
-                                    </div>
-
-                                    <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="space-y-5">
                                         <div>
-                                            <label htmlFor="meeting-date" className="mb-2 block text-sm">
-                                                Date *
+                                            <label htmlFor="meeting-title" className="mb-2 block text-sm">
+                                                Meeting title *
                                             </label>
                                             <Input
-                                                id="meeting-date"
-                                                type="date"
-                                                aria-invalid={Boolean(errors.date)}
+                                                id="meeting-title"
+                                                type="text"
+                                                placeholder="e.g., Weekly Team Sync"
+                                                aria-invalid={Boolean(errors.title)}
                                                 disabled={isSubmitting}
-                                                {...register("date")}
+                                                {...register("title")}
                                             />
                                             <FieldError
-                                                message={errors.date?.message ? String(errors.date.message) : undefined}
+                                                message={errors.title?.message ? String(errors.title.message) : undefined}
                                             />
                                         </div>
 
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div>
+                                                <label htmlFor="meeting-date" className="mb-2 block text-sm">
+                                                    Date *
+                                                </label>
+                                                <Input
+                                                    id="meeting-date"
+                                                    type="date"
+                                                    aria-invalid={Boolean(errors.date)}
+                                                    disabled={isSubmitting}
+                                                    {...register("date")}
+                                                />
+                                                <FieldError
+                                                    message={errors.date?.message ? String(errors.date.message) : undefined}
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label htmlFor="meeting-time" className="mb-2 block text-sm">
+                                                    Time *
+                                                </label>
+                                                <Input
+                                                    id="meeting-time"
+                                                    type="time"
+                                                    aria-invalid={Boolean(errors.time)}
+                                                    disabled={isSubmitting}
+                                                    {...register("time")}
+                                                />
+                                                <FieldError
+                                                    message={errors.time?.message ? String(errors.time.message) : undefined}
+                                                />
+                                            </div>
+                                        </div>
+
                                         <div>
-                                            <label htmlFor="meeting-time" className="mb-2 block text-sm">
-                                                Time *
+                                            <label htmlFor="meeting-description" className="mb-2 block text-sm">
+                                                Description (optional)
                                             </label>
-                                            <Input
-                                                id="meeting-time"
-                                                type="time"
-                                                aria-invalid={Boolean(errors.time)}
+                                            <textarea
+                                                id="meeting-description"
+                                                rows={4}
+                                                placeholder="Add meeting agenda or description..."
+                                                aria-invalid={Boolean(errors.description)}
                                                 disabled={isSubmitting}
-                                                {...register("time")}
+                                                className="w-full resize-none rounded-lg border border-input bg-input-background px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-ring"
+                                                {...register("description")}
                                             />
                                             <FieldError
-                                                message={errors.time?.message ? String(errors.time.message) : undefined}
+                                                message={
+                                                    errors.description?.message
+                                                        ? String(errors.description.message)
+                                                        : undefined
+                                                }
                                             />
                                         </div>
                                     </div>
-
-                                    <div>
-                                        <label htmlFor="meeting-description" className="mb-2 block text-sm">
-                                            Description (optional)
-                                        </label>
-                                        <textarea
-                                            id="meeting-description"
-                                            rows={4}
-                                            placeholder="Add meeting agenda or description..."
-                                            aria-invalid={Boolean(errors.description)}
-                                            disabled={isSubmitting}
-                                            className="w-full resize-none rounded-lg border border-input bg-input-background px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-ring"
-                                            {...register("description")}
-                                        />
-                                        <FieldError
-                                            message={
-                                                errors.description?.message
-                                                    ? String(errors.description.message)
-                                                    : undefined
-                                            }
-                                        />
-                                    </div>
-                                </div>
                                 </Card>
 
-                                <Card className="p-6">
+                                <Card className="mb-20 p-6">
                                     <h2 className="mb-6 flex items-center gap-2 text-xl font-semibold">
                                         <Users className="h-5 w-5 text-primary" />
                                         Participants

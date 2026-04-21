@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Home, Loader2, TimerReset, WifiOff, XCircle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 import Homeheader from "@/components/layout/home.header";
 import {
@@ -14,10 +14,10 @@ import { assertApiSuccess } from "@/hooks/shared/mutation.utils";
 import Lobby, { type LobbyJoinPayload } from "@/components/meeting/lobby";
 import MeetingRoom from "@/components/meeting/room/room";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import {
   getMeetingApiErrorDescription,
   isMeetingNotFoundError,
+  isMeetingScheduledNotStartedError,
   meetingApi,
   normalizeMeetingParticipantStatus,
   shouldHandleMeetingParticipantInLobby,
@@ -73,92 +73,55 @@ function LeftMeetingView({
   }, [onGoHome]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,hsl(var(--primary)/0.12),transparent_42%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--muted)/0.35))] p-6">
-      <Card className="w-full max-w-xl border border-border/70 bg-background/90 p-8 shadow-xl backdrop-blur">
-        <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/12 text-primary">
-          <TimerReset className="h-7 w-7" />
-        </div>
-
-        <div className="space-y-3">
-          <h1 className="text-3xl font-semibold tracking-tight">
-            {reason === "ended" ? "This meeting has ended" : "You have left the meeting"}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {reason === "ended"
-              ? <>The host ended this meeting. Returning to the homepage in <span className="font-semibold text-foreground">{secondsRemaining}s</span>.</>
-              : <>Automatically returning to the homepage in <span className="font-semibold text-foreground">{secondsRemaining}s</span>.</>}
-          </p>
-        </div>
-
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+    <MeetingStatusView
+      // OLD: left/end states used a card-based panel that felt heavier than the new
+      // verification screens.
+      // NEW: keep left/end states on the same minimal centered layout as the other meeting states.
+      title={reason === "ended" ? "This meeting has ended" : "You left the meeting"}
+      description={reason === "ended"
+        ? `The host ended this meeting. Returning to the homepage in ${secondsRemaining}s.`
+        : `Returning to the homepage in ${secondsRemaining}s.`}
+      actions={(
+        <>
           {reason === "left" ? (
-            <Button type="button" size="lg" className="flex-1" onClick={onRejoin}>
-              <ArrowLeft className="h-4 w-4" />
-              Return to meeting
+            <Button type="button" size="lg" className="min-w-44" onClick={onRejoin}>
+              Rejoin
             </Button>
           ) : null}
-          <Button type="button" variant="outline" size="lg" className="flex-1" onClick={onGoHome}>
-            <Home className="h-4 w-4" />
+          <Button type="button" variant="ghost" size="lg" className="min-w-44" onClick={onGoHome}>
             Go to homepage
           </Button>
-        </div>
-      </Card>
-    </div>
+        </>
+      )}
+    />
   );
 }
 
-function MeetingLinkStateView({
-  badge,
+function MeetingStatusView({
   title,
   description,
-  meetingCode,
-  icon,
   actions,
 }: {
-  badge: string;
   title: string;
   description: string;
-  meetingCode?: string;
-  icon: ReactNode;
   actions: ReactNode;
 }) {
   return (
     <div className="min-h-screen bg-background">
       <Homeheader />
 
-      <div className="relative isolate overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,hsl(var(--primary)/0.12),transparent_42%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--muted)/0.24))]" />
+      <div className="mx-auto flex min-h-[calc(100vh-88px)] max-w-4xl flex-col items-center justify-center px-6 py-12 text-center">
+        <div className="space-y-4">
+          <h1 className="text-4xl font-normal tracking-tight text-foreground sm:text-5xl">
+            {title}
+          </h1>
+          <p className="mx-auto max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
+            {description}
+          </p>
+        </div>
 
-        <div className="relative mx-auto flex min-h-[calc(100vh-88px)] max-w-5xl items-center px-6 py-10">
-          <Card className="w-full max-w-2xl border border-border/70 bg-background/90 p-8 shadow-[0_24px_80px_-36px_rgba(15,23,42,0.55)] backdrop-blur">
-            <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl border border-border/60 bg-card/80">
-              {icon}
-            </div>
-
-            <div className="space-y-4">
-              <p className="text-sm font-medium uppercase tracking-[0.22em] text-muted-foreground">
-                {badge}
-              </p>
-              <div className="space-y-3">
-                <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-                  {title}
-                </h1>
-                <p className="max-w-xl text-base leading-7 text-muted-foreground">
-                  {description}
-                </p>
-              </div>
-
-              {meetingCode ? (
-                <div className="inline-flex rounded-full border border-border/70 bg-card/70 px-4 py-2 text-sm text-muted-foreground">
-                  Meeting code: <span className="ml-2 font-medium text-foreground">{meetingCode}</span>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              {actions}
-            </div>
-          </Card>
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          {actions}
         </div>
       </div>
     </div>
@@ -265,14 +228,11 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
 
   if (!normalizedMeetingCode) {
     return (
-      <MeetingLinkStateView
-        badge="Meeting not found"
-        title="This meeting link is not valid"
-        description="The meeting code is missing or malformed. Check the link and ask the host for a fresh invite if needed."
-        icon={<XCircle className="h-7 w-7 text-destructive" />}
+      <MeetingStatusView
+        title="This meeting code is invalid"
+        description="Check the link and ask the host to share a valid meeting code."
         actions={(
-          <Button type="button" size="lg" className="h-12 sm:w-auto" onClick={handleGoHome}>
-            <Home className="h-4 w-4" />
+          <Button type="button" size="lg" className="min-w-44" onClick={handleGoHome}>
             Go to homepage
           </Button>
         )}
@@ -300,23 +260,26 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
   if (verifyMeetingQuery.isError) {
     const verificationError = verifyMeetingQuery.error as IBackendRes<unknown>;
     const isNotFound = isMeetingNotFoundError(verificationError);
+    const isMeetingNotStarted = isMeetingScheduledNotStartedError(verificationError);
     const description = isNotFound
-      ? "This meeting room could not be found. Check the link or ask the host to share a valid room code."
-      : getMeetingApiErrorDescription(verificationError) || "We could not verify this meeting right now. Please try again in a moment.";
+      ? "Check the link or ask the host to share a valid meeting code."
+      : isMeetingNotStarted
+        ? "Try again after the host starts the scheduled meeting."
+        : getMeetingApiErrorDescription(verificationError) || "Please try again in a moment.";
 
     return (
-      <MeetingLinkStateView
-        badge={isNotFound ? "Meeting not found" : "Verification unavailable"}
-        title={isNotFound ? "This meeting link is not valid" : "We couldn't verify this meeting"}
+      <MeetingStatusView
+        // OLD: every non-404 verify error was shown as a generic verification problem.
+        // NEW: scheduled meetings that have not started yet now render their own simple state.
+        title={isNotFound
+          ? "This meeting code is invalid"
+          : isMeetingNotStarted
+            ? "This meeting hasn't started yet"
+            : "We couldn't verify this meeting"}
         description={description}
-        meetingCode={normalizedMeetingCode}
-        icon={isNotFound
-          ? <XCircle className="h-7 w-7 text-destructive" />
-          : <WifiOff className="h-7 w-7 text-primary" />}
         actions={isNotFound
           ? (
-            <Button type="button" size="lg" className="h-12 sm:w-auto" onClick={handleGoHome}>
-              <Home className="h-4 w-4" />
+            <Button type="button" size="lg" className="min-w-44" onClick={handleGoHome}>
               Go to homepage
             </Button>
           )
@@ -325,15 +288,14 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
               <Button
                 type="button"
                 size="lg"
-                className="h-12 sm:w-auto"
+                className="min-w-44"
                 onClick={() => {
                   void verifyMeetingQuery.refetch();
                 }}
               >
                 Try again
               </Button>
-              <Button type="button" variant="outline" size="lg" className="h-12 sm:w-auto" onClick={handleGoHome}>
-                <Home className="h-4 w-4" />
+              <Button type="button" variant="ghost" size="lg" className="min-w-44" onClick={handleGoHome}>
                 Go to homepage
               </Button>
             </>
@@ -346,6 +308,9 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
     return (
       <Lobby
         meetingCode={normalizedMeetingCode}
+        meetingTitle={verifyMeetingQuery.data?.data?.title?.trim() || null}
+        hostId={verifyMeetingQuery.data?.data?.host?.id?.toString() ?? null}
+        hostEmail={verifyMeetingQuery.data?.data?.host?.email?.trim() || null}
         onMeetingEnded={handleMeetingEnded}
         onJoin={handleLobbyJoin}
       />

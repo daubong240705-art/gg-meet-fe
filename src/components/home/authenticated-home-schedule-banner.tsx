@@ -4,6 +4,7 @@ import { ArrowRight, Calendar } from "lucide-react";
 
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
+import Link from "next/link";
 
 export default function AuthenticatedHomeScheduleBanner() {
   return (
@@ -21,10 +22,13 @@ export default function AuthenticatedHomeScheduleBanner() {
               </p>
             </div>
           </div>
-          <Button variant="outline" className="w-full md:w-auto">
-            Explore
-            <ArrowRight className="h-4 w-4" />
-          </Button>
+          <Link href="/schedule">
+            <Button variant="outline" className="w-full md:w-auto">
+              Schedule
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </Link>
+
         </div>
       </Card>
     </section>

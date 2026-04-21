@@ -15,6 +15,9 @@ type ParticipantCardProps = {
   compact?: boolean;
   highlighted?: boolean;
   className?: string;
+  isLayoutTransitionEnabled?: boolean;
+  renderAudio?: boolean;
+  renderVideo?: boolean;
 };
 
 export default function ParticipantCard({
@@ -22,16 +25,23 @@ export default function ParticipantCard({
   compact = false,
   highlighted = false,
   className,
+  isLayoutTransitionEnabled = true,
+  renderAudio = true,
+  renderVideo = true,
 }: ParticipantCardProps) {
   const initials = getInitials(participant.avatarSource);
   const isActiveSpeaker = !participant.isMuted && participant.isSpeaking;
+  const shouldRenderVideo = renderVideo && !participant.isCameraOff && participant.cameraTrack;
 
   return (
     <Card
       className={cn(
-        "relative z-0 w-full aspect-video min-h-32 gap-0 overflow-hidden border border-border/70 px-0 py-0 sm:min-h-40 lg:min-h-48",
-        "bg-linear-to-br from-card via-card to-muted/60 shadow-sm",
-        compact && "min-h-24 sm:min-h-32",
+        "relative z-0 aspect-video min-h-32 min-w-0 w-full max-w-full gap-0 overflow-hidden border border-border/70 px-0 py-0 sm:min-h-40 lg:min-h-48",
+        "bg-linear-to-br from-card via-card to-muted/60 shadow-sm motion-reduce:transition-none",
+        isLayoutTransitionEnabled
+          ? "motion-safe:transition-[opacity,border-color,box-shadow,background-color] motion-safe:duration-200 motion-safe:ease-out"
+          : "motion-safe:transition-none",
+        compact && "min-h-0 sm:min-h-0 lg:min-h-0",
         isActiveSpeaker && "border-primary/90 shadow-[0_12px_32px_rgba(59,130,246,0.18)]",
         participant.handRaised && !isActiveSpeaker && "border-amber-300/55 shadow-[0_10px_24px_rgba(251,191,36,0.12)]",
         highlighted && !isActiveSpeaker && "ring-2 ring-primary/30",
@@ -47,8 +57,8 @@ export default function ParticipantCard({
         )}
       />
 
-      {!participant.isCameraOff && participant.cameraTrack ? (
-        <div className="absolute inset-0 z-0">
+      {shouldRenderVideo ? (
+        <div className="absolute inset-0 z-0 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 motion-reduce:animate-none">
           <VideoTrackView
             track={participant.cameraTrack}
             muted={participant.isLocal}
@@ -58,17 +68,17 @@ export default function ParticipantCard({
       ) : null}
 
       {isActiveSpeaker ? (
-        <div className="pointer-events-none absolute inset-0 z-0 rounded-[inherit] border-2 border-primary shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" />
+        <div className="pointer-events-none absolute inset-0 z-0 rounded-[inherit] border-2 border-primary shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 motion-reduce:animate-none" />
       ) : null}
 
       <div className="relative z-10 flex h-full flex-col justify-between p-4">
-        {!participant.isLocal ? <AudioTrackView track={participant.audioTrack} /> : null}
+        {renderAudio && !participant.isLocal ? <AudioTrackView track={participant.audioTrack} /> : null}
 
         <div className="flex items-start justify-between gap-3">
           {participant.isHost ? (
             <div
               className={cn(
-                "pointer-events-none rounded-full border border-amber-300/30 bg-amber-400/20 text-amber-50 backdrop-blur-sm",
+                "pointer-events-none rounded-full border border-amber-300/30 bg-amber-400/20 text-amber-50 backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-200 motion-reduce:animate-none",
                 compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]",
               )}
             >
@@ -82,7 +92,7 @@ export default function ParticipantCard({
             {participant.handRaised ? (
               <div
                 className={cn(
-                  "flex items-center justify-center rounded-full border border-amber-200/30 bg-amber-300/90 text-slate-950 shadow-sm",
+                  "flex items-center justify-center rounded-full border border-amber-200/30 bg-amber-300/90 text-slate-950 shadow-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-200 motion-reduce:animate-none",
                   compact ? "h-8 w-8" : "h-9 w-9",
                 )}
                 title="Raised hand"
@@ -94,7 +104,7 @@ export default function ParticipantCard({
             {participant.isMuted ? (
               <div
                 className={cn(
-                  "flex items-center justify-center rounded-full border border-white/10 bg-black/45 text-white backdrop-blur-sm",
+                  "flex items-center justify-center rounded-full border border-white/10 bg-black/45 text-white backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-200 motion-reduce:animate-none",
                   compact ? "h-8 w-8" : "h-9 w-9",
                 )}
               >
@@ -114,10 +124,10 @@ export default function ParticipantCard({
         </div>
 
         <div className="flex flex-1 items-center justify-center">
-          {participant.isCameraOff || !participant.cameraTrack ? (
+          {!shouldRenderVideo ? (
             <div
               className={cn(
-                "flex h-20 w-20 items-center justify-center rounded-full bg-primary text-xl font-semibold text-primary-foreground shadow-lg",
+                "flex h-20 w-20 items-center justify-center rounded-full bg-primary text-xl font-semibold text-primary-foreground shadow-lg motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-200 motion-reduce:animate-none",
                 compact && "h-14 w-14 text-base"
               )}
             >
@@ -168,7 +178,7 @@ export default function ParticipantCard({
 
         <div
           className={cn(
-            "pointer-events-none absolute bottom-3 left-3  max-w-[70%] rounded-full border border-white/10 bg-black/55 text-white backdrop-blur-sm",
+            "pointer-events-none absolute bottom-3 left-3  max-w-[70%] rounded-full border border-white/10 bg-black/55 text-white backdrop-blur-sm motion-safe:transition-[transform,opacity] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none",
             compact ? "px-2.5 py-1 text-[10px]" : "px-3 py-1.5 text-xs",
           )}
         >

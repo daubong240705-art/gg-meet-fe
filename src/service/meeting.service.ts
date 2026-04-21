@@ -58,6 +58,7 @@ export type WaitingRoomRequestData = {
     participantStatus?: string | null;
     requestedAt?: string | null;
 };
+export type LeaveMeetingResponseData = null;
 export type EndMeetingResponseData = null;
 export type MeetingApiFieldError = {
     field: string;
@@ -99,6 +100,21 @@ const containsRoomNotFoundError = (errors: unknown) => {
 
     if (Array.isArray(errors)) {
         return errors.some((error) => typeof error === "string" && error.trim().toUpperCase() === "ROOM_NOT_FOUND");
+    }
+
+    return false;
+};
+
+const containsMeetingScheduledNotStartedError = (errors: unknown) => {
+    if (typeof errors === "string") {
+        return errors.trim().toUpperCase() === "MEETING_SCHEDULED_NOT_STARTED";
+    }
+
+    if (Array.isArray(errors)) {
+        return errors.some((error) => (
+            typeof error === "string"
+            && error.trim().toUpperCase() === "MEETING_SCHEDULED_NOT_STARTED"
+        ));
     }
 
     return false;
@@ -230,6 +246,22 @@ export const getMeetingApiFieldErrors = (error: IBackendRes<unknown>): MeetingAp
 export const isMeetingNotFoundError = (error: IBackendRes<unknown>) => {
     const statusCode = getStatusCode(error.statusCode ?? error.status);
     return statusCode === 404 || containsRoomNotFoundError(error.errors);
+};
+
+export const isMeetingScheduledNotStartedError = (error: IBackendRes<unknown>) => {
+    const statusCode = getStatusCode(error.statusCode ?? error.status);
+    const description = getMeetingApiErrorDescription(error)?.toLowerCase() || "";
+
+    // OLD: only meeting-not-found had a dedicated detector, so scheduled meetings that had not
+    // started yet were grouped into the generic "couldn't verify" state.
+    // NEW: detect the backend business error explicitly so the UI can render a separate state.
+    return (
+        statusCode === 400
+        && (
+            containsMeetingScheduledNotStartedError(error.errors)
+            || description.includes("has not started yet")
+        )
+    );
 };
 
 const normalizeCancelJoinRequest = (request?: CancelJoinRequest | null) => {
@@ -372,6 +404,31 @@ export const meetingApi = {
             auth: Boolean(accessToken),
             accessToken,
             redirectOnAuthFail: false,
+        });
+    },
+
+    leaveMeeting(
+        meetingCode: string,
+        participantId: number,
+        meetingToken?: string | null,
+        options?: MeetingRequestOptions,
+    ) {
+        const accessToken =
+            typeof window !== "undefined" ? readStoredAccessToken() : null;
+
+        return sendRequest<IBackendRes<LeaveMeetingResponseData>>({
+            url: `${API_URL}/meetings/leave`,
+            method: "DELETE",
+            queryParams: {
+                meetingCode,
+                participantId,
+            },
+            headers: getMeetingTokenHeaders(meetingToken),
+            useCredentials: true,
+            auth: Boolean(accessToken),
+            accessToken,
+            redirectOnAuthFail: false,
+            nextOption: options?.keepalive ? { keepalive: true } : undefined,
         });
     },
 

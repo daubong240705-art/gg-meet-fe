@@ -19,6 +19,7 @@ import { Card } from "@/components/ui/card";
 import { assertApiSuccess } from "@/hooks/shared/mutation.utils";
 import { useAuthSession } from "@/lib/auth/auth-session";
 import { getLiveKitWebsocketUrl } from "@/lib/config/api-url";
+import { cn } from "@/lib/utils";
 import {
   ensureMeetingAudioReady,
   HOST_WAITING_REQUEST_AUDIO_SRC,
@@ -58,6 +59,13 @@ const LIVEKIT_ROOM_OPTIONS = {
   adaptiveStream: true,
   dynacast: true,
 };
+
+const SIDEBAR_LAYOUT_TRANSITION_MS = 240;
+const VIEWPORT_RESIZE_SETTLE_MS = 180;
+
+function getIsDocumentVisible() {
+  return typeof document === "undefined" || document.visibilityState === "visible";
+}
 
 function normalizeParticipantRole(role?: string | null) {
   const normalizedRole = role?.trim().toUpperCase();
@@ -230,6 +238,7 @@ function mapChatMessageToUiMessage(
   participant: LiveKitParticipant | undefined,
   localDisplayName: string,
   localEmail?: string | null,
+  localIdentity?: string | null,
 ): ChatMessage | null {
   const parsedPayload = parseIncomingChatPayload(message.message);
 
@@ -237,11 +246,14 @@ function mapChatMessageToUiMessage(
     return null;
   }
 
-  const isLocal = participant?.isLocal ?? false;
+  const participantIdentity = participant?.identity || "";
+  const isLocal =
+    Boolean(participant?.isLocal)
+    || Boolean(localIdentity && participantIdentity && participantIdentity === localIdentity);
   const name = isLocal
     ? localDisplayName
     : participant?.name?.trim() || participant?.identity || "Guest";
-  const identity = participant?.identity || "unknown";
+  const identity = participantIdentity || (isLocal ? localIdentity || "local" : "unknown");
   const avatarSource = isLocal
     ? localEmail?.trim() || identity || name
     : participant?.identity?.trim() || name;
@@ -491,6 +503,9 @@ export default function MeetingRoom({
   const [isMicEnabled, setIsMicEnabled] = useState(isMicOn);
   const [isCameraEnabled, setIsCameraEnabled] = useState(isCameraOn);
   const [activePanel, setActivePanel] = useState<SidebarPanel>(null);
+  const [renderedPanel, setRenderedPanel] = useState<SidebarPanel>(null);
+  const [isSidebarLayoutTransitioning, setIsSidebarLayoutTransitioning] = useState(false);
+  const [isViewportResizing, setIsViewportResizing] = useState(false);
   const [mockScreenShareOwnerId, setMockScreenShareOwnerId] = useState<string | null>(null);
   const [liveParticipants, setLiveParticipants] = useState<Participant[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -504,6 +519,7 @@ export default function MeetingRoom({
   const [chatDraft, setChatDraft] = useState("");
   const [isSendingChat, setIsSendingChat] = useState(false);
   const [isRoomConnected, setIsRoomConnected] = useState(false);
+  const [isPageVisible, setIsPageVisible] = useState(() => getIsDocumentVisible());
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [activeScreenShareId, setActiveScreenShareId] = useState<string | null>(null);
   const [waitingParticipants, setWaitingParticipants] = useState<WaitingParticipant[]>([]);
@@ -517,6 +533,10 @@ export default function MeetingRoom({
   const [preferLocalHandState, setPreferLocalHandState] = useState(false);
   const waitingMenuRef = useRef<HTMLDivElement | null>(null);
   const participantsMenuRef = useRef<HTMLDivElement | null>(null);
+  const sidebarCloseTimeoutRef = useRef<number | null>(null);
+  const sidebarLayoutTimeoutRef = useRef<number | null>(null);
+  const viewportResizeTimeoutRef = useRef<number | null>(null);
+  const isViewportResizingRef = useRef(false);
   const waitingMenuCloseTimeoutRef = useRef<number | null>(null);
   const participantsMenuCloseTimeoutRef = useRef<number | null>(null);
 
@@ -535,6 +555,22 @@ export default function MeetingRoom({
     roomRef.current?.disconnect();
     onLeave(reason);
   }, [onLeave]);
+
+  const reportLeaveMeeting = useCallback(() => {
+    const participantId = decodedMeetingToken.participantId;
+
+    if (participantId === null) {
+      return;
+    }
+
+    // OLD: leaving only disconnected LiveKit locally, so the backend participant status could stay ACCEPT.
+    // NEW: notify the existing backend leave endpoint as best-effort before the page transitions away.
+    void meetingApi.leaveMeeting(meetingCode, participantId, meetingToken, {
+      keepalive: true,
+    }).then((response) => {
+      assertApiSuccess(response);
+    }).catch(() => undefined);
+  }, [decodedMeetingToken.participantId, meetingCode, meetingToken]);
 
   const syncAvailableDevices = useCallback(async (currentRoom: LiveKitRoom | null = roomRef.current) => {
     const [microphoneResult, cameraResult] = await Promise.allSettled([
@@ -563,8 +599,84 @@ export default function MeetingRoom({
   }, []);
 
   useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsPageVisible(getIsDocumentVisible());
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    const settleViewportResize = () => {
+      isViewportResizingRef.current = false;
+      viewportResizeTimeoutRef.current = null;
+      setIsViewportResizing(false);
+    };
+
+    const handleViewportResize = () => {
+      if (!isViewportResizingRef.current) {
+        isViewportResizingRef.current = true;
+        setIsViewportResizing(true);
+      }
+
+      if (viewportResizeTimeoutRef.current !== null) {
+        window.clearTimeout(viewportResizeTimeoutRef.current);
+      }
+
+      viewportResizeTimeoutRef.current = window.setTimeout(
+        settleViewportResize,
+        VIEWPORT_RESIZE_SETTLE_MS,
+      );
+    };
+
+    window.addEventListener("resize", handleViewportResize);
+
+    return () => {
+      window.removeEventListener("resize", handleViewportResize);
+
+      if (viewportResizeTimeoutRef.current !== null) {
+        window.clearTimeout(viewportResizeTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     activePanelRef.current = activePanel;
   }, [activePanel]);
+
+  useEffect(() => {
+    if (sidebarCloseTimeoutRef.current !== null) {
+      window.clearTimeout(sidebarCloseTimeoutRef.current);
+      sidebarCloseTimeoutRef.current = null;
+    }
+
+    if (activePanel) {
+      setRenderedPanel(activePanel);
+    } else {
+      sidebarCloseTimeoutRef.current = window.setTimeout(() => {
+        setRenderedPanel(null);
+        sidebarCloseTimeoutRef.current = null;
+      }, SIDEBAR_LAYOUT_TRANSITION_MS);
+    }
+  }, [activePanel]);
+
+  useEffect(() => () => {
+    if (sidebarCloseTimeoutRef.current !== null) {
+      window.clearTimeout(sidebarCloseTimeoutRef.current);
+    }
+
+    if (sidebarLayoutTimeoutRef.current !== null) {
+      window.clearTimeout(sidebarLayoutTimeoutRef.current);
+    }
+
+    if (viewportResizeTimeoutRef.current !== null) {
+      window.clearTimeout(viewportResizeTimeoutRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     localHandStateRef.current = localHandState;
@@ -1026,7 +1138,13 @@ export default function MeetingRoom({
         return;
       }
 
-      const nextMessage = mapChatMessageToUiMessage(message, participant, displayName, localEmail);
+      const nextMessage = mapChatMessageToUiMessage(
+        message,
+        participant,
+        displayName,
+        localEmail,
+        room.localParticipant.identity,
+      );
 
       if (!nextMessage) {
         return;
@@ -1248,7 +1366,20 @@ export default function MeetingRoom({
     }
   }, [activeScreenShareId, screenShareParticipants]);
 
+  const beginSidebarLayoutTransition = useCallback(() => {
+    if (sidebarLayoutTimeoutRef.current !== null) {
+      window.clearTimeout(sidebarLayoutTimeoutRef.current);
+    }
+
+    setIsSidebarLayoutTransitioning(true);
+    sidebarLayoutTimeoutRef.current = window.setTimeout(() => {
+      setIsSidebarLayoutTransitioning(false);
+      sidebarLayoutTimeoutRef.current = null;
+    }, SIDEBAR_LAYOUT_TRANSITION_MS + 80);
+  }, []);
+
   const togglePanel = (panel: Exclude<SidebarPanel, null>) => {
+    beginSidebarLayoutTransition();
     startTransition(() => {
       setActivePanel((currentPanel) =>
         currentPanel === panel ? null : panel
@@ -1257,6 +1388,10 @@ export default function MeetingRoom({
   };
 
   const handlePanelChange = (panel: SidebarPanel) => {
+    if (panel !== activePanel) {
+      beginSidebarLayoutTransition();
+    }
+
     startTransition(() => {
       setActivePanel(panel);
     });
@@ -1421,9 +1556,10 @@ export default function MeetingRoom({
     });
   };
 
-  const handleLeaveMeeting = () => {
+  const handleLeaveMeeting = useCallback(() => {
+    reportLeaveMeeting();
     exitMeeting("left");
-  };
+  }, [exitMeeting, reportLeaveMeeting]);
 
   const handleEndMeeting = useCallback(() => {
     if (isEndingMeeting) {
@@ -1544,6 +1680,10 @@ export default function MeetingRoom({
     });
   };
 
+  const sidebarPanel = activePanel ?? renderedPanel;
+  const isSidebarOpen = Boolean(activePanel);
+  const isSidebarRendered = Boolean(sidebarPanel);
+
   return (
     <div className="h-screen overflow-hidden bg-background">
       <audio
@@ -1589,7 +1729,7 @@ export default function MeetingRoom({
                   </button>
 
                   {isWaitingMenuOpen ? (
-                    <Card className="absolute right-0 top-full z-30 mt-3 w-[min(26rem,calc(100vw-2rem))] border border-border/80 bg-card/95 p-4 text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.38)] backdrop-blur-xl">
+                    <Card className="absolute right-0 top-full z-30 mt-3 w-[min(26rem,calc(100vw-2rem))] border border-border/80 bg-card/95 p-4 text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.38)] backdrop-blur-xl motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:slide-in-from-top-2 motion-safe:duration-200 motion-reduce:animate-none">
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <p className="text-sm font-semibold text-foreground">
@@ -1696,7 +1836,7 @@ export default function MeetingRoom({
                 </button>
 
                 {isParticipantsMenuOpen ? (
-                  <Card className="absolute right-0 top-full z-30 mt-3 w-[min(22rem,calc(100vw-2rem))] border border-border/80 bg-card/95 p-4 text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.38)] backdrop-blur-xl">
+                  <Card className="absolute right-0 top-full z-30 mt-3 w-[min(22rem,calc(100vw-2rem))] border border-border/80 bg-card/95 p-4 text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.38)] backdrop-blur-xl motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:slide-in-from-top-2 motion-safe:duration-200 motion-reduce:animate-none">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold text-foreground">
@@ -1748,17 +1888,26 @@ export default function MeetingRoom({
           </div>
         </div>
 
-        {activePanel ? (
+        {isSidebarRendered && sidebarPanel ? (
           <>
             <button
               type="button"
               aria-label="Close meeting panel"
-              className="fixed inset-0 z-30 bg-slate-950/45 backdrop-blur-[2px] lg:hidden"
+              className={cn(
+                "fixed inset-0 z-30 bg-slate-950/45 backdrop-blur-[2px] motion-safe:transition-opacity motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none lg:hidden",
+                isSidebarOpen ? "opacity-100" : "pointer-events-none opacity-0",
+              )}
               onClick={() => handlePanelChange(null)}
             />
-            <div className="fixed inset-x-3 bottom-24 top-24 z-40 flex lg:hidden">
+            <div
+              className={cn(
+                "fixed inset-x-3 bottom-24 top-24 z-40 flex motion-safe:transition-[transform,opacity] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none lg:hidden",
+                isSidebarOpen ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0",
+              )}
+            >
               <RoomSidebar
-                activePanel={activePanel}
+                activePanel={sidebarPanel}
+                isOpen={isSidebarOpen}
                 participants={participants}
                 waitingParticipants={waitingParticipants}
                 canManageWaitingRoom={canManageWaitingRoom}
@@ -1778,8 +1927,18 @@ export default function MeetingRoom({
           </>
         ) : null}
 
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4 pt-24 lg:flex-row lg:gap-6 lg:p-6 lg:pt-24">
-          <div className="order-1 flex min-h-0 flex-1 flex-col gap-4 lg:order-2">
+        <div
+          className={cn(
+            "flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4 pt-24 motion-reduce:transition-none lg:grid lg:grid-rows-[minmax(0,1fr)] lg:p-6 lg:pt-24",
+            isViewportResizing
+              ? "motion-safe:transition-none"
+              : "motion-safe:transition-[gap,padding,grid-template-columns] motion-safe:duration-200 motion-safe:ease-out",
+            isSidebarOpen
+              ? "lg:grid-cols-[24rem_minmax(0,1fr)] lg:gap-x-6"
+              : "lg:grid-cols-[0rem_minmax(0,1fr)] lg:gap-x-0",
+          )}
+        >
+          <div className="order-1 flex min-h-0 min-w-0 flex-1 flex-col gap-4 motion-safe:transition-[transform,opacity] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none lg:col-start-2 lg:row-start-1 lg:order-none">
 
             {isLiveKitEnabled && !canPlaybackAudio ? (
               <Card className="flex flex-col gap-3 border border-sky-500/30 bg-sky-500/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1798,16 +1957,27 @@ export default function MeetingRoom({
                 screenShareParticipants={screenShareParticipants}
                 screenShareParticipant={screenShareParticipant}
                 isLocalScreenSharing={isScreenSharing}
+                isPageVisible={isPageVisible}
+                isLayoutMotionEnabled={!isSidebarLayoutTransitioning && !isViewportResizing}
+                isViewportResizing={isViewportResizing}
                 onSelectScreenShare={setActiveScreenShareId}
                 onToggleScreenShare={handleScreenShare}
               />
             </div>
           </div>
 
-          {activePanel ? (
-            <div className="order-2 hidden min-h-0 lg:order-1 lg:mt-2 lg:flex lg:h-[calc(100%-0.5rem)] lg:w-96">
+          <div
+            className={cn(
+              "order-2 hidden min-h-0 shrink-0 overflow-hidden motion-safe:transition-[opacity,transform,margin] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none lg:col-start-1 lg:row-start-1 lg:order-none lg:mt-2 lg:flex lg:h-[calc(100%-0.5rem)]",
+              isSidebarOpen
+                ? "lg:translate-x-0 lg:opacity-100"
+                : "pointer-events-none lg:-translate-x-3 lg:opacity-0",
+            )}
+          >
+            {sidebarPanel ? (
               <RoomSidebar
-                activePanel={activePanel}
+                activePanel={sidebarPanel}
+                isOpen={isSidebarOpen}
                 participants={participants}
                 waitingParticipants={waitingParticipants}
                 canManageWaitingRoom={canManageWaitingRoom}
@@ -1823,8 +1993,8 @@ export default function MeetingRoom({
                 onPanelChange={handlePanelChange}
                 onClose={() => handlePanelChange(null)}
               />
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
 
         <RoomFooter

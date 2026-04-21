@@ -3,7 +3,6 @@
 import { Check, ChevronUp, Copy, Hand, MessageSquare, Mic, MicOff, Monitor, Phone, Users, Video, VideoOff, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
-import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 import type { SidebarPanel } from "./types";
@@ -75,11 +74,11 @@ function FooterMenuPanel({
   return (
     <div
       className={cn(
-        "absolute bottom-full left-1/2 z-30 mb-3 -translate-x-1/2 rounded-[28px] border border-border/80 bg-card/95 p-3 text-card-foreground shadow-[0_20px_60px_rgba(2,6,23,0.45)] backdrop-blur-xl",
+        "absolute bottom-full left-1/2 z-30 mb-3 -translate-x-1/2 rounded-[28px] border border-border/80 bg-card/95 p-3 text-card-foreground shadow-[0_20px_60px_rgba(2,6,23,0.45)] backdrop-blur-xl motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:slide-in-from-bottom-2 motion-safe:duration-200 motion-reduce:animate-none",
         widthClassName,
       )}
     >
-      <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+      <p className="px-2 pb-2 text-sm font-semibold text-muted-foreground">
         {title}
       </p>
       <div className="space-y-1">{children}</div>
@@ -120,6 +119,7 @@ function SplitControlButton({
           onClick={onMainClick}
           className={cn(
             "flex size-11 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+            "motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 motion-reduce:transform-none",
             toneClassName,
             hoverToneClassName,
           )}
@@ -134,6 +134,7 @@ function SplitControlButton({
           onClick={onMenuClick}
           className={cn(
             "flex h-11 w-8 items-center justify-center rounded-full text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+            "motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 motion-reduce:transform-none",
             isMenuOpen ? "bg-muted text-foreground" : "hover:bg-muted hover:text-foreground",
           )}
         >
@@ -299,7 +300,7 @@ export default function RoomFooter({
         </div>
 
         <div className="order-1 flex justify-center lg:order-2">
-          <div className="flex flex-wrap items-center justify-center gap-2 rounded-full border border-border/80 bg-card/95 px-3 py-2 text-foreground shadow-[0_18px_50px_rgba(2,6,23,0.32)] backdrop-blur-xl">
+          <div className="flex flex-wrap items-center justify-center gap-2 rounded-full border border-border/80 bg-card/95 px-3 py-2 text-foreground shadow-[0_18px_50px_rgba(2,6,23,0.32)] backdrop-blur-xl motion-safe:transition-[transform,opacity,box-shadow] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none">
             <div className="relative">
               <SplitControlButton
                 label={isMicEnabled ? "Mute microphone" : "Unmute microphone"}
@@ -326,7 +327,7 @@ export default function RoomFooter({
                           setOpenMenu(null);
                         }}
                         className={cn(
-                          "flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm transition hover:bg-muted",
+                          "flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm transition motion-safe:duration-150 motion-safe:ease-out hover:bg-muted",
                           activeMicrophoneId === device.deviceId && "bg-muted",
                         )}
                       >
@@ -373,7 +374,7 @@ export default function RoomFooter({
                           setOpenMenu(null);
                         }}
                         className={cn(
-                          "flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm transition hover:bg-muted",
+                          "flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm transition motion-safe:duration-150 motion-safe:ease-out hover:bg-muted",
                           activeCameraId === device.deviceId && "bg-muted",
                         )}
                       >
@@ -417,7 +418,7 @@ export default function RoomFooter({
                       }
                       setOpenMenu(null);
                     }}
-                    className="flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm transition hover:bg-muted"
+                    className="flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm transition motion-safe:duration-150 motion-safe:ease-out hover:bg-muted"
                   >
                     <span>{isScreenSharing ? "Present other content" : "Present now"}</span>
                     <Monitor className="h-4 w-4 shrink-0 text-primary" />
@@ -430,7 +431,7 @@ export default function RoomFooter({
                         onToggleScreenShare();
                         setOpenMenu(null);
                       }}
-                      className="flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm text-destructive transition hover:bg-destructive/10"
+                      className="flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm text-destructive transition motion-safe:duration-150 motion-safe:ease-out hover:bg-destructive/10"
                     >
                       <span>Stop presenting</span>
                       <Monitor className="h-4 w-4 shrink-0" />
@@ -446,7 +447,7 @@ export default function RoomFooter({
               title={isHandRaised ? "Lower hand" : "Raise hand"}
               onClick={onToggleHandRaise}
               className={cn(
-                "flex size-13 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+                "flex size-13 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 motion-reduce:transform-none",
                 isHandRaised
                   ? "bg-amber-300 text-slate-950 hover:bg-amber-200"
                   : "bg-secondary text-secondary-foreground hover:bg-secondary/85",
@@ -468,7 +469,7 @@ export default function RoomFooter({
 
                 onLeave();
               }}
-              className="ml-1 flex h-13 items-center justify-center rounded-full bg-destructive px-5 text-destructive-foreground transition hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+              className="ml-1 flex h-13 items-center justify-center rounded-full bg-destructive px-5 text-destructive-foreground transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 motion-reduce:transform-none"
             >
               <Phone className="h-5 w-5" />
             </button>
@@ -481,14 +482,14 @@ export default function RoomFooter({
             aria-label="Open participants"
             onClick={() => onTogglePanel("participants")}
             className={cn(
-              "relative flex size-11 items-center justify-center rounded-full border border-border/80 bg-card/95 text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+              "relative flex size-11 items-center justify-center rounded-full border border-border/80 bg-card/95 text-foreground transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transform-none",
               activePanel === "participants" && "bg-primary text-primary-foreground hover:bg-primary/90",
             )}
           >
             <Users className="h-5 w-5" />
             <span
               className={cn(
-                "absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-semibold",
+                "absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-semibold motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-150 motion-reduce:animate-none",
                 activePanel === "participants"
                   ? "bg-background text-foreground"
                   : "bg-primary text-primary-foreground",
@@ -503,7 +504,7 @@ export default function RoomFooter({
             aria-label="Open chat"
             onClick={() => onTogglePanel("chat")}
             className={cn(
-              "relative flex size-11 items-center justify-center rounded-full border border-border/80 bg-card/95 text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+              "relative flex size-11 items-center justify-center rounded-full border border-border/80 bg-card/95 text-foreground transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transform-none",
               activePanel === "chat" && "bg-primary text-primary-foreground hover:bg-primary/90",
             )}
           >
@@ -511,7 +512,7 @@ export default function RoomFooter({
             {unreadChatCount > 0 ? (
               <span
                 className={cn(
-                  "absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-semibold",
+                  "absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-semibold motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-150 motion-reduce:animate-none",
                   activePanel === "chat"
                     ? "bg-background text-foreground"
                     : "bg-destructive text-destructive-foreground",
@@ -529,20 +530,17 @@ export default function RoomFooter({
           <button
             type="button"
             aria-label="Close leave meeting dialog"
-            className="fixed inset-0 z-40 bg-slate-950/55 backdrop-blur-[2px]"
+            className="fixed inset-0 z-40 bg-background/70 backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150 motion-reduce:animate-none"
             onClick={() => setIsLeaveDialogOpen(false)}
           />
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-            <Card className="w-full max-w-md border border-border/80 bg-card/95 p-6 text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.38)] backdrop-blur-xl">
-              <div className="space-y-3">
-                <p className="text-sm font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                  Leave Meeting
-                </p>
-                <h2 className="text-2xl font-semibold tracking-tight text-foreground">
-                  Leave or end the meeting?
+            <div className="w-full max-w-sm rounded-[2rem] border border-border/80 bg-card/95 p-6 text-center text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.32)] backdrop-blur-xl motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:slide-in-from-bottom-3 motion-safe:duration-200 motion-safe:ease-out motion-reduce:animate-none">
+              <div className="space-y-2">
+                <h2 className="text-2xl font-medium tracking-tight text-foreground">
+                  Leave meeting?
                 </h2>
-                <p className="text-sm leading-6 text-muted-foreground">
-                  You can leave now and keep the room running, or end the meeting for everyone.
+                <p className="mx-auto max-w-xs text-sm leading-6 text-muted-foreground">
+                  Leave now to keep the meeting open, or end it for everyone.
                 </p>
               </div>
 
@@ -555,7 +553,7 @@ export default function RoomFooter({
                   }}
                   className="flex h-12 items-center justify-center rounded-full border border-border/80 bg-background/80 px-4 text-sm font-medium text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                 >
-                  Leave without ending
+                  Leave meeting
                 </button>
                 <button
                   type="button"
@@ -566,17 +564,17 @@ export default function RoomFooter({
                   disabled={isEndingMeeting}
                   className="flex h-12 items-center justify-center rounded-full bg-destructive px-4 text-sm font-medium text-destructive-foreground transition hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isEndingMeeting ? "Ending meeting..." : "End meeting for everyone"}
+                  {isEndingMeeting ? "Ending..." : "End for everyone"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsLeaveDialogOpen(false)}
-                  className="flex h-11 items-center justify-center rounded-full px-4 text-sm font-medium text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                  className="flex h-10 items-center justify-center rounded-full px-4 text-sm font-medium text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                 >
                   Cancel
                 </button>
               </div>
-            </Card>
+            </div>
           </div>
         </>
       ) : null}

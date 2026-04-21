@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation } from "@tanstack/react-query";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -35,6 +35,7 @@ import {
 import {
   getMeetingApiErrorDescription,
   isMeetingParticipantAwaitingApproval,
+  isMeetingScheduledNotStartedError,
   meetingApi,
   normalizeMeetingParticipantStatus,
   shouldHandleMeetingParticipantInLobby,
@@ -64,6 +65,9 @@ type LobbyPendingJoinState = LobbyJoinPayload;
 
 type LobbyProps = {
   meetingCode: string;
+  meetingTitle?: string | null;
+  hostId?: string | null;
+  hostEmail?: string | null;
   onJoin: (payload: LobbyJoinPayload) => void;
   onMeetingEnded: () => void;
 };
@@ -71,10 +75,7 @@ type LobbyProps = {
 export type { LobbyJoinPayload };
 
 const WAITING_APPROVAL_IMAGE_SRC = "/images/waitting.png";
-const DEVICE_MENU_MIN_WIDTH_CLASS = "min-w-57.5";
 type DeviceMenuKey =
-  | "preview-camera"
-  | "preview-mic"
   | "selector-camera"
   | "selector-mic"
   | null;
@@ -85,22 +86,6 @@ function createGuestId() {
   }
 
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function getApiErrorDescription(error: IBackendRes<unknown>) {
-  if (Array.isArray(error.errors)) {
-    return error.errors[0];
-  }
-
-  if (typeof error.errors === "string") {
-    return error.errors;
-  }
-
-  if (typeof error.error === "string") {
-    return error.error;
-  }
-
-  return error.message;
 }
 
 function getWaitingMessage(message: MeetingSocketMessage) {
@@ -214,7 +199,14 @@ function areLobbyJoinStatesEqual(
     && currentState.hostName === nextState.hostName;
 }
 
-export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProps) {
+export default function Lobby({
+  meetingCode,
+  meetingTitle,
+  hostId,
+  hostEmail,
+  onJoin,
+  onMeetingEnded,
+}: LobbyProps) {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthSession();
   const initialMeetingSession = readInstantMeetingSession(meetingCode);
@@ -276,9 +268,22 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
       ? userNameOverride
       : "";
   const userName = rawUserName.trim();
+  const normalizedUserId = user?.id !== undefined && user?.id !== null
+    ? user.id.toString()
+    : "";
+  const normalizedUserEmail = user?.email?.trim().toLowerCase() || "";
+  const normalizedHostId = hostId?.trim() || initialMeetingSession?.hostId?.trim() || "";
+  const normalizedHostEmail = hostEmail?.trim().toLowerCase() || "";
+  // OLD: the lobby CTA always said "Request to join", even for the meeting host who
+  // joins directly without ever entering the waiting room.
+  // NEW: detect the verified host and keep the CTA as a direct "Join" action.
+  const isHostUser = isSignedIn && (
+    (normalizedHostId && normalizedHostId === normalizedUserId)
+    || (normalizedHostEmail && normalizedHostEmail === normalizedUserEmail)
+  );
   const displayName = userName || pendingJoinState?.userName?.trim() || "Guest";
   const canJoinMeeting = userName.length > 0;
-  const meetingName = meetingCode ? meetingCode : "your meeting";
+  const meetingName = meetingTitle?.trim() || meetingCode || "your meeting";
   const initials = getAvatarInitials(user?.email?.trim() || displayName, "G");
   const pendingParticipantStatus = normalizeMeetingParticipantStatus(
     pendingJoinState?.participantStatus,
@@ -355,7 +360,7 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
     };
   }, [isCameraOn, isMicOn, meetingCode]);
 
-  const handleMeetingEnded = useEffectEvent(() => {
+  const handleMeetingEnded = useCallback(() => {
     if (hasHandledMeetingEndedRef.current) {
       return;
     }
@@ -372,9 +377,9 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
       description: "The host ended this meeting while your join request was still pending.",
     });
     onMeetingEnded();
-  });
+  }, [clearDisconnectCancelTimeout, meetingCode, onMeetingEnded]);
 
-  const completeApprovedJoin = useEffectEvent((
+  const completeApprovedJoin = useCallback((
     approvedJoinPayload: LobbyJoinPayload,
     description: string,
   ) => {
@@ -388,7 +393,7 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
       description,
     });
     onJoin(approvedJoinPayload);
-  });
+  }, [onJoin]);
 
   const requestApprovedJoin = useCallback(async (nextPendingJoinState: LobbyPendingJoinState) => {
     const response = await meetingApi.joinMeeting(
@@ -491,7 +496,7 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
       const errorMessage =
         error instanceof Error
           ? error.message
-          : getApiErrorDescription(apiError) || "Please try again in a moment.";
+          : getMeetingApiErrorDescription(apiError) || "Please try again in a moment.";
 
       setWaitingSocketError(errorMessage);
 
@@ -506,7 +511,6 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
     completeApprovedJoin,
     handleMeetingEnded,
     meetingCode,
-    onJoin,
     persistLobbySession,
     updatePendingJoinState,
   ]);
@@ -567,9 +571,16 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
       onJoin(nextJoinPayload);
     },
     onError: (error) => {
-      toast.error("Unable to join meeting", {
-        description: getApiErrorDescription(error) || "Please try again in a moment.",
-      });
+      const isMeetingNotStarted = isMeetingScheduledNotStartedError(error);
+
+      toast.error(
+        isMeetingNotStarted ? "This meeting hasn't started yet" : "Unable to join meeting",
+        {
+          description: isMeetingNotStarted
+            ? "Try again after the host starts the scheduled meeting."
+            : getMeetingApiErrorDescription(error) || "Please try again in a moment.",
+        },
+      );
     },
   });
 
@@ -789,9 +800,9 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
   }, [
     clearDisconnectCancelTimeout,
     completeApprovedJoin,
+    handleMeetingEnded,
     isWaitingForApproval,
     meetingCode,
-    onJoin,
     pendingJoinState,
     requestApprovedJoin,
     syncPendingJoinStatus,
@@ -821,6 +832,7 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
     meetingCode,
     pendingJoinState,
     pendingParticipantStatus,
+    persistLobbySession,
   ]);
 
   function stopStream() {
@@ -901,17 +913,18 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
     selectedDeviceId: string,
     onSelect: (deviceId: string) => void,
     fallbackPrefix: string,
+    menuClassName: string,
   ) => {
     if (devices.length === 0) {
       return (
-        <div className="rounded-lg border border-border/70 bg-card p-3 text-sm text-muted-foreground shadow-lg">
+        <div className={`${menuClassName} rounded-3xl border border-border/70 bg-card/95 p-4 text-sm text-muted-foreground shadow-[0_18px_44px_rgba(15,23,42,0.16)] backdrop-blur`}>
           No devices found.
         </div>
       );
     }
 
     return (
-      <div className={`absolute bottom-full right-0 mb-2 ${DEVICE_MENU_MIN_WIDTH_CLASS} rounded-lg border border-border bg-card p-2 shadow-lg`}>
+      <div className={`${menuClassName} max-h-72 overflow-y-auto rounded-3xl border border-border/70 bg-card/95 p-2 shadow-[0_18px_44px_rgba(15,23,42,0.16)] backdrop-blur`}>
         {devices.map((device) => (
           <button
             key={device.deviceId}
@@ -920,13 +933,13 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
               onSelect(device.deviceId);
               setOpenMenu(null);
             }}
-            className="flex w-full items-center justify-between rounded px-3 py-2 text-left hover:bg-muted"
+            className="flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left transition hover:bg-muted/80"
           >
-            <span className="truncate text-sm">
+            <span className="truncate text-sm font-medium">
               {device.label || `${fallbackPrefix} ${device.deviceId.slice(0, 5)}`}
             </span>
             {selectedDeviceId === device.deviceId ? (
-              <Check className="h-4 w-4 text-primary" />
+              <Check className="h-4 w-4 shrink-0 text-primary" />
             ) : null}
           </button>
         ))}
@@ -953,10 +966,10 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
       <button
         type="button"
         onClick={() => setOpenMenu(openMenu === menuKey ? null : menuKey)}
-        className="flex h-12 w-full items-center justify-between gap-3 rounded-full border border-border/70 bg-background/90 px-4 text-sm text-foreground shadow-sm transition hover:bg-muted/60"
+        className="flex h-14 w-full items-center justify-between gap-3 rounded-3xl border border-border/70 bg-background/90 px-4 text-sm text-foreground shadow-sm transition hover:bg-muted/60"
       >
         <span className="flex min-w-0 items-center gap-3">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
             {icon}
           </span>
           <span className="truncate">
@@ -972,6 +985,7 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
           selectedDeviceId,
           onSelect,
           menuKey === "selector-camera" ? "Camera" : "Microphone",
+          "absolute left-0 top-[calc(100%+0.75rem)] z-20 w-full",
         )
         : null}
     </div>
@@ -1006,8 +1020,8 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
         </div>
       </div>
 
-      <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 items-center gap-3">
-        <div className="flex items-center gap-2 rounded-full bg-background/90 p-1 backdrop-blur-sm">
+      <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-full bg-background/90 p-2 shadow-lg backdrop-blur-sm">
+        <div className="flex items-center">
           <Button
             onClick={() => {
               setIsCameraOn((value) => !value);
@@ -1019,22 +1033,11 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
           >
             {isCameraOn ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
           </Button>
-          <div className="relative">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="rounded-full"
-              onClick={() => setOpenMenu(openMenu === "preview-camera" ? null : "preview-camera")}
-            >
-              <ChevronDown className="h-4 w-4" />
-            </Button>
-            {openMenu === "preview-camera"
-              ? renderDeviceMenu(videoDevices, selectedCamera, setSelectedCamera, "Camera")
-              : null}
-          </div>
         </div>
 
-        <div className="flex items-center gap-2 rounded-full bg-background/90 p-1 backdrop-blur-sm">
+        <div className="h-8 w-px bg-border/70" />
+
+        <div className="flex items-center">
           <Button
             onClick={() => {
               setIsMicOn((value) => !value);
@@ -1046,19 +1049,6 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
           >
             {isMicOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
           </Button>
-          <div className="relative">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="rounded-full"
-              onClick={() => setOpenMenu(openMenu === "preview-mic" ? null : "preview-mic")}
-            >
-              <ChevronDown className="h-4 w-4" />
-            </Button>
-            {openMenu === "preview-mic"
-              ? renderDeviceMenu(audioDevices, selectedMic, setSelectedMic, "Microphone")
-              : null}
-          </div>
         </div>
       </div>
     </Card>
@@ -1237,7 +1227,7 @@ export default function Lobby({ meetingCode, onJoin, onMeetingEnded }: LobbyProp
                   {joinMeetingMutation.isPending ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
                   ) : null}
-                  Request to join
+                  {isHostUser ? "Join" : "Request to join"}
                 </Button>
 
 

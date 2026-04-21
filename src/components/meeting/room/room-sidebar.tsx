@@ -14,7 +14,7 @@ import {
   VideoOff,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -33,6 +33,7 @@ import { getInitials } from "./utils";
 
 type RoomSidebarProps = {
   activePanel: SidebarPanel;
+  isOpen?: boolean;
   participants: Participant[];
   waitingParticipants: WaitingParticipant[];
   canManageWaitingRoom: boolean;
@@ -59,7 +60,7 @@ function WaitingParticipantRow({
   onReject: (participant: WaitingParticipant) => void;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-border/80 bg-background/55 p-3 backdrop-blur-sm">
+    <div className="flex items-center gap-3 rounded-2xl border border-border/80 bg-background/55 p-3 backdrop-blur-sm motion-safe:transition-[transform,opacity,background-color,border-color] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none hover:bg-background/70">
       <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/20 font-semibold text-primary-foreground">
         {getInitials(participant.name)}
       </div>
@@ -94,6 +95,7 @@ function WaitingParticipantRow({
 
 export default function RoomSidebar({
   activePanel,
+  isOpen = true,
   participants,
   waitingParticipants,
   canManageWaitingRoom,
@@ -111,8 +113,19 @@ export default function RoomSidebar({
 }: RoomSidebarProps) {
   const currentTab: SidebarTab = activePanel ?? "participants";
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
   const stickerPickerRef = useRef<HTMLDivElement | null>(null);
   const [isStickerPickerOpen, setIsStickerPickerOpen] = useState(false);
+
+  const focusChatInput = useCallback(() => {
+    if (currentTab !== "chat" || !isChatReady) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      chatInputRef.current?.focus();
+    });
+  }, [currentTab, isChatReady]);
 
   useEffect(() => {
     if (activePanel !== "chat") {
@@ -130,6 +143,14 @@ export default function RoomSidebar({
       behavior: "smooth",
     });
   }, [activePanel, chatMessages]);
+
+  useEffect(() => {
+    if (currentTab !== "chat" || !isOpen || !isChatReady || isSendingChat) {
+      return;
+    }
+
+    focusChatInput();
+  }, [currentTab, focusChatInput, isChatReady, isOpen, isSendingChat]);
 
   useEffect(() => {
     if (!isStickerPickerOpen) {
@@ -168,10 +189,16 @@ export default function RoomSidebar({
   };
 
   const handleSendTextMessage = () => {
+    if (!chatDraft.trim()) {
+      focusChatInput();
+      return;
+    }
+
     onSendChatMessage({
       type: "text",
       content: chatDraft,
     });
+    focusChatInput();
   };
 
   const handleStickerSelect = (stickerKey: string) => {
@@ -180,11 +207,18 @@ export default function RoomSidebar({
       stickerKey,
     });
     setIsStickerPickerOpen(false);
+    focusChatInput();
   };
 
   return (
     <aside className="flex h-full w-full shrink-0 lg:w-96">
-      <Card className="flex h-full min-h-0 flex-1 flex-col gap-0 overflow-hidden border border-border/80 bg-card/95 px-0 py-0 text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.42)] backdrop-blur-xl">
+      <Card
+        className={cn(
+          "flex h-full min-h-0 flex-1 flex-col gap-0 overflow-hidden border border-border/80 bg-card/95 px-0 py-0 text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.42)] backdrop-blur-xl",
+          "motion-safe:transition-[transform,opacity] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none",
+          isOpen ? "translate-x-0 opacity-100" : "-translate-x-3 opacity-0",
+        )}
+      >
         <div className="flex items-center justify-between border-b border-border/70 px-4 py-3 lg:hidden">
           <div>
             <p className="text-sm font-semibold text-foreground">Meeting panel</p>
@@ -237,12 +271,12 @@ export default function RoomSidebar({
         </div>
 
         {currentTab === "participants" ? (
-          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4">
+          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-150 motion-reduce:animate-none">
             {canManageWaitingRoom ? (
               <section className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    <p className="text-xs font-semibold  text-muted-foreground">
                       Waiting to Join
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -287,7 +321,7 @@ export default function RoomSidebar({
 
             <section className="space-y-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <p className="text-xs font-semibold  text-muted-foreground">
                   In the Call
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -299,7 +333,7 @@ export default function RoomSidebar({
                 {participants.map((participant) => (
                   <div
                     key={participant.id}
-                    className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/35 p-3"
+                    className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/35 p-3 motion-safe:transition-[transform,opacity,background-color,border-color] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none hover:bg-background/50"
                   >
                     <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground">
                       {getInitials(participant.avatarSource)}
@@ -309,12 +343,12 @@ export default function RoomSidebar({
                       <div className="flex items-center gap-2">
                         <p className="truncate font-medium text-foreground">{participant.name}</p>
                         {participant.isHost ? (
-                          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-primary">
+                          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-primary motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-150 motion-reduce:animate-none">
                             Host
                           </span>
                         ) : null}
                         {participant.handRaised ? (
-                          <span className="flex shrink-0 items-center gap-1 rounded-full bg-amber-300/15 px-2 py-0.5 text-[11px] font-medium text-amber-300">
+                          <span className="flex shrink-0 items-center gap-1 rounded-full bg-amber-300/15 px-2 py-0.5 text-[11px] font-medium text-amber-300 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-150 motion-reduce:animate-none">
                             <Hand className="h-3 w-3" />
                             Raised hand
                           </span>
@@ -344,22 +378,25 @@ export default function RoomSidebar({
             </section>
           </div>
         ) : (
-          <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 flex-1 flex-col motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-150 motion-reduce:animate-none">
             <div ref={chatScrollRef} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
               {chatMessages.length > 0 ? (
                 chatMessages.map((message) => (
                   <div
                     key={message.id}
-                    className={message.isLocal ? "flex justify-end" : "flex justify-start"}
+                    className={cn(
+                      message.isLocal ? "flex w-full justify-end" : "flex w-full justify-start",
+                      "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-200 motion-reduce:animate-none",
+                    )}
                   >
-                    <div className={message.isLocal ? "flex max-w-[82%] min-w-0 justify-end" : "flex max-w-[82%] min-w-0 gap-3"}>
+                    <div className={message.isLocal ? "ml-auto flex w-fit max-w-[82%] min-w-0 justify-end" : "mr-auto flex w-fit max-w-[82%] min-w-0 gap-3"}>
                       {!message.isLocal ? (
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
                           {getInitials(message.avatarSource)}
                         </div>
                       ) : null}
 
-                      <div className={message.isLocal ? "flex min-w-0 flex-col items-end text-right" : "flex min-w-0 flex-col items-start"}>
+                      <div className={message.isLocal ? "flex min-w-0 flex-col items-end" : "flex min-w-0 flex-col items-start"}>
                         <div
                           className={message.isLocal ? "mb-1 flex items-baseline justify-end gap-2" : "mb-1 flex items-baseline gap-2"}
                         >
@@ -373,7 +410,7 @@ export default function RoomSidebar({
                             message.type === "sticker"
                               ? "w-fit max-w-full"
                               : message.isLocal
-                                ? "w-fit max-w-full rounded-2xl rounded-tr-md bg-primary px-3 py-3 text-sm leading-6 text-primary-foreground"
+                                ? "ml-auto w-fit max-w-full self-end rounded-2xl rounded-tr-md bg-primary px-3 py-3 text-left text-sm leading-6 text-primary-foreground"
                                 : "w-fit max-w-full rounded-2xl rounded-tl-md border border-border/70 bg-background/55 px-4 py-3 text-sm leading-6 text-foreground"
                           }
                         >
@@ -420,8 +457,8 @@ export default function RoomSidebar({
               >
                 <div className="relative flex-1" ref={stickerPickerRef}>
                   {isStickerPickerOpen ? (
-                    <div className="absolute bottom-full left-0 z-20 mb-3 w-56 rounded-3xl border border-border/80 bg-card/95 p-3 shadow-[0_20px_60px_rgba(2,6,23,0.42)] backdrop-blur-xl">
-                      <div className="mb-2 px-1 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    <div className="absolute bottom-full left-0 z-20 mb-3 w-56 rounded-3xl border border-border/80 bg-card/95 p-3 shadow-[0_20px_60px_rgba(2,6,23,0.42)] backdrop-blur-xl motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:slide-in-from-bottom-2 motion-safe:duration-200 motion-reduce:animate-none">
+                      <div className="mb-2 px-1 text-xs font-semibold  text-muted-foreground">
                         Stickers
                       </div>
                       <div className="grid grid-cols-4 gap-2">
@@ -447,6 +484,7 @@ export default function RoomSidebar({
 
                   <div className="flex min-h-[3.5rem] items-center gap-1 rounded-[1.75rem] border border-border/70 bg-background/55 px-4 py-2">
                     <textarea
+                      ref={chatInputRef}
                       value={chatDraft}
                       onChange={(event) => onChatDraftChange(event.target.value)}
                       onKeyDown={(event) => {
