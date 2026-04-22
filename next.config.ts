@@ -1,10 +1,13 @@
 import type { NextConfig } from "next";
 
+const allowedDevOrigins = process.env.NEXT_ALLOWED_DEV_ORIGINS
+  ?.split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean) ?? ["local-origin.dev", "*.local-origin.dev"];
+
 const nextConfig: NextConfig = {
-  /* config options here */
-  allowedDevOrigins: ['local-origin.dev', '*.local-origin.dev'],
+  output: "standalone",
+  allowedDevOrigins,
 };
 
-module.exports = {
-  allowedDevOrigins: ['local-origin.dev', '*.local-origin.dev', '100.93.168.24'],
-}
+export default nextConfig;

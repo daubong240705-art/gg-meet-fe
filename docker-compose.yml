@@ -6,8 +6,6 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://localhost:8080/api}
-        NEXT_PUBLIC_FRONTEND_URL: ${NEXT_PUBLIC_FRONTEND_URL:-http://localhost:3000}
-        NEXT_PUBLIC_MEDIA_HOST_URL: ${NEXT_PUBLIC_MEDIA_HOST_URL:-http://localhost:7880}
         NEXT_PUBLIC_WEBSOCKET_URL: ${NEXT_PUBLIC_WEBSOCKET_URL:-ws://localhost:7880}
         NEXT_PUBLIC_MEETING_SOCKET_URL: ${NEXT_PUBLIC_MEETING_SOCKET_URL:-http://localhost:8080/server}
     environment:
@@ -16,8 +14,6 @@ services:
       PORT: 3000
       BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://host.docker.internal:8080/api}
       NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://localhost:8080/api}
-      NEXT_PUBLIC_FRONTEND_URL: ${NEXT_PUBLIC_FRONTEND_URL:-http://localhost:3000}
-      NEXT_PUBLIC_MEDIA_HOST_URL: ${NEXT_PUBLIC_MEDIA_HOST_URL:-http://localhost:7880}
       NEXT_PUBLIC_WEBSOCKET_URL: ${NEXT_PUBLIC_WEBSOCKET_URL:-ws://localhost:7880}
       NEXT_PUBLIC_MEETING_SOCKET_URL: ${NEXT_PUBLIC_MEETING_SOCKET_URL:-http://localhost:8080/server}
     ports:

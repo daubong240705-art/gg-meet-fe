@@ -33,7 +33,6 @@ import {
 } from "@/lib/meeting/meeting-websocket";
 import { meetingApi, type WaitingRoomRequestData } from "@/service/meeting.service";
 
-import { REMOTE_PARTICIPANTS } from "./constants";
 import { isStickerKey } from "./chat-stickers";
 import RoomFooter from "./room-footer";
 import RoomSidebar from "./room-sidebar";
@@ -540,7 +539,6 @@ export default function MeetingRoom({
   const [renderedPanel, setRenderedPanel] = useState<SidebarPanel>(null);
   const [isSidebarLayoutTransitioning, setIsSidebarLayoutTransitioning] = useState(false);
   const [isViewportResizing, setIsViewportResizing] = useState(false);
-  const [mockScreenShareOwnerId, setMockScreenShareOwnerId] = useState<string | null>(null);
   const [liveParticipants, setLiveParticipants] = useState<Participant[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [liveKitError, setLiveKitError] = useState<string | null>(null);
@@ -1355,19 +1353,7 @@ export default function MeetingRoom({
       ? liveParticipants.length > 0
         ? liveParticipants
         : [getFallbackLocalParticipant(displayName, localEmail, localAvatarUrl, isMicEnabled, isCameraEnabled, false, fallbackLocalParticipantIsHost, localHandState)]
-      : [
-        getFallbackLocalParticipant(
-          displayName,
-          localEmail,
-          localAvatarUrl,
-          isMicEnabled,
-          isCameraEnabled,
-          Boolean(mockScreenShareOwnerId),
-          true,
-          localHandState,
-        ),
-        ...REMOTE_PARTICIPANTS,
-      ],
+      : [getFallbackLocalParticipant(displayName, localEmail, localAvatarUrl, isMicEnabled, isCameraEnabled, false, fallbackLocalParticipantIsHost, localHandState)],
   );
 
   const screenShareParticipants = participants.filter((participant) => participant.isScreenSharing);
@@ -1377,7 +1363,7 @@ export default function MeetingRoom({
     ?? null;
   const isScreenSharing = isLiveKitEnabled
     ? participants.some((participant) => participant.isLocal && participant.isScreenSharing)
-    : Boolean(mockScreenShareOwnerId);
+    : false;
 
   useEffect(() => {
     if (screenShareParticipants.length === 0) {
@@ -1450,7 +1436,11 @@ export default function MeetingRoom({
       return;
     }
 
-    setMockScreenShareOwnerId((currentOwner) => (currentOwner ? null : "self"));
+    const errorMessage = "Screen sharing requires a LiveKit connection.";
+    setLiveKitError(errorMessage);
+    toast.error("Unable to share screen", {
+      description: errorMessage,
+    });
   };
 
   const handlePresentOtherContent = () => {
@@ -1472,7 +1462,11 @@ export default function MeetingRoom({
       return;
     }
 
-    setMockScreenShareOwnerId("self");
+    const errorMessage = "Screen sharing requires a LiveKit connection.";
+    setLiveKitError(errorMessage);
+    toast.error("Unable to share screen", {
+      description: errorMessage,
+    });
   };
 
   const handleToggleMic = () => {

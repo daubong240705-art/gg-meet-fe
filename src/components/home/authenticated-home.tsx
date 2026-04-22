@@ -39,12 +39,10 @@ export default function AuthenticatedHome() {
       <div className="mx-auto max-w-[1400px] px-6 py-8 lg:px-8">
         <AuthenticatedHomeHero greeting={greeting} firstName={firstName} todayLabel={todayLabel} />
         <QuickAction />
-        {/* <AuthenticatedHomeStats /> */}
         <AuthenticatedHomeScheduleBanner />
 
         <section className="grid gap-8 mb-20 lg:grid-cols-1">
           <AuthenticatedHomeUpcoming />
-          {/* <AuthenticatedHomeRecent /> */}
         </section>
       </div>
     </div>
