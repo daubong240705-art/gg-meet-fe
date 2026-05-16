@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronUp, Copy, Hand, MessageSquare, Mic, MicOff, Monitor, Phone, Users, Video, VideoOff, type LucideIcon } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Copy, Hand, MessageSquare, Mic, MicOff, Monitor, Phone, Users, Video, VideoOff, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
@@ -16,6 +16,7 @@ type RoomFooterProps = {
   isCameraEnabled: boolean;
   isScreenSharing: boolean;
   isHandRaised: boolean;
+  isHandRaiseCoolingDown?: boolean;
   microphoneDevices: MediaDeviceInfo[];
   cameraDevices: MediaDeviceInfo[];
   activeMicrophoneId: string;
@@ -118,7 +119,7 @@ function SplitControlButton({
           title={label}
           onClick={onMainClick}
           className={cn(
-            "flex size-11 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+            "flex size-10 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
             "motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 motion-reduce:transform-none",
             toneClassName,
             hoverToneClassName,
@@ -133,7 +134,7 @@ function SplitControlButton({
           aria-expanded={isMenuOpen}
           onClick={onMenuClick}
           className={cn(
-            "flex h-11 w-8 items-center justify-center rounded-full text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+            "flex h-10 w-7 items-center justify-center rounded-full text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
             "motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 motion-reduce:transform-none",
             isMenuOpen ? "bg-muted text-foreground" : "hover:bg-muted hover:text-foreground",
           )}
@@ -154,6 +155,7 @@ export default function RoomFooter({
   isCameraEnabled,
   isScreenSharing,
   isHandRaised,
+  isHandRaiseCoolingDown = false,
   microphoneDevices,
   cameraDevices,
   activeMicrophoneId,
@@ -178,6 +180,7 @@ export default function RoomFooter({
   const [now, setNow] = useState(() => new Date());
   const [copied, setCopied] = useState(false);
   const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false);
+  const [isCompactControlsOpen, setIsCompactControlsOpen] = useState(false);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -277,9 +280,9 @@ export default function RoomFooter({
   };
 
   return (
-    <footer ref={footerRef} className="relative z-30 px-3 pb-4 pt-2 sm:px-4 lg:px-6 lg:pb-6">
-      <div className="mx-auto flex max-w-420 flex-col gap-3 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:items-center">
-        <div className="order-2 flex items-center justify-center gap-3 text-sm text-muted-foreground lg:order-1 lg:justify-start">
+    <footer ref={footerRef} className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-3 pb-3 pt-3 sm:px-4 lg:px-6 lg:pb-4">
+      <div className="mx-auto flex max-w-420 flex-col gap-2 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:items-center">
+        <div className="pointer-events-auto order-2 flex items-center justify-center gap-2 text-xs text-muted-foreground lg:order-1 lg:justify-start">
           <span className="font-semibold text-foreground">{formatTime(now)}</span>
           <span className="text-border">|</span>
           <div className="flex items-center gap-2">
@@ -299,8 +302,13 @@ export default function RoomFooter({
           </div>
         </div>
 
-        <div className="order-1 flex justify-center lg:order-2">
-          <div className="flex flex-wrap items-center justify-center gap-2 rounded-full border border-border/80 bg-card/95 px-3 py-2 text-foreground shadow-[0_18px_50px_rgba(2,6,23,0.32)] backdrop-blur-xl motion-safe:transition-[transform,opacity,box-shadow] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none">
+        <div className="pointer-events-auto order-1 flex justify-center lg:order-2">
+          <div
+            className={cn(
+              "flex flex-wrap items-center justify-center gap-1.5 rounded-full border border-border/80 bg-card/95 px-2 py-1.5 text-foreground shadow-[0_12px_36px_rgba(2,6,23,0.28)] backdrop-blur-xl motion-safe:transition-[transform,opacity,box-shadow] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none",
+              !isCompactControlsOpen && "hidden lg:flex",
+            )}
+          >
             <div className="relative">
               <SplitControlButton
                 label={isMicEnabled ? "Mute microphone" : "Unmute microphone"}
@@ -444,10 +452,15 @@ export default function RoomFooter({
             <button
               type="button"
               aria-label={isHandRaised ? "Lower hand" : "Raise hand"}
-              title={isHandRaised ? "Lower hand" : "Raise hand"}
+              title={
+                isHandRaiseCoolingDown
+                  ? "Hand control is cooling down"
+                  : isHandRaised ? "Lower hand" : "Raise hand"
+              }
               onClick={onToggleHandRaise}
+              disabled={isHandRaiseCoolingDown}
               className={cn(
-                "flex size-13 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 motion-reduce:transform-none",
+                "flex size-11 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-70 motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 disabled:hover:translate-y-0 motion-reduce:transform-none",
                 isHandRaised
                   ? "bg-amber-300 text-slate-950 hover:bg-amber-200"
                   : "bg-secondary text-secondary-foreground hover:bg-secondary/85",
@@ -469,20 +482,41 @@ export default function RoomFooter({
 
                 onLeave();
               }}
-              className="ml-1 flex h-13 items-center justify-center rounded-full bg-destructive px-5 text-destructive-foreground transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 motion-reduce:transform-none"
+              className="ml-1 flex h-11 items-center justify-center rounded-full bg-destructive px-4 text-destructive-foreground transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 motion-reduce:transform-none"
             >
               <Phone className="h-5 w-5" />
             </button>
           </div>
         </div>
 
-        <div className="order-3 flex items-center justify-center gap-2 lg:justify-end">
+        <div className="pointer-events-auto order-3 flex items-center justify-center gap-2 lg:justify-end">
+          <button
+            type="button"
+            aria-label={isCompactControlsOpen ? "Hide meeting controls" : "Open meeting controls"}
+            aria-expanded={isCompactControlsOpen}
+            title="Controls"
+            onClick={() => {
+              setOpenMenu(null);
+              setIsCompactControlsOpen((currentValue) => !currentValue);
+            }}
+            className={cn(
+              "relative flex size-10 items-center justify-center rounded-full border border-border/80 bg-card/95 text-foreground transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transform-none lg:hidden",
+              isCompactControlsOpen && "bg-primary text-primary-foreground hover:bg-primary/90",
+            )}
+          >
+            {isCompactControlsOpen ? (
+              <ChevronDown className="h-5 w-5" />
+            ) : (
+              <ChevronUp className="h-5 w-5" />
+            )}
+          </button>
+
           <button
             type="button"
             aria-label="Open participants"
             onClick={() => onTogglePanel("participants")}
             className={cn(
-              "relative flex size-11 items-center justify-center rounded-full border border-border/80 bg-card/95 text-foreground transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transform-none",
+              "relative flex size-10 items-center justify-center rounded-full border border-border/80 bg-card/95 text-foreground transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transform-none",
               activePanel === "participants" && "bg-primary text-primary-foreground hover:bg-primary/90",
             )}
           >
@@ -504,7 +538,7 @@ export default function RoomFooter({
             aria-label="Open chat"
             onClick={() => onTogglePanel("chat")}
             className={cn(
-              "relative flex size-11 items-center justify-center rounded-full border border-border/80 bg-card/95 text-foreground transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transform-none",
+              "relative flex size-10 items-center justify-center rounded-full border border-border/80 bg-card/95 text-foreground transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transform-none",
               activePanel === "chat" && "bg-primary text-primary-foreground hover:bg-primary/90",
             )}
           >
@@ -530,10 +564,10 @@ export default function RoomFooter({
           <button
             type="button"
             aria-label="Close leave meeting dialog"
-            className="fixed inset-0 z-40 bg-background/70 backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150 motion-reduce:animate-none"
+            className="pointer-events-auto fixed inset-0 z-40 bg-background/70 backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150 motion-reduce:animate-none"
             onClick={() => setIsLeaveDialogOpen(false)}
           />
-          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center px-4">
             <div className="w-full max-w-sm rounded-[2rem] border border-border/80 bg-card/95 p-6 text-center text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.32)] backdrop-blur-xl motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:slide-in-from-bottom-3 motion-safe:duration-200 motion-safe:ease-out motion-reduce:animate-none">
               <div className="space-y-2">
                 <h2 className="text-2xl font-medium tracking-tight text-foreground">

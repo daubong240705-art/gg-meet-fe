@@ -1,15 +1,11 @@
 "use client";
 
+import { LayoutGroup, motion, type Transition } from "framer-motion";
 import { Monitor } from "lucide-react";
-import Image from "next/image";
-import { useRef } from "react";
 
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { MEETING_IMAGES } from "@/lib/meeting/assets";
 import { cn } from "@/lib/utils";
 
-import { useLayoutFlip } from "./layout-motion";
 import ParticipantCard from "./participant-card";
 import {
   getGridVisibleParticipantLimit,
@@ -21,14 +17,17 @@ import type { Participant } from "./types";
 
 type RoomStageProps = {
   participants: Participant[];
-  screenShareParticipants: Participant[];
   screenShareParticipant: Participant | null;
-  isLocalScreenSharing: boolean;
   isPageVisible: boolean;
   isLayoutMotionEnabled?: boolean;
   isViewportResizing?: boolean;
-  onSelectScreenShare: (participantId: string) => void;
-  onToggleScreenShare: () => void;
+};
+
+const ROOM_STAGE_LAYOUT_TRANSITION: Transition = {
+  type: "spring",
+  stiffness: 420,
+  damping: 38,
+  mass: 0.9,
 };
 
 function getGridContainerClassName(participantCount: number) {
@@ -87,10 +86,6 @@ function getGridItemClassName(participantCount: number, index: number) {
   return "";
 }
 
-function getScreenShareTabLabel(participant: Participant) {
-  return participant.isLocal ? "You" : participant.name;
-}
-
 function RemoteAudioMixer({ participants }: { participants: Participant[] }) {
   return (
     <div aria-hidden="true" className="hidden">
@@ -106,13 +101,13 @@ function RemoteAudioMixer({ participants }: { participants: Participant[] }) {
   );
 }
 
-function HiddenParticipantsPill({ count }: { count: number }) {
+function HiddenParticipantsPill({ count, className }: { count: number; className?: string }) {
   if (count <= 0) {
     return null;
   }
 
   return (
-    <div className="pointer-events-none absolute bottom-4 right-4 z-20 rounded-full border border-white/10 bg-black/55 px-3 py-1.5 text-xs font-medium text-white shadow-lg backdrop-blur-sm">
+    <div className={cn("pointer-events-none absolute bottom-4 right-4 z-20 rounded-full border border-white/10 bg-black/55 px-3 py-1.5 text-xs font-medium text-white shadow-lg backdrop-blur-sm", className)}>
       +{count} more in participant list
     </div>
   );
@@ -120,18 +115,13 @@ function HiddenParticipantsPill({ count }: { count: number }) {
 
 export default function RoomStage({
   participants,
-  screenShareParticipants,
   screenShareParticipant,
-  isLocalScreenSharing,
   isPageVisible,
   isLayoutMotionEnabled = true,
   isViewportResizing = false,
-  onSelectScreenShare,
-  onToggleScreenShare,
 }: RoomStageProps) {
   const screenShareParticipantId = screenShareParticipant?.id ?? null;
-  const stageLayoutRef = useRef<HTMLDivElement | null>(null);
-  useLayoutFlip(stageLayoutRef, { enabled: isLayoutMotionEnabled });
+  const isFramerLayoutEnabled = isLayoutMotionEnabled && !isViewportResizing;
 
   if (participants.length === 0) {
     return (
@@ -143,20 +133,22 @@ export default function RoomStage({
     );
   }
 
-  const renderParticipantRail = (railParticipants: Participant[], hiddenCount: number) => (
+  const renderParticipantFilmstrip = (railParticipants: Participant[], hiddenCount: number) => (
     <Card
       className={cn(
-        "relative flex h-full min-h-0 w-full min-w-0 max-w-full flex-col gap-0 overflow-hidden border border-border/70 bg-card/90 px-0 py-0 backdrop-blur-sm motion-reduce:animate-none",
-        !isViewportResizing && "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-right-3 motion-safe:duration-200",
+        "relative flex h-full min-h-0 min-w-0 max-w-full gap-0 overflow-hidden border border-white/10 bg-slate-950/62 px-0 py-0 text-white shadow-[0_12px_36px_rgba(2,6,23,0.3)] backdrop-blur-lg motion-reduce:animate-none",
+        !isViewportResizing && "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-3 motion-safe:duration-200 lg:motion-safe:slide-in-from-right-3",
       )}
     >
 
-      <div className="grid min-h-0 w-full min-w-0 flex-1 auto-rows-max content-start gap-3 overflow-x-hidden overflow-y-auto p-3">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 gap-2 overflow-x-auto overflow-y-hidden p-2 [scrollbar-width:none] lg:flex-col lg:overflow-x-hidden lg:overflow-y-auto [&::-webkit-scrollbar]:hidden">
         {railParticipants.map((participant) => (
-          <div
+          <motion.div
             key={participant.id}
-            data-layout-id={`participant-${participant.id}`}
-            className="min-h-0 min-w-0 max-w-full will-change-transform motion-safe:transition-opacity motion-safe:duration-200"
+            layout={isFramerLayoutEnabled ? "position" : false}
+            layoutId={`participant-${participant.id}`}
+            transition={ROOM_STAGE_LAYOUT_TRANSITION}
+            className="min-h-0 w-32 shrink-0 will-change-transform motion-safe:transition-opacity motion-safe:duration-200 lg:w-full"
           >
             <ParticipantCard
               participant={participant}
@@ -166,12 +158,12 @@ export default function RoomStage({
               renderAudio={false}
               renderVideo={isPageVisible}
             />
-          </div>
+          </motion.div>
         ))}
 
         {hiddenCount > 0 ? (
-          <div className="rounded-2xl border border-dashed border-border/70 bg-background/35 px-3 py-3 text-center text-xs font-medium text-muted-foreground">
-            +{hiddenCount} more in participant list
+          <div className="flex aspect-video w-28 shrink-0 items-center justify-center rounded-2xl border border-dashed border-white/20 bg-white/10 px-2 py-2 text-center text-xs font-medium text-white/80 lg:w-full">
+            +{hiddenCount} more
           </div>
         ) : null}
       </div>
@@ -188,118 +180,69 @@ export default function RoomStage({
     const hiddenRailParticipantCount = Math.max(0, participants.length - railParticipants.length);
 
     return (
-      <div
-        ref={stageLayoutRef}
-        className={cn(
-          "relative z-0 flex h-full min-h-0 w-full min-w-0 max-w-full flex-col gap-4 overflow-hidden motion-reduce:transition-none lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(13.75rem,17.5rem)] lg:items-stretch xl:grid-cols-[minmax(0,1fr)_18rem]",
-          isViewportResizing
-            ? "motion-safe:transition-none"
-            : "motion-safe:transition-[gap,opacity,transform] motion-safe:duration-200 motion-safe:ease-out",
-        )}
-      >
-        <RemoteAudioMixer participants={participants} />
-
-        <Card
-          data-layout-id={`screen-share-${screenShareParticipant.id}`}
+      <LayoutGroup id="room-stage-layout">
+        <motion.div
+          layout={isFramerLayoutEnabled}
+          transition={ROOM_STAGE_LAYOUT_TRANSITION}
           className={cn(
-            "order-1 relative min-h-72 min-w-0 flex-1 gap-0 overflow-hidden border border-border/70 bg-card/95 px-0 py-0 text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.38)] will-change-transform motion-reduce:animate-none lg:min-h-0",
+            "relative z-0 flex h-full min-h-0 w-full min-w-0 max-w-full flex-col gap-2 overflow-hidden motion-reduce:transition-none lg:grid lg:grid-cols-[minmax(0,1fr)_14rem] 2xl:grid-cols-[minmax(0,1fr)_16rem]",
             isViewportResizing
               ? "motion-safe:transition-none"
-              : "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:transition-[transform,opacity,box-shadow] motion-safe:duration-200 motion-safe:ease-out",
+              : "motion-safe:transition-[gap,grid-template-columns,opacity,transform] motion-safe:duration-200 motion-safe:ease-out",
           )}
         >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.16),transparent_38%),linear-gradient(180deg,rgba(30,41,59,0.96),rgba(15,23,42,0.98))]" />
+          <RemoteAudioMixer participants={participants} />
 
-          <div className="relative z-20 flex h-full min-h-0 flex-col gap-4 p-4 lg:p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex min-w-0 flex-1 items-end gap-2 overflow-hidden">
-                <div className="mb-1 flex shrink-0 items-center gap-2 rounded-full border border-border/70 bg-background/45 px-3 py-1.5 text-xs font-medium text-foreground motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-left-1 motion-safe:duration-200 motion-reduce:animate-none">
-                  <Monitor className="h-3.5 w-3.5" />
-                  <span className="whitespace-nowrap">Presenting</span>
-                </div>
+          <motion.div
+            layout={isFramerLayoutEnabled}
+            transition={ROOM_STAGE_LAYOUT_TRANSITION}
+            className="min-h-0 min-w-0 flex-1 lg:h-full"
+          >
+            <Card
+              className={cn(
+                "relative h-full min-h-0 min-w-0 gap-0 overflow-hidden border border-border/70 bg-card/95 px-0 py-0 text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.38)] will-change-transform motion-reduce:animate-none",
+                isViewportResizing
+                  ? "motion-safe:transition-none"
+                  : "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:transition-[transform,opacity,box-shadow] motion-safe:duration-200 motion-safe:ease-out",
+              )}
+            >
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.16),transparent_38%),linear-gradient(180deg,rgba(30,41,59,0.96),rgba(15,23,42,0.98))]" />
 
-                <div className="flex min-w-0 items-end gap-2 overflow-x-auto px-1 pb-1 pt-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {screenShareParticipants.map((participant) => {
-                    const isSelectedScreenShare = participant.id === screenShareParticipantId;
-
-                    return (
-                      <div key={participant.id} className="relative flex shrink-0">
-                        {isSelectedScreenShare ? (
-                          <Image
-                            src={MEETING_IMAGES.screenShareAccent}
-                            alt=""
-                            width={56}
-                            height={56}
-                            aria-hidden="true"
-                            className="pointer-events-none absolute -top-8 left-1/2 h-10 w-10 -translate-x-1/2 rotate-6 object-contain opacity-95 drop-shadow-[0_10px_18px_rgba(2,6,23,0.35)]"
-                          />
-                        ) : null}
-
-                        <button
-                          type="button"
-                          onClick={() => onSelectScreenShare(participant.id)}
-                          aria-label={`View ${getScreenShareTabLabel(participant)} screen share`}
-                          className={cn(
-                            "flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 motion-reduce:transform-none",
-                            isSelectedScreenShare
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-border/70 bg-background/45 text-muted-foreground hover:bg-muted hover:text-foreground",
-                          )}
-                        >
-                          <span className="max-w-28 truncate">
-                            {getScreenShareTabLabel(participant)}
-                          </span>
-                        </button>
+              <div className="relative z-20 flex h-full min-h-0 flex-col p-2 sm:p-3 lg:p-3">
+                <div className="relative flex h-full min-h-0 w-full flex-1 overflow-hidden rounded-3xl motion-safe:transition-[border-radius,transform,opacity] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none">
+                  {isPageVisible && screenShareParticipant.screenShareTrack ? (
+                    <div className="h-full w-full motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-200 motion-reduce:animate-none">
+                      <VideoTrackView
+                        track={screenShareParticipant.screenShareTrack}
+                        muted={screenShareParticipant.isLocal}
+                        className="object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <div className="mx-auto flex max-w-4xl flex-1 flex-col items-center justify-center gap-6 text-center">
+                      <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-primary/20">
+                        <Monitor className="h-12 w-12 text-primary" />
                       </div>
-                    );
-                  })}
+                      <div className="space-y-2">
+                        <h2 className="text-3xl font-semibold tracking-tight">
+                          Presentation in progress
+                        </h2>
+                        <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
+                          Waiting for the shared screen track to arrive from LiveKit.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
+            </Card>
+          </motion.div>
 
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={onToggleScreenShare}
-                className="h-9 rounded-full border border-border/70 bg-background/45 px-3 text-foreground transition-transform motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 hover:bg-muted hover:text-foreground motion-reduce:transform-none"
-              >
-                <Monitor className="h-4 w-4" />
-                {isLocalScreenSharing ? "Stop sharing" : "Present now"}
-              </Button>
-            </div>
-
-            <div className="relative flex h-full min-h-0 w-full flex-1 overflow-hidden rounded-[2rem] motion-safe:transition-[border-radius,transform,opacity] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none">
-              {isPageVisible && screenShareParticipant.screenShareTrack ? (
-                <div className="h-full w-full motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-200 motion-reduce:animate-none">
-                  <VideoTrackView
-                    track={screenShareParticipant.screenShareTrack}
-                    muted={screenShareParticipant.isLocal}
-                    className="object-contain"
-                  />
-                </div>
-              ) : (
-                <div className="mx-auto flex max-w-4xl flex-1 flex-col items-center justify-center gap-6 text-center">
-                  <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-primary/20">
-                    <Monitor className="h-12 w-12 text-primary" />
-                  </div>
-                  <div className="space-y-2">
-                    <h2 className="text-3xl font-semibold tracking-tight">
-                      Presentation in progress
-                    </h2>
-                    <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
-                      Waiting for the shared screen track to arrive from LiveKit.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
+          <div className="min-h-0 shrink-0 lg:h-full lg:min-w-0">
+            {renderParticipantFilmstrip(railParticipants, hiddenRailParticipantCount)}
           </div>
-        </Card>
-
-        <div className="order-2 min-h-0 w-full min-w-0 max-w-full overflow-hidden lg:h-full">
-          {renderParticipantRail(railParticipants, hiddenRailParticipantCount)}
-        </div>
-      </div>
+        </motion.div>
+      </LayoutGroup>
     );
   }
 
@@ -308,39 +251,44 @@ export default function RoomStage({
   const hiddenParticipantCount = Math.max(0, participants.length - visibleParticipants.length);
 
   return (
-    <div
-      ref={stageLayoutRef}
-      className={cn(
-        "relative z-0 mx-auto h-full min-h-0 w-full min-w-0 max-w-420 overflow-hidden motion-reduce:transition-none",
-        isViewportResizing
-          ? "motion-safe:transition-none"
-          : "motion-safe:transition-[gap,grid-template-columns,opacity,transform] motion-safe:duration-200 motion-safe:ease-out",
-        getGridContainerClassName(visibleParticipants.length),
-      )}
-    >
-      <RemoteAudioMixer participants={participants} />
+    <LayoutGroup id="room-stage-layout">
+      <motion.div
+        layout={isFramerLayoutEnabled}
+        transition={ROOM_STAGE_LAYOUT_TRANSITION}
+        className={cn(
+          "relative z-0 mx-auto h-full min-h-0 w-full min-w-0 max-w-420 overflow-hidden motion-reduce:transition-none",
+          isViewportResizing
+            ? "motion-safe:transition-none"
+            : "motion-safe:transition-[gap,grid-template-columns,opacity,transform] motion-safe:duration-200 motion-safe:ease-out",
+          getGridContainerClassName(visibleParticipants.length),
+        )}
+      >
+        <RemoteAudioMixer participants={participants} />
 
-      {visibleParticipants.map((participant, index) => (
-        <div
-          key={participant.id}
-          data-layout-id={`participant-${participant.id}`}
-          className={cn(
-            "flex min-h-0 min-w-0 max-w-full items-center justify-center overflow-hidden [container-type:size] will-change-transform motion-safe:transition-opacity motion-safe:duration-200",
-            getGridItemClassName(visibleParticipants.length, index),
-          )}
-        >
-          <ParticipantCard
-            participant={participant}
-            highlighted={participant.id === screenShareParticipantId}
-            className={getGridCardClassName(visibleParticipants.length)}
-            isLayoutTransitionEnabled={!isViewportResizing}
-            renderAudio={false}
-            renderVideo={isPageVisible}
-          />
-        </div>
-      ))}
+        {visibleParticipants.map((participant, index) => (
+          <motion.div
+            key={participant.id}
+            layout={isFramerLayoutEnabled ? "position" : false}
+            layoutId={`participant-${participant.id}`}
+            transition={ROOM_STAGE_LAYOUT_TRANSITION}
+            className={cn(
+              "flex min-h-0 min-w-0 max-w-full items-center justify-center overflow-hidden [container-type:size] will-change-transform motion-safe:transition-opacity motion-safe:duration-200",
+              getGridItemClassName(visibleParticipants.length, index),
+            )}
+          >
+            <ParticipantCard
+              participant={participant}
+              highlighted={participant.id === screenShareParticipantId}
+              className={getGridCardClassName(visibleParticipants.length)}
+              isLayoutTransitionEnabled={!isViewportResizing}
+              renderAudio={false}
+              renderVideo={isPageVisible}
+            />
+          </motion.div>
+        ))}
 
-      <HiddenParticipantsPill count={hiddenParticipantCount} />
-    </div>
+        <HiddenParticipantsPill count={hiddenParticipantCount} />
+      </motion.div>
+    </LayoutGroup>
   );
 }

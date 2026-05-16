@@ -85,7 +85,7 @@ export default function ParticipantCard({
         </div>
       ) : null}
 
-      <div className="relative z-20 flex h-full flex-col justify-between p-4">
+      <div className={cn("relative z-20 flex h-full flex-col justify-between", compact ? "p-2" : "p-4")}>
         {renderAudio && !participant.isLocal ? <AudioTrackView track={participant.audioTrack} /> : null}
 
         <div className="flex items-start justify-between gap-3">
@@ -180,7 +180,7 @@ export default function ParticipantCard({
         <div
           className={cn(
             "pointer-events-none absolute bottom-3 left-3  max-w-[70%] rounded-full border border-white/10 bg-black/55 text-white backdrop-blur-sm motion-safe:transition-[transform,opacity] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none",
-            compact ? "px-2.5 py-1 text-[10px]" : "px-3 py-1.5 text-xs",
+            compact ? "bottom-2 left-2 px-2 py-0.5 text-[10px]" : "px-3 py-1.5 text-xs",
           )}
         >
           <div className="flex items-center gap-1.5">

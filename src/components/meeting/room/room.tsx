@@ -3,7 +3,7 @@
 "use client";
 
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
-import { ChevronRight, UserPlus, Users } from "lucide-react";
+import { ChevronRight, Monitor, UserPlus, Users } from "lucide-react";
 import {
   Participant as LiveKitParticipant,
   Room as LiveKitRoom,
@@ -60,11 +60,16 @@ const LIVEKIT_ROOM_OPTIONS = {
   dynacast: true,
 };
 
+const HAND_RAISE_COOLDOWN_MS = 1800;
 const SIDEBAR_LAYOUT_TRANSITION_MS = 240;
 const VIEWPORT_RESIZE_SETTLE_MS = 180;
 
 function getIsDocumentVisible() {
   return typeof document === "undefined" || document.visibilityState === "visible";
+}
+
+function getScreenShareTabLabel(participant: Participant) {
+  return participant.isLocal ? "You" : participant.name;
 }
 
 export default function MeetingRoom(props: MeetingRoomProps) {
@@ -117,6 +122,8 @@ function MeetingRoomContent({
   const activePanelRef = useRef<SidebarPanel>(null);
   const localHandStateRef = useRef<ParticipantHandState>(getDefaultParticipantHandState());
   const preferLocalHandStateRef = useRef(false);
+  const nextHandRaiseAllowedAtRef = useRef(0);
+  const handRaiseCooldownTimeoutRef = useRef<number | null>(null);
   const hasExitedMeetingRef = useRef(false);
   const [isMicEnabled, setIsMicEnabled] = useState(isMicOn);
   const [isCameraEnabled, setIsCameraEnabled] = useState(isCameraOn);
@@ -134,6 +141,7 @@ function MeetingRoomContent({
   const [isWaitingMenuOpen, setIsWaitingMenuOpen] = useState(false);
   const [isParticipantsMenuOpen, setIsParticipantsMenuOpen] = useState(false);
   const [isEndingMeeting, setIsEndingMeeting] = useState(false);
+  const [isHandRaiseCoolingDown, setIsHandRaiseCoolingDown] = useState(false);
   const [localHandState, setLocalHandState] = useState<ParticipantHandState>(
     getDefaultParticipantHandState(),
   );
@@ -252,7 +260,7 @@ function MeetingRoomContent({
   }, []);
 
   const handleLiveKitParticipantsChange = useCallback((room: LiveKitRoom) => {
-    const nextParticipants = sortParticipantsByRaisedHand([
+    const nextParticipants = [
       mapParticipantToUiParticipant(
         room.localParticipant,
         displayName,
@@ -277,7 +285,7 @@ function MeetingRoomContent({
           false,
         ),
       ),
-    ]);
+    ];
 
     setLiveParticipants((currentParticipants) =>
       areParticipantsEqual(currentParticipants, nextParticipants)
@@ -390,6 +398,10 @@ function MeetingRoomContent({
 
     if (viewportResizeTimeoutRef.current !== null) {
       window.clearTimeout(viewportResizeTimeoutRef.current);
+    }
+
+    if (handRaiseCooldownTimeoutRef.current !== null) {
+      window.clearTimeout(handRaiseCooldownTimeoutRef.current);
     }
   }, []);
 
@@ -635,21 +647,23 @@ function MeetingRoomContent({
     || (resolvedHostId !== null && localTokenPayload?.sub?.trim() === resolvedHostId)
     || (resolvedHostName !== null && displayName.trim().toLowerCase() === resolvedHostName.toLowerCase());
 
-  const participants = sortParticipantsByRaisedHand(
+  const baseParticipants =
     isLiveKitEnabled
       ? liveParticipants.length > 0
         ? liveParticipants
         : [getFallbackLocalParticipant(displayName, localEmail, localAvatarUrl, isMicEnabled, isCameraEnabled, false, fallbackLocalParticipantIsHost, localHandState)]
-      : [getFallbackLocalParticipant(displayName, localEmail, localAvatarUrl, isMicEnabled, isCameraEnabled, false, fallbackLocalParticipantIsHost, localHandState)],
-  );
+      : [getFallbackLocalParticipant(displayName, localEmail, localAvatarUrl, isMicEnabled, isCameraEnabled, false, fallbackLocalParticipantIsHost, localHandState)];
 
-  const screenShareParticipants = participants.filter((participant) => participant.isScreenSharing);
+  const screenShareParticipants = baseParticipants.filter((participant) => participant.isScreenSharing);
+  const participants = screenShareParticipants.length > 0
+    ? baseParticipants
+    : sortParticipantsByRaisedHand(baseParticipants);
   const screenShareParticipant =
     screenShareParticipants.find((participant) => participant.id === activeScreenShareId)
     ?? screenShareParticipants[0]
     ?? null;
   const isScreenSharing = isLiveKitEnabled
-    ? participants.some((participant) => participant.isLocal && participant.isScreenSharing)
+    ? baseParticipants.some((participant) => participant.isLocal && participant.isScreenSharing)
     : false;
 
   useEffect(() => {
@@ -795,11 +809,29 @@ function MeetingRoomContent({
   };
 
   const handleToggleHandRaise = () => {
+    const now = Date.now();
+
+    if (now < nextHandRaiseAllowedAtRef.current) {
+      return;
+    }
+
     const nextHandRaised = !localHandState.handRaised;
     const nextHandState: ParticipantHandState = {
       handRaised: nextHandRaised,
       handRaisedAt: nextHandRaised ? Date.now() : null,
     };
+
+    nextHandRaiseAllowedAtRef.current = now + HAND_RAISE_COOLDOWN_MS;
+    setIsHandRaiseCoolingDown(true);
+
+    if (handRaiseCooldownTimeoutRef.current !== null) {
+      window.clearTimeout(handRaiseCooldownTimeoutRef.current);
+    }
+
+    handRaiseCooldownTimeoutRef.current = window.setTimeout(() => {
+      setIsHandRaiseCoolingDown(false);
+      handRaiseCooldownTimeoutRef.current = null;
+    }, HAND_RAISE_COOLDOWN_MS);
 
     setLocalHandState(nextHandState);
     setPreferLocalHandState(true);
@@ -940,15 +972,49 @@ function MeetingRoomContent({
         className="hidden"
       />
       <div className="flex h-screen flex-col overflow-hidden bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.12),transparent_42%),linear-gradient(180deg,rgba(15,23,42,1),rgba(30,41,59,0.9))]">
-        <div className="pointer-events-none fixed inset-x-0 top-0 z-40 px-4 pt-4 lg:px-6 lg:pt-6">
-          <div className="pointer-events-auto flex items-start justify-between gap-3">
+        <div className="pointer-events-none fixed inset-x-0 top-0 z-40 px-3 pt-3 lg:px-5 lg:pt-4">
+          <div className="pointer-events-auto grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,auto)_minmax(0,1fr)]">
             <div className="min-w-0 max-w-[min(24rem,calc(100vw-7rem))] px-1 py-1">
-              <p className="truncate text-lg font-semibold text-white/95">
+              <p className="truncate text-sm font-semibold text-white/95 lg:text-base">
                 {meetingTitle}
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            {screenShareParticipants.length > 0 ? (
+              <div className="col-span-2 row-start-2 flex min-w-0 justify-center lg:col-span-1 lg:col-start-2 lg:row-start-1">
+                <div className="flex min-w-0 max-w-[min(42rem,calc(100vw-2rem))] items-center gap-1.5 overflow-x-auto rounded-full border border-white/10 bg-slate-950/55 px-2 py-1 text-white shadow-[0_10px_28px_rgba(2,6,23,0.28)] backdrop-blur-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="flex shrink-0 items-center gap-1.5 px-1.5 text-[11px] font-medium text-white/75">
+                    <Monitor className="h-3.5 w-3.5" />
+                    <span>Presenting</span>
+                  </div>
+
+                  {screenShareParticipants.map((participant) => {
+                    const isSelectedScreenShare = participant.id === screenShareParticipant?.id;
+
+                    return (
+                      <button
+                        key={participant.id}
+                        type="button"
+                        onClick={() => setActiveScreenShareId(participant.id)}
+                        aria-label={`View ${getScreenShareTabLabel(participant)} screen share`}
+                        className={cn(
+                          "flex h-7 shrink-0 items-center rounded-full border px-2.5 text-xs font-medium transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-safe:duration-200 motion-safe:ease-out motion-reduce:transform-none",
+                          isSelectedScreenShare
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-white/10 bg-white/[0.08] text-white/75 hover:bg-white/[0.12] hover:text-white",
+                        )}
+                      >
+                        <span className="max-w-28 truncate">
+                          {getScreenShareTabLabel(participant)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="flex items-center justify-end gap-2 lg:col-start-3">
               {canManageWaitingRoom && waitingParticipants.length > 0 ? (
                 <div
                   ref={waitingMenuRef}
@@ -964,7 +1030,7 @@ function MeetingRoomContent({
                       clearWaitingMenuCloseTimeout();
                       setIsWaitingMenuOpen((currentValue) => !currentValue);
                     }}
-                    className="inline-flex h-11 items-center gap-2 rounded-full border border-primary/25 bg-primary/15 px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:px-4"
+                    className="inline-flex h-9 items-center gap-1.5 rounded-full border border-primary/25 bg-primary/15 px-2.5 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:px-3"
                   >
                     <UserPlus className="h-4 w-4" />
                     <span className="hidden sm:inline">
@@ -1072,12 +1138,12 @@ function MeetingRoomContent({
                     clearParticipantsMenuCloseTimeout();
                     setIsParticipantsMenuOpen((currentValue) => !currentValue);
                   }}
-                  className="relative flex h-11 w-11 items-center justify-center rounded-full border border-border/80 bg-card/95 text-foreground shadow-[0_12px_30px_rgba(2,6,23,0.24)] transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  className="relative flex h-9 w-9 items-center justify-center rounded-full border border-border/80 bg-card/95 text-foreground shadow-[0_10px_24px_rgba(2,6,23,0.22)] transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-primary">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/20 text-primary">
                     <Users className="h-4 w-4" />
                   </div>
-                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-foreground px-1 text-[11px] font-semibold text-background">
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground px-1 text-[10px] font-semibold text-background">
                     {participants.length}
                   </span>
                 </button>
@@ -1145,15 +1211,15 @@ function MeetingRoomContent({
               type="button"
               aria-label="Close meeting panel"
               className={cn(
-                "fixed inset-0 z-30 bg-slate-950/45 backdrop-blur-[2px] motion-safe:transition-opacity motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none lg:hidden",
+                "fixed inset-0 z-30 bg-slate-950/45 backdrop-blur-[2px] motion-safe:transition-opacity motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none xl:hidden",
                 isSidebarOpen ? "opacity-100" : "pointer-events-none opacity-0",
               )}
               onClick={() => handlePanelChange(null)}
             />
             <div
               className={cn(
-                "fixed inset-x-3 bottom-24 top-24 z-40 flex motion-safe:transition-[transform,opacity] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none lg:hidden",
-                isSidebarOpen ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0",
+                "fixed inset-x-3 bottom-20 top-16 z-40 flex motion-safe:transition-[transform,opacity] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none lg:left-5 lg:right-auto lg:w-96 xl:hidden",
+                isSidebarOpen ? "translate-y-0 opacity-100 lg:translate-x-0" : "pointer-events-none translate-y-4 opacity-0 lg:-translate-x-5 lg:translate-y-0",
               )}
             >
               <RoomSidebar
@@ -1180,16 +1246,19 @@ function MeetingRoomContent({
 
         <div
           className={cn(
-            "flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4 pt-24 motion-reduce:transition-none lg:grid lg:grid-rows-[minmax(0,1fr)] lg:p-6 lg:pt-24",
+            "flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3 motion-reduce:transition-none lg:grid lg:grid-rows-[minmax(0,1fr)] lg:p-5 lg:pb-20 lg:pt-18",
+            screenShareParticipant
+              ? "pb-20 pt-24 sm:pt-20 lg:pb-20 lg:pt-18"
+              : "pb-20 pt-16",
             isViewportResizing
               ? "motion-safe:transition-none"
               : "motion-safe:transition-[gap,padding,grid-template-columns] motion-safe:duration-200 motion-safe:ease-out",
             isSidebarOpen
-              ? "lg:grid-cols-[24rem_minmax(0,1fr)] lg:gap-x-6"
-              : "lg:grid-cols-[0rem_minmax(0,1fr)] lg:gap-x-0",
+              ? "xl:grid-cols-[24rem_minmax(0,1fr)] xl:gap-x-4"
+              : "xl:grid-cols-[0rem_minmax(0,1fr)] xl:gap-x-0",
           )}
         >
-          <div className="order-1 flex min-h-0 min-w-0 flex-1 flex-col gap-4 motion-safe:transition-[transform,opacity] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none lg:col-start-2 lg:row-start-1 lg:order-none">
+          <div className="order-1 flex min-h-0 min-w-0 flex-1 flex-col gap-3 motion-safe:transition-[transform,opacity] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none xl:col-start-2 xl:row-start-1 xl:order-none">
 
             {isLiveKitEnabled && !canPlaybackAudio ? (
               <Card className="flex flex-col gap-3 border border-sky-500/30 bg-sky-500/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1205,24 +1274,20 @@ function MeetingRoomContent({
             <div className="min-h-0 flex-1">
               <RoomStage
                 participants={participants}
-                screenShareParticipants={screenShareParticipants}
                 screenShareParticipant={screenShareParticipant}
-                isLocalScreenSharing={isScreenSharing}
                 isPageVisible={isPageVisible}
                 isLayoutMotionEnabled={!isSidebarLayoutTransitioning && !isViewportResizing}
                 isViewportResizing={isViewportResizing}
-                onSelectScreenShare={setActiveScreenShareId}
-                onToggleScreenShare={handleScreenShare}
               />
             </div>
           </div>
 
           <div
             className={cn(
-              "order-2 hidden min-h-0 shrink-0 overflow-hidden motion-safe:transition-[opacity,transform,margin] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none lg:col-start-1 lg:row-start-1 lg:order-none lg:mt-2 lg:flex lg:h-[calc(100%-0.5rem)]",
+              "order-2 hidden min-h-0 shrink-0 overflow-hidden motion-safe:transition-[opacity,transform,margin] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none xl:col-start-1 xl:row-start-1 xl:order-none xl:mt-2 xl:flex xl:h-[calc(100%-0.5rem)]",
               isSidebarOpen
-                ? "lg:translate-x-0 lg:opacity-100"
-                : "pointer-events-none lg:-translate-x-3 lg:opacity-0",
+                ? "xl:translate-x-0 xl:opacity-100"
+                : "pointer-events-none xl:-translate-x-3 xl:opacity-0",
             )}
           >
             {sidebarPanel ? (
@@ -1257,6 +1322,7 @@ function MeetingRoomContent({
           isCameraEnabled={isCameraEnabled}
           isScreenSharing={isScreenSharing}
           isHandRaised={participants.some((participant) => participant.isLocal && participant.handRaised)}
+          isHandRaiseCoolingDown={isHandRaiseCoolingDown}
           microphoneDevices={microphoneDevices}
           cameraDevices={cameraDevices}
           activeMicrophoneId={activeMicrophoneId}
