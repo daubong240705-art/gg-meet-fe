@@ -16,7 +16,7 @@ import {
     meetingApi,
     type CreateMeetingResponseData,
     type VerifyMeetingResponseData,
-} from "@/service/meeting.service";
+} from "@/shared/services/meeting.service";
 
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";

@@ -2,7 +2,7 @@
 
 import { syncAuthUserFromLogin, useAuthSession } from "@/lib/auth/auth-session";
 import { zodResolver } from "@/lib/form/zod-resolver";
-import { authApi, LoginResponseData } from "@/service/auth.service";
+import { authApi, LoginResponseData } from "@/shared/services/auth.service";
 import { LoginForm, loginSchema, SignupForm, signupSchema } from "@/types/form.type";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";

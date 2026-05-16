@@ -20,7 +20,7 @@ import {
     getMeetingApiErrorDescription,
     meetingApi,
     type ScheduleMeetingResponseData,
-} from "@/service/meeting.service";
+} from "@/shared/services/meeting.service";
 
 import { assertApiSuccess } from "../shared/mutation.utils";
 import { UPCOMING_MEETINGS_QUERY_KEY } from "./useUpcomingMeetings";

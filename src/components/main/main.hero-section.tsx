@@ -12,7 +12,7 @@ import {
     isMeetingNotFoundError,
     meetingApi,
     type VerifyMeetingResponseData,
-} from "@/service/meeting.service";
+} from "@/shared/services/meeting.service";
 
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";

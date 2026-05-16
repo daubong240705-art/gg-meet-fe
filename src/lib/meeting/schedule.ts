@@ -1,6 +1,6 @@
 import z from "zod";
 
-import type { ScheduleMeetingRequest } from "@/service/meeting.service";
+import type { ScheduleMeetingRequest } from "@/shared/services/meeting.service";
 
 const emailSchema = z
     .string()

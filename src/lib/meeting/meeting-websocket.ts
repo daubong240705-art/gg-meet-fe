@@ -26,7 +26,7 @@ type DecodedMeetingToken = {
     iat?: number;
 };
 
-type ConnectMeetingSocketParams = {
+export type ConnectMeetingSocketParams = {
     meetingCode: string;
     meetingToken: string;
     subscribeToMeetingTopic?: boolean;
@@ -40,7 +40,7 @@ type ConnectMeetingSocketParams = {
     onError?: (error: Error) => void;
 };
 
-type MeetingSocketConnection = {
+export type MeetingSocketConnection = {
     disconnect: () => void;
     sendJoinRequest: (message: MeetingSocketMessage) => void;
     sendAccept: (message: MeetingSocketMessage) => void;

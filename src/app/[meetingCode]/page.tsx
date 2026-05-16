@@ -24,7 +24,7 @@ import {
   normalizeMeetingParticipantStatus,
   shouldHandleMeetingParticipantInLobby,
   type VerifyMeetingResponseData,
-} from "@/service/meeting.service";
+} from "@/shared/services/meeting.service";
 
 export default function MeetingPage() {
   const params = useParams<{ meetingCode: string }>();

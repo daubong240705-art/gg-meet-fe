@@ -9,7 +9,7 @@ import {
     useAuthSession,
     type AuthUser,
 } from "@/lib/auth/auth-session";
-import { authApi, type AuthUserResponseData, type UpdateAccountRequestData } from "@/service/auth.service";
+import { authApi, type AuthUserResponseData, type UpdateAccountRequestData } from "@/shared/services/auth.service";
 
 import { assertApiSuccess, type ApiFailure } from "../shared/mutation.utils";
 

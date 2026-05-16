@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 
-import type { LoginResponseData } from "@/service/auth.service";
+import type { LoginResponseData } from "@/shared/services/auth.service";
 import { getAvatarInitials } from "@/lib/user/avatar";
 import { clearStoredAccessToken, persistAccessToken } from "./auth-token";
 

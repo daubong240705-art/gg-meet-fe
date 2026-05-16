@@ -1,17 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
-  Check,
-  ChevronDown,
   Loader2,
   Mic,
-  MicOff,
   Video,
-  VideoOff,
   WifiOff,
   XCircle,
 } from "lucide-react";
@@ -20,19 +16,21 @@ import { toast } from "sonner";
 import { useAuthSession } from "@/lib/auth/auth-session";
 import { readStoredAccessToken } from "@/lib/auth/auth-token";
 import { assertApiSuccess } from "@/hooks/shared/mutation.utils";
-import { UserAvatar } from "@/components/user/user-avatar";
 import {
   clearInstantMeetingSession,
   persistInstantMeetingSession,
   readInstantMeetingSession,
 } from "@/lib/meeting/instant-meeting-session";
+import { LobbyDeviceSelector, LobbyVideoPreview } from "@/features/lobby/components";
+import { useLobbyDevices } from "@/features/lobby/hooks";
 import { MEETING_IMAGES } from "@/lib/meeting/assets";
 import { ensureMeetingAudioReady, playGuestAdmittedSound } from "@/lib/meeting/lobby-audio";
 import {
-  connectMeetingSocket,
   decodeMeetingToken,
+  type MeetingSocketConnection,
   type MeetingSocketMessage,
 } from "@/lib/meeting/meeting-websocket";
+import { MeetingSocketProvider, useMeetingSocket } from "@/features/meeting/providers";
 import {
   getMeetingApiErrorDescription,
   isMeetingParticipantAwaitingApproval,
@@ -43,7 +41,7 @@ import {
   type JoinMeetingResponseData,
   type JoinRequestStatusResponseData,
   type MeetingParticipantStatus,
-} from "@/service/meeting.service";
+} from "@/shared/services/meeting.service";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -76,10 +74,6 @@ type LobbyProps = {
 export type { LobbyJoinPayload };
 
 const WAITING_APPROVAL_IMAGE_SRC = MEETING_IMAGES.waitingApproval;
-type DeviceMenuKey =
-  | "selector-camera"
-  | "selector-mic"
-  | null;
 
 function createGuestId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -200,7 +194,15 @@ function areLobbyJoinStatesEqual(
     && currentState.hostName === nextState.hostName;
 }
 
-export default function Lobby({
+export default function Lobby(props: LobbyProps) {
+  return (
+    <MeetingSocketProvider>
+      <LobbyContent {...props} />
+    </MeetingSocketProvider>
+  );
+}
+
+function LobbyContent({
   meetingCode,
   meetingTitle,
   hostId,
@@ -210,13 +212,17 @@ export default function Lobby({
 }: LobbyProps) {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthSession();
+  const {
+    connect: connectMeetingSocket,
+    disconnect: disconnectMeetingSocket,
+    isSocketConnected,
+    sendCancel,
+  } = useMeetingSocket();
   const initialMeetingSession = readInstantMeetingSession(meetingCode);
   const initialParticipantStatus = normalizeMeetingParticipantStatus(
     initialMeetingSession?.participantStatus,
   );
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const waitingSocketRef = useRef<ReturnType<typeof connectMeetingSocket> | null>(null);
+  const waitingSocketRef = useRef<MeetingSocketConnection | null>(null);
   const pendingJoinStateRef = useRef<LobbyPendingJoinState | null>(null);
   const disconnectCancelTimeoutRef = useRef<number | null>(null);
   const hasTriggeredUnloadCancelRef = useRef(false);
@@ -230,14 +236,25 @@ export default function Lobby({
   const [guestId] = useState(() => {
     return initialMeetingSession?.guestId?.trim() || createGuestId();
   });
-  const [isCameraOn, setIsCameraOn] = useState(initialMeetingSession?.isCameraOn ?? true);
-  const [isMicOn, setIsMicOn] = useState(initialMeetingSession?.isMicOn ?? true);
-  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
-  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
-  const [selectedCamera, setSelectedCamera] = useState("");
-  const [selectedMic, setSelectedMic] = useState("");
-  const [openMenu, setOpenMenu] = useState<DeviceMenuKey>(null);
-  const [deviceError, setDeviceError] = useState("");
+  const {
+    videoRef,
+    isCameraOn,
+    isMicOn,
+    videoDevices,
+    audioDevices,
+    selectedCamera,
+    selectedMic,
+    openMenu,
+    deviceError,
+    setIsCameraOn,
+    setIsMicOn,
+    setSelectedCamera,
+    setSelectedMic,
+    setOpenMenu,
+  } = useLobbyDevices({
+    initialIsCameraOn: initialMeetingSession?.isCameraOn ?? true,
+    initialIsMicOn: initialMeetingSession?.isMicOn ?? true,
+  });
   const [waitingSocketError, setWaitingSocketError] = useState("");
   const [isWaitingSocketConnected, setIsWaitingSocketConnected] = useState(false);
   const [waitingSocketRetryKey, setWaitingSocketRetryKey] = useState(0);
@@ -367,7 +384,7 @@ export default function Lobby({
 
     hasHandledMeetingEndedRef.current = true;
     clearDisconnectCancelTimeout();
-    waitingSocketRef.current?.disconnect();
+    disconnectMeetingSocket(waitingSocketRef.current);
     waitingSocketRef.current = null;
     clearInstantMeetingSession(meetingCode);
     setPendingJoinState(null);
@@ -377,7 +394,7 @@ export default function Lobby({
       description: "The host ended this meeting while your join request was still pending.",
     });
     onMeetingEnded();
-  }, [clearDisconnectCancelTimeout, meetingCode, onMeetingEnded]);
+  }, [clearDisconnectCancelTimeout, disconnectMeetingSocket, meetingCode, onMeetingEnded]);
 
   const completeApprovedJoin = useCallback((
     approvedJoinPayload: LobbyJoinPayload,
@@ -671,8 +688,8 @@ export default function Lobby({
       const cancelJoinRequest = getCancelJoinRequest(activePendingJoinState);
 
       try {
-        if (cancelMessage && waitingSocketRef.current?.isConnected()) {
-          waitingSocketRef.current.sendCancel({
+        if (cancelMessage && isSocketConnected()) {
+          sendCancel({
             ...cancelMessage,
             meetingCode,
           });
@@ -685,7 +702,7 @@ export default function Lobby({
         meetingApi.cancelJoinWithBeacon(meetingCode, cancelJoinRequest);
       }
 
-      waitingSocketRef.current?.disconnect();
+      disconnectMeetingSocket(waitingSocketRef.current);
       waitingSocketRef.current = null;
     };
 
@@ -696,11 +713,18 @@ export default function Lobby({
       window.removeEventListener("pagehide", handlePageExit);
       window.removeEventListener("beforeunload", handlePageExit);
     };
-  }, [isWaitingForApproval, meetingCode, pendingJoinState]);
+  }, [
+    disconnectMeetingSocket,
+    isSocketConnected,
+    isWaitingForApproval,
+    meetingCode,
+    pendingJoinState,
+    sendCancel,
+  ]);
 
   useEffect(() => {
     if (!pendingJoinState || !isWaitingForApproval) {
-      waitingSocketRef.current?.disconnect();
+      disconnectMeetingSocket(waitingSocketRef.current);
       waitingSocketRef.current = null;
       return;
     }
@@ -709,7 +733,7 @@ export default function Lobby({
       return;
     }
 
-    waitingSocketRef.current?.disconnect();
+    disconnectMeetingSocket(waitingSocketRef.current);
     waitingSocketRef.current = null;
 
     const connection = connectMeetingSocket({
@@ -790,7 +814,7 @@ export default function Lobby({
     waitingSocketRef.current = connection;
 
     return () => {
-      connection.disconnect();
+      disconnectMeetingSocket(connection);
       clearDisconnectCancelTimeout();
 
       if (waitingSocketRef.current === connection) {
@@ -799,6 +823,8 @@ export default function Lobby({
     };
   }, [
     clearDisconnectCancelTimeout,
+    connectMeetingSocket,
+    disconnectMeetingSocket,
     completeApprovedJoin,
     handleMeetingEnded,
     isWaitingForApproval,
@@ -834,229 +860,6 @@ export default function Lobby({
     pendingParticipantStatus,
     persistLobbySession,
   ]);
-
-  function stopStream() {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-  }
-
-  async function loadDevices() {
-    if (!navigator.mediaDevices?.enumerateDevices) {
-      return;
-    }
-
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const cameras = devices.filter((device) => device.kind === "videoinput");
-    const microphones = devices.filter((device) => device.kind === "audioinput");
-
-    setVideoDevices(cameras);
-    setAudioDevices(microphones);
-    setSelectedCamera((current) => current || cameras[0]?.deviceId || "");
-    setSelectedMic((current) => current || microphones[0]?.deviceId || "");
-  }
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadPreview() {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setDeviceError("This browser does not support camera or microphone preview.");
-        return;
-      }
-
-      if (!isCameraOn && !isMicOn) {
-        stopStream();
-        return;
-      }
-
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: isCameraOn ? { deviceId: selectedCamera || undefined } : false,
-          audio: isMicOn ? { deviceId: selectedMic || undefined } : false,
-        });
-
-        if (cancelled) {
-          stream.getTracks().forEach((track) => track.stop());
-          return;
-        }
-
-        stopStream();
-        streamRef.current = stream;
-        setDeviceError("");
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          void videoRef.current.play().catch(() => undefined);
-        }
-
-        await loadDevices();
-      } catch {
-        stopStream();
-        setDeviceError("Allow camera and microphone access to use the lobby preview.");
-      }
-    }
-
-    void loadPreview();
-
-    return () => {
-      cancelled = true;
-      stopStream();
-    };
-  }, [isCameraOn, isMicOn, selectedCamera, selectedMic]);
-
-  const renderDeviceMenu = (
-    devices: MediaDeviceInfo[],
-    selectedDeviceId: string,
-    onSelect: (deviceId: string) => void,
-    fallbackPrefix: string,
-    menuClassName: string,
-  ) => {
-    if (devices.length === 0) {
-      return (
-        <div className={`${menuClassName} rounded-3xl border border-border/70 bg-card/95 p-4 text-sm text-muted-foreground shadow-[0_18px_44px_rgba(15,23,42,0.16)] backdrop-blur`}>
-          No devices found.
-        </div>
-      );
-    }
-
-    return (
-      <div className={`${menuClassName} max-h-72 overflow-y-auto rounded-3xl border border-border/70 bg-card/95 p-2 shadow-[0_18px_44px_rgba(15,23,42,0.16)] backdrop-blur`}>
-        {devices.map((device) => (
-          <button
-            key={device.deviceId}
-            type="button"
-            onClick={() => {
-              onSelect(device.deviceId);
-              setOpenMenu(null);
-            }}
-            className="flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left transition hover:bg-muted/80"
-          >
-            <span className="truncate text-sm font-medium">
-              {device.label || `${fallbackPrefix} ${device.deviceId.slice(0, 5)}`}
-            </span>
-            {selectedDeviceId === device.deviceId ? (
-              <Check className="h-4 w-4 shrink-0 text-primary" />
-            ) : null}
-          </button>
-        ))}
-      </div>
-    );
-  };
-
-  const renderDeviceSelector = ({
-    menuKey,
-    label,
-    devices,
-    selectedDeviceId,
-    onSelect,
-    icon,
-  }: {
-    menuKey: "selector-camera" | "selector-mic";
-    label: string;
-    devices: MediaDeviceInfo[];
-    selectedDeviceId: string;
-    onSelect: (deviceId: string) => void;
-    icon: ReactNode;
-  }) => (
-    <div className="relative min-w-0 flex-1">
-      <button
-        type="button"
-        onClick={() => setOpenMenu(openMenu === menuKey ? null : menuKey)}
-        className="flex h-14 w-full items-center justify-between gap-3 rounded-3xl border border-border/70 bg-background/90 px-4 text-sm text-foreground shadow-sm transition hover:bg-muted/60"
-      >
-        <span className="flex min-w-0 items-center gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
-            {icon}
-          </span>
-          <span className="truncate">
-            {devices.find((device) => device.deviceId === selectedDeviceId)?.label || label}
-          </span>
-        </span>
-        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-      </button>
-
-      {openMenu === menuKey
-        ? renderDeviceMenu(
-          devices,
-          selectedDeviceId,
-          onSelect,
-          menuKey === "selector-camera" ? "Camera" : "Microphone",
-          "absolute left-0 top-[calc(100%+0.75rem)] z-20 w-full",
-        )
-        : null}
-    </div>
-  );
-
-  const renderPreviewCard = () => (
-    <Card className="relative aspect-video overflow-hidden rounded-4xl border border-border/70 bg-black p-0 shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
-      {isCameraOn ? (
-        <>
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="h-full w-full object-cover scale-x-[-1]"
-          />
-        </>
-      ) : (
-        <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-gray-800 to-gray-900">
-          <div className="text-center">
-            <UserAvatar
-              avatarUrl={user?.avatarUrl}
-              name={displayName}
-              email={user?.email}
-              className="mx-auto mb-4 h-24 w-24 text-4xl shadow-lg"
-              initialsClassName="text-4xl"
-            />
-            <p className="text-sm text-white/70">Camera is off</p>
-          </div>
-        </div>
-      )}
-
-      <div className="pointer-events-none absolute bottom-3 left-3 max-w-[70%] rounded-full border border-white/10 bg-black/55 px-3 py-1.5 text-xs text-white backdrop-blur-sm">
-        <div className="flex items-center gap-1.5">
-          <p className="truncate font-medium">{displayName || "Guest"}</p>
-        </div>
-      </div>
-
-      <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-full bg-background/90 p-2 shadow-lg backdrop-blur-sm">
-        <div className="flex items-center">
-          <Button
-            onClick={() => {
-              setIsCameraOn((value) => !value);
-              setOpenMenu(null);
-            }}
-            variant={isCameraOn ? "ghost" : "destructive"}
-            size="icon-lg"
-            className="rounded-full"
-          >
-            {isCameraOn ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
-          </Button>
-        </div>
-
-        <div className="h-8 w-px bg-border/70" />
-
-        <div className="flex items-center">
-          <Button
-            onClick={() => {
-              setIsMicOn((value) => !value);
-              setOpenMenu(null);
-            }}
-            variant={isMicOn ? "ghost" : "destructive"}
-            size="icon-lg"
-            className="rounded-full"
-          >
-            {isMicOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
-          </Button>
-        </div>
-      </div>
-    </Card>
-  );
 
   if (isWaitingForApproval && pendingJoinState) {
     return (
@@ -1169,25 +972,48 @@ export default function Lobby({
               </div>
             </div>
 
-            {renderPreviewCard()}
+            <LobbyVideoPreview
+              videoRef={videoRef}
+              isCameraOn={isCameraOn}
+              isMicOn={isMicOn}
+              displayName={displayName}
+              avatarUrl={user?.avatarUrl}
+              email={user?.email}
+              onToggleCamera={() => {
+                setIsCameraOn((value) => !value);
+                setOpenMenu(null);
+              }}
+              onToggleMic={() => {
+                setIsMicOn((value) => !value);
+                setOpenMenu(null);
+              }}
+            />
 
             <div className="grid gap-3 sm:grid-cols-2">
-              {renderDeviceSelector({
-                menuKey: "selector-mic",
-                label: "Choose microphone",
-                devices: audioDevices,
-                selectedDeviceId: selectedMic,
-                onSelect: setSelectedMic,
-                icon: <Mic className="h-4 w-4" />,
-              })}
-              {renderDeviceSelector({
-                menuKey: "selector-camera",
-                label: "Choose camera",
-                devices: videoDevices,
-                selectedDeviceId: selectedCamera,
-                onSelect: setSelectedCamera,
-                icon: <Video className="h-4 w-4" />,
-              })}
+              <LobbyDeviceSelector
+                menuKey="selector-mic"
+                label="Choose microphone"
+                fallbackPrefix="Microphone"
+                devices={audioDevices}
+                selectedDeviceId={selectedMic}
+                isOpen={openMenu === "selector-mic"}
+                icon={<Mic className="h-4 w-4" />}
+                onToggle={() => setOpenMenu(openMenu === "selector-mic" ? null : "selector-mic")}
+                onClose={() => setOpenMenu(null)}
+                onSelect={setSelectedMic}
+              />
+              <LobbyDeviceSelector
+                menuKey="selector-camera"
+                label="Choose camera"
+                fallbackPrefix="Camera"
+                devices={videoDevices}
+                selectedDeviceId={selectedCamera}
+                isOpen={openMenu === "selector-camera"}
+                icon={<Video className="h-4 w-4" />}
+                onToggle={() => setOpenMenu(openMenu === "selector-camera" ? null : "selector-camera")}
+                onClose={() => setOpenMenu(null)}
+                onSelect={setSelectedCamera}
+              />
             </div>
 
             {deviceError ? <p className="text-sm text-destructive">{deviceError}</p> : null}

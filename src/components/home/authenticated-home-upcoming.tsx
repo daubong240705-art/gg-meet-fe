@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import {
   getMeetingApiErrorDescription,
   type UpcomingMeetingResponseData,
-} from "@/service/meeting.service";
+} from "@/shared/services/meeting.service";
 
 import AuthenticatedMeetingCodeButton from "./authenticated-meeting-code-button";
 import { Button } from "../ui/button";

@@ -6,7 +6,7 @@ import {
     meetingApi,
     type UpcomingMeetingResponseData,
     type UpcomingMeetingsResponseData,
-} from "@/service/meeting.service";
+} from "@/shared/services/meeting.service";
 
 import { assertApiSuccess } from "../shared/mutation.utils";
 

@@ -1,16 +1,12 @@
+/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/preserve-manual-memoization */
 "use client";
 
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import { ChevronRight, UserPlus, Users } from "lucide-react";
 import {
-  type ChatMessage as LiveKitChatMessage,
   Participant as LiveKitParticipant,
-  ParticipantEvent,
   Room as LiveKitRoom,
-  RoomEvent,
-  Track,
-  isAudioTrack,
-  isVideoTrack,
 } from "livekit-client";
 import { toast } from "sonner";
 
@@ -24,30 +20,34 @@ import { cn } from "@/lib/utils";
 import {
   ensureMeetingAudioReady,
   HOST_WAITING_REQUEST_AUDIO_SRC,
-  playHostWaitingRequestSound,
 } from "@/lib/meeting/lobby-audio";
 import {
-  connectMeetingSocket,
   decodeMeetingToken,
-  type MeetingSocketMessage,
+  type MeetingSocketConnection,
 } from "@/lib/meeting/meeting-websocket";
-import { meetingApi, type WaitingRoomRequestData } from "@/service/meeting.service";
+import { MeetingSocketProvider, useMeetingSocket } from "@/features/meeting/providers";
+import { useLiveKitRoom } from "@/features/livekit/hooks";
+import {
+  areParticipantsEqual,
+  decodeJwtPayload,
+  getFallbackLocalParticipant,
+  getParticipantRoleFromMetadata,
+  mapParticipantToUiParticipant,
+} from "@/features/meeting/room/lib";
+import { useRoomChat, useRoomDevices, useWaitingRoomRequests } from "@/features/meeting/room/hooks";
+import { meetingApi } from "@/shared/services/meeting.service";
 
-import { isStickerKey } from "./chat-stickers";
 import RoomFooter from "./room-footer";
 import RoomSidebar from "./room-sidebar";
 import RoomStage from "./room-stage";
 import type {
-  ChatMessage,
   MeetingRoomProps,
-  OutboundChatMessage,
   Participant,
   SidebarPanel,
   WaitingParticipant,
 } from "./types";
 import {
   getDefaultParticipantHandState,
-  getParticipantAccentClassName,
   getParticipantHandAttributes,
   getParticipantHandState,
   getInitials,
@@ -67,435 +67,15 @@ function getIsDocumentVisible() {
   return typeof document === "undefined" || document.visibilityState === "visible";
 }
 
-function normalizeParticipantRole(role?: string | null) {
-  const normalizedRole = role?.trim().toUpperCase();
-  return normalizedRole || null;
+export default function MeetingRoom(props: MeetingRoomProps) {
+  return (
+    <MeetingSocketProvider>
+      <MeetingRoomContent {...props} />
+    </MeetingSocketProvider>
+  );
 }
 
-function decodeJwtPayload<
-  T extends {
-    sub?: string;
-    metadata?: string;
-  },
->(token?: string | null): T | null {
-  if (!token) {
-    return null;
-  }
-
-  const tokenParts = token.split(".");
-
-  if (tokenParts.length < 2) {
-    return null;
-  }
-
-  try {
-    const payload = tokenParts[1]
-      .replace(/-/g, "+")
-      .replace(/_/g, "/")
-      .padEnd(Math.ceil(tokenParts[1].length / 4) * 4, "=");
-    const decodedPayload =
-      typeof atob === "function"
-        ? atob(payload)
-        : Buffer.from(payload, "base64").toString("utf-8");
-
-    return JSON.parse(decodedPayload) as T;
-  } catch {
-    return null;
-  }
-}
-
-function getParticipantRoleFromMetadata(metadata?: string | null) {
-  if (!metadata) {
-    return null;
-  }
-
-  try {
-    const parsedMetadata = JSON.parse(metadata);
-
-    if (typeof parsedMetadata === "object" && parsedMetadata !== null && "role" in parsedMetadata) {
-      return normalizeParticipantRole(String(parsedMetadata.role));
-    }
-  } catch {
-    return normalizeParticipantRole(metadata);
-  }
-
-  return null;
-}
-
-function getParticipantAvatarFromMetadata(metadata?: string | null) {
-  if (!metadata) {
-    return null;
-  }
-
-  try {
-    const parsedMetadata = JSON.parse(metadata);
-
-    if (typeof parsedMetadata !== "object" || parsedMetadata === null || !("avatar" in parsedMetadata)) {
-      return null;
-    }
-
-    const avatar = String(parsedMetadata.avatar ?? "").trim();
-    return avatar || null;
-  } catch {
-    return null;
-  }
-}
-
-function isHostParticipant({
-  participant,
-  hostId,
-  hostName,
-  localRole,
-}: {
-  participant: LiveKitParticipant;
-  hostId?: string | null;
-  hostName?: string | null;
-  localRole?: string | null;
-}) {
-  const participantRole = getParticipantRoleFromMetadata(participant.metadata);
-
-  if (participantRole === "HOST") {
-    return true;
-  }
-
-  if (participant.isLocal && localRole === "HOST") {
-    return true;
-  }
-
-  const normalizedHostId = hostId?.trim();
-  const normalizedIdentity = participant.identity?.trim();
-
-  if (normalizedHostId && normalizedIdentity && normalizedHostId === normalizedIdentity) {
-    return true;
-  }
-
-  const normalizedHostName = hostName?.trim().toLowerCase();
-  const participantName = (participant.name?.trim() || "").toLowerCase();
-
-  if (normalizedHostName && participantName && normalizedHostName === participantName) {
-    return true;
-  }
-
-  return false;
-}
-
-function formatChatTime(timestamp: number) {
-  return new Intl.DateTimeFormat("vi-VN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(timestamp);
-}
-
-type ParsedChatPayload =
-  | {
-    type: "text";
-    content: string;
-  }
-  | {
-    type: "sticker";
-    stickerKey: string;
-  };
-
-function parseIncomingChatPayload(rawMessage: string): ParsedChatPayload | null {
-  const normalizedMessage = rawMessage.trim();
-
-  if (!normalizedMessage) {
-    return null;
-  }
-
-  try {
-    const parsedPayload = JSON.parse(rawMessage) as {
-      type?: unknown;
-      content?: unknown;
-      stickerKey?: unknown;
-    };
-
-    if (parsedPayload.type === "text" && typeof parsedPayload.content === "string") {
-      const content = parsedPayload.content.trim();
-
-      return content
-        ? {
-          type: "text",
-          content,
-        }
-        : null;
-    }
-
-    if (parsedPayload.type === "sticker" && typeof parsedPayload.stickerKey === "string") {
-      return {
-        type: "sticker",
-        stickerKey: parsedPayload.stickerKey,
-      };
-    }
-
-    console.warn("Ignoring unsupported chat payload.", parsedPayload);
-    return null;
-  } catch {
-    return {
-      type: "text",
-      content: rawMessage,
-    };
-  }
-}
-
-function serializeOutgoingChatPayload(payload: OutboundChatMessage) {
-  if (payload.type === "text") {
-    return JSON.stringify({
-      type: "text",
-      content: payload.content.trim(),
-    });
-  }
-
-  return JSON.stringify({
-    type: "sticker",
-    stickerKey: payload.stickerKey,
-  });
-}
-
-function mapChatMessageToUiMessage(
-  message: LiveKitChatMessage,
-  participant: LiveKitParticipant | undefined,
-  localDisplayName: string,
-  localEmail?: string | null,
-  localAvatarUrl?: string | null,
-  localIdentity?: string | null,
-): ChatMessage | null {
-  const parsedPayload = parseIncomingChatPayload(message.message);
-
-  if (!parsedPayload) {
-    return null;
-  }
-
-  const participantIdentity = participant?.identity || "";
-  const isLocal =
-    Boolean(participant?.isLocal)
-    || Boolean(localIdentity && participantIdentity && participantIdentity === localIdentity);
-  const name = isLocal
-    ? localDisplayName
-    : participant?.name?.trim() || participant?.identity || "Guest";
-  const identity = participantIdentity || (isLocal ? localIdentity || "local" : "unknown");
-  const avatarSource = isLocal
-    ? localEmail?.trim() || identity || name
-    : participant?.identity?.trim() || name;
-  const avatarUrl = isLocal
-    ? localAvatarUrl?.trim() || null
-    : getParticipantAvatarFromMetadata(participant?.metadata);
-
-  const baseMessage = {
-    id: message.id,
-    identity,
-    name,
-    avatarSource,
-    avatarUrl,
-    isLocal,
-    timestamp: message.timestamp,
-    time: formatChatTime(message.timestamp),
-    editTimestamp: message.editTimestamp,
-  };
-
-  if (parsedPayload.type === "sticker") {
-    return {
-      ...baseMessage,
-      type: "sticker",
-      stickerKey: parsedPayload.stickerKey,
-    };
-  }
-
-  return {
-    ...baseMessage,
-    type: "text",
-    content: parsedPayload.content,
-  };
-}
-
-function getCameraTrack(participant: LiveKitParticipant): Participant["cameraTrack"] {
-  const publication = participant.getTrackPublication(Track.Source.Camera);
-  const track = publication?.track;
-
-  return track && isVideoTrack(track) ? track : null;
-}
-
-function getAudioTrack(participant: LiveKitParticipant): Participant["audioTrack"] {
-  const publication = participant.getTrackPublication(Track.Source.Microphone);
-  const track = publication?.track;
-
-  return track && isAudioTrack(track) ? track : null;
-}
-
-function getScreenShareTrack(participant: LiveKitParticipant): Participant["screenShareTrack"] {
-  const publication = participant.getTrackPublication(Track.Source.ScreenShare);
-  const track = publication?.track;
-
-  return track && isVideoTrack(track) ? track : null;
-}
-
-function getParticipantStatus(participant: LiveKitParticipant) {
-  if (participant.isScreenShareEnabled) {
-    return "Presenting";
-  }
-
-  if (participant.isLocal) {
-    return "You";
-  }
-
-  if (participant.isSpeaking) {
-    return "Speaking";
-  }
-
-  if (participant.isCameraEnabled && participant.isMicrophoneEnabled) {
-    return "In room";
-  }
-
-  if (participant.isCameraEnabled) {
-    return "Camera on";
-  }
-
-  if (participant.isMicrophoneEnabled) {
-    return "Listening";
-  }
-
-  return "Muted";
-}
-
-function mapParticipantToUiParticipant(
-  participant: LiveKitParticipant,
-  localDisplayName: string,
-  localEmail: string | null,
-  localAvatarUrl: string | null,
-  hostId: string | null | undefined,
-  hostName: string | null | undefined,
-  localRole: string | null,
-  localHandState: ParticipantHandState,
-  preferLocalHandState: boolean,
-): Participant {
-  const identity = participant.identity || participant.sid || localDisplayName || "participant";
-  const cameraPublication = participant.getTrackPublication(Track.Source.Camera);
-  const audioPublication = participant.getTrackPublication(Track.Source.Microphone);
-  const screenSharePublication = participant.getTrackPublication(Track.Source.ScreenShare);
-  const participantAvatarUrl = participant.isLocal
-    ? localAvatarUrl
-    : getParticipantAvatarFromMetadata(participant.metadata);
-  const handState =
-    participant.isLocal && preferLocalHandState
-      ? localHandState
-      : getParticipantHandState(
-        participant.attributes,
-        participant.isLocal ? localHandState : getDefaultParticipantHandState(),
-      );
-
-  return {
-    id: identity,
-    identity,
-    name:
-      participant.isLocal
-        ? localDisplayName
-        : participant.name?.trim() || participant.identity || "Guest",
-    avatarSource: participant.isLocal
-      ? localEmail?.trim() || identity
-      : participant.identity?.trim() || participant.name?.trim() || identity,
-    avatarUrl: participantAvatarUrl,
-    isHost: isHostParticipant({
-      participant,
-      hostId,
-      hostName,
-      localRole,
-    }),
-    isLocal: participant.isLocal,
-    handRaised: handState.handRaised,
-    handRaisedAt: handState.handRaisedAt,
-    isMuted: !(audioPublication && !audioPublication.isMuted),
-    isCameraOff: !(cameraPublication && !cameraPublication.isMuted),
-    isSpeaking: participant.isSpeaking,
-    isScreenSharing: Boolean(screenSharePublication),
-    accentClassName: getParticipantAccentClassName(identity),
-    status: getParticipantStatus(participant),
-    cameraTrack: getCameraTrack(participant),
-    audioTrack: participant.isLocal ? null : getAudioTrack(participant),
-    screenShareTrack: getScreenShareTrack(participant),
-  };
-}
-
-function getFallbackLocalParticipant(
-  displayName: string,
-  localEmail: string | null,
-  localAvatarUrl: string | null,
-  isMicEnabled: boolean,
-  isCameraEnabled: boolean,
-  isScreenSharing: boolean,
-  isHost: boolean,
-  handState: ParticipantHandState,
-): Participant {
-  return {
-    id: "self",
-    identity: "self",
-    name: displayName,
-    avatarSource: localEmail?.trim() || displayName,
-    avatarUrl: localAvatarUrl,
-    isHost,
-    isLocal: true,
-    handRaised: handState.handRaised,
-    handRaisedAt: handState.handRaisedAt,
-    isMuted: !isMicEnabled,
-    isCameraOff: !isCameraEnabled,
-    isSpeaking: isMicEnabled,
-    isScreenSharing,
-    accentClassName: "from-primary/30 via-primary/10 to-background",
-    status: isScreenSharing ? "Presenting" : "You",
-    cameraTrack: null,
-    audioTrack: null,
-    screenShareTrack: null,
-  };
-}
-
-function getWaitingParticipantName(message: MeetingSocketMessage) {
-  return message.targetName?.trim() || "Guest";
-}
-
-function mapWaitingRoomRequestToParticipant(request: WaitingRoomRequestData): WaitingParticipant | null {
-  const participantId = request.participantId;
-
-  if (typeof participantId !== "number" || !Number.isFinite(participantId)) {
-    return null;
-  }
-
-  const requestedAtTimestamp = request.requestedAt ? Date.parse(request.requestedAt) : Number.NaN;
-
-  return {
-    participantId,
-    name: request.name?.trim() || request.email?.trim() || "Guest",
-    requestedAt: Number.isFinite(requestedAtTimestamp) ? requestedAtTimestamp : Date.now(),
-  };
-}
-
-function areParticipantsEqual(currentParticipants: Participant[], nextParticipants: Participant[]) {
-  if (currentParticipants.length !== nextParticipants.length) {
-    return false;
-  }
-
-  return currentParticipants.every((participant, index) => {
-    const nextParticipant = nextParticipants[index];
-
-    return participant.id === nextParticipant.id
-      && participant.identity === nextParticipant.identity
-      && participant.name === nextParticipant.name
-      && participant.avatarUrl === nextParticipant.avatarUrl
-      && participant.isHost === nextParticipant.isHost
-      && participant.isLocal === nextParticipant.isLocal
-      && participant.handRaised === nextParticipant.handRaised
-      && participant.handRaisedAt === nextParticipant.handRaisedAt
-      && participant.isMuted === nextParticipant.isMuted
-      && participant.isCameraOff === nextParticipant.isCameraOff
-      && participant.isSpeaking === nextParticipant.isSpeaking
-      && participant.isScreenSharing === nextParticipant.isScreenSharing
-      && participant.accentClassName === nextParticipant.accentClassName
-      && participant.status === nextParticipant.status
-      && participant.cameraTrack === nextParticipant.cameraTrack
-      && participant.audioTrack === nextParticipant.audioTrack
-      && participant.screenShareTrack === nextParticipant.screenShareTrack;
-  });
-}
-
-export default function MeetingRoom({
+function MeetingRoomContent({
   meetingCode,
   title,
   userName,
@@ -508,6 +88,12 @@ export default function MeetingRoom({
   onLeave,
 }: MeetingRoomProps) {
   const { user } = useAuthSession();
+  const {
+    connect: connectMeetingSocket,
+    disconnect: disconnectMeetingSocket,
+    sendAccept,
+    sendReject,
+  } = useMeetingSocket();
   const localEmail = user?.email?.trim() || null;
   const localAvatarUrl = user?.avatarUrl?.trim() || null;
   const displayName = userName.trim() || "Guest";
@@ -526,10 +112,9 @@ export default function MeetingRoom({
     || (localRole === "HOST" ? localTokenPayload?.sub?.trim() || null : null);
   const resolvedHostName = hostName?.trim() || null;
   const roomRef = useRef<LiveKitRoom | null>(null);
-  const meetingSocketRef = useRef<ReturnType<typeof connectMeetingSocket> | null>(null);
+  const meetingSocketRef = useRef<MeetingSocketConnection | null>(null);
   const hostWaitingRequestAudioRef = useRef<HTMLAudioElement | null>(null);
   const activePanelRef = useRef<SidebarPanel>(null);
-  const seenChatMessageIdsRef = useRef<Set<string>>(new Set());
   const localHandStateRef = useRef<ParticipantHandState>(getDefaultParticipantHandState());
   const preferLocalHandStateRef = useRef(false);
   const hasExitedMeetingRef = useRef(false);
@@ -543,19 +128,9 @@ export default function MeetingRoom({
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [liveKitError, setLiveKitError] = useState<string | null>(null);
   const [canPlaybackAudio, setCanPlaybackAudio] = useState(true);
-  const [microphoneDevices, setMicrophoneDevices] = useState<MediaDeviceInfo[]>([]);
-  const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
-  const [activeMicrophoneId, setActiveMicrophoneId] = useState("");
-  const [activeCameraId, setActiveCameraId] = useState("");
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [chatDraft, setChatDraft] = useState("");
-  const [isSendingChat, setIsSendingChat] = useState(false);
   const [isRoomConnected, setIsRoomConnected] = useState(false);
   const [isPageVisible, setIsPageVisible] = useState(() => getIsDocumentVisible());
-  const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [activeScreenShareId, setActiveScreenShareId] = useState<string | null>(null);
-  const [waitingParticipants, setWaitingParticipants] = useState<WaitingParticipant[]>([]);
-  const waitingParticipantsRef = useRef<WaitingParticipant[]>([]);
   const [isWaitingMenuOpen, setIsWaitingMenuOpen] = useState(false);
   const [isParticipantsMenuOpen, setIsParticipantsMenuOpen] = useState(false);
   const [isEndingMeeting, setIsEndingMeeting] = useState(false);
@@ -574,6 +149,59 @@ export default function MeetingRoom({
 
   const canManageWaitingRoom = localMeetingRole === "HOST" || localRole === "HOST";
 
+  const handleRoomDeviceError = useCallback((message: string) => {
+    setLiveKitError(message);
+  }, []);
+
+  const {
+    microphoneDevices,
+    cameraDevices,
+    activeMicrophoneId,
+    activeCameraId,
+    syncAvailableDevices,
+    handleSelectMicrophone,
+    handleSelectCamera,
+  } = useRoomDevices({
+    roomRef,
+    isLiveKitEnabled,
+    onError: handleRoomDeviceError,
+  });
+
+  const {
+    chatMessages,
+    chatDraft,
+    isSendingChat,
+    unreadChatCount,
+    setChatDraft,
+    resetChat,
+    clearUnreadChatCount,
+    handleLiveKitChatMessage,
+    handleSendChatMessage,
+  } = useRoomChat({
+    roomRef,
+    activePanelRef,
+    isLiveKitEnabled,
+    displayName,
+    localEmail,
+    localAvatarUrl,
+    onError: handleRoomDeviceError,
+  });
+
+  const {
+    waitingParticipants,
+    clearWaitingParticipants,
+    upsertWaitingParticipant,
+    removeWaitingParticipant,
+    syncWaitingParticipants,
+    requestWaitingRoomResync,
+  } = useWaitingRoomRequests({
+    canManageWaitingRoom,
+    meetingCode,
+    meetingToken,
+    hostWaitingRequestAudioRef,
+    onError: handleRoomDeviceError,
+  });
+
   const exitMeeting = useCallback((reason: "left" | "ended" = "left") => {
     if (hasExitedMeetingRef.current) {
       return;
@@ -582,11 +210,11 @@ export default function MeetingRoom({
     hasExitedMeetingRef.current = true;
     setLocalHandState(getDefaultParticipantHandState());
     setPreferLocalHandState(false);
-    meetingSocketRef.current?.disconnect();
+    disconnectMeetingSocket(meetingSocketRef.current);
     meetingSocketRef.current = null;
     roomRef.current?.disconnect();
     onLeave(reason);
-  }, [onLeave]);
+  }, [disconnectMeetingSocket, onLeave]);
 
   const reportLeaveMeeting = useCallback(() => {
     const participantId = decodedMeetingToken.participantId;
@@ -604,26 +232,81 @@ export default function MeetingRoom({
     }).catch(() => undefined);
   }, [decodedMeetingToken.participantId, meetingCode, meetingToken]);
 
-  const syncAvailableDevices = useCallback(async (currentRoom: LiveKitRoom | null = roomRef.current) => {
-    const [microphoneResult, cameraResult] = await Promise.allSettled([
-      LiveKitRoom.getLocalDevices("audioinput", false),
-      LiveKitRoom.getLocalDevices("videoinput", false),
+  const handleLiveKitReset = useCallback(() => {
+    setIsRoomConnected(false);
+    resetChat();
+  }, [resetChat]);
+
+  const handleLiveKitError = useCallback((error: Error | null) => {
+    setLiveKitError(error?.message ?? null);
+  }, []);
+
+  const handleLiveKitDeviceChange = useCallback((room: LiveKitRoom) => {
+    void syncAvailableDevices(room);
+  }, [syncAvailableDevices]);
+
+  const handleLiveKitLocalAttributesChange = useCallback((participant: LiveKitParticipant) => {
+    const nextLocalHandState = getParticipantHandState(participant.attributes);
+    setLocalHandState(nextLocalHandState);
+    setPreferLocalHandState(false);
+  }, []);
+
+  const handleLiveKitParticipantsChange = useCallback((room: LiveKitRoom) => {
+    const nextParticipants = sortParticipantsByRaisedHand([
+      mapParticipantToUiParticipant(
+        room.localParticipant,
+        displayName,
+        localEmail,
+        localAvatarUrl,
+        resolvedHostId,
+        resolvedHostName,
+        localRole,
+        localHandStateRef.current,
+        preferLocalHandStateRef.current,
+      ),
+      ...Array.from(room.remoteParticipants.values()).map((participant) =>
+        mapParticipantToUiParticipant(
+          participant,
+          displayName,
+          localEmail,
+          localAvatarUrl,
+          resolvedHostId,
+          resolvedHostName,
+          localRole,
+          localHandStateRef.current,
+          false,
+        ),
+      ),
     ]);
 
-    const nextMicrophoneDevices =
-      microphoneResult.status === "fulfilled" ? microphoneResult.value : [];
-    const nextCameraDevices =
-      cameraResult.status === "fulfilled" ? cameraResult.value : [];
+    setLiveParticipants((currentParticipants) =>
+      areParticipantsEqual(currentParticipants, nextParticipants)
+        ? currentParticipants
+        : nextParticipants,
+    );
+  }, [displayName, localAvatarUrl, localEmail, localRole, resolvedHostId, resolvedHostName]);
 
-    setMicrophoneDevices(nextMicrophoneDevices);
-    setCameraDevices(nextCameraDevices);
-    setActiveMicrophoneId(
-      currentRoom?.getActiveDevice("audioinput") ?? nextMicrophoneDevices[0]?.deviceId ?? "",
-    );
-    setActiveCameraId(
-      currentRoom?.getActiveDevice("videoinput") ?? nextCameraDevices[0]?.deviceId ?? "",
-    );
-  }, []);
+  const liveKitRoomRef = useLiveKitRoom({
+    enabled: isLiveKitEnabled,
+    token: livekitToken,
+    url: liveKitUrl,
+    options: LIVEKIT_ROOM_OPTIONS,
+    initialCameraEnabled: isCameraOn,
+    initialMicrophoneEnabled: isMicOn,
+    onConnectionChange: setIsRoomConnected,
+    onAudioPlaybackChange: setCanPlaybackAudio,
+    onParticipantsChange: handleLiveKitParticipantsChange,
+    onLocalAttributesChange: handleLiveKitLocalAttributesChange,
+    onChatMessage: handleLiveKitChatMessage,
+    onDeviceChange: handleLiveKitDeviceChange,
+    onError: handleLiveKitError,
+    onReset: handleLiveKitReset,
+  });
+
+  useEffect(() => {
+    // Keep the internal roomRef in sync with the liveKitRoomRef after render
+    roomRef.current = liveKitRoomRef.current;
+  });
 
   useEffect(() => {
     ensureMeetingAudioReady();
@@ -719,14 +402,10 @@ export default function MeetingRoom({
   }, [preferLocalHandState]);
 
   useEffect(() => {
-    waitingParticipantsRef.current = waitingParticipants;
-  }, [waitingParticipants]);
-
-  useEffect(() => {
     if (activePanel === "chat") {
-      setUnreadChatCount(0);
+      clearUnreadChatCount();
     }
-  }, [activePanel]);
+  }, [activePanel, clearUnreadChatCount]);
 
   useEffect(() => {
     if (!canManageWaitingRoom) {
@@ -802,119 +481,6 @@ export default function MeetingRoom({
     };
   }, []);
 
-  const upsertWaitingParticipant = useCallback((message: MeetingSocketMessage) => {
-    const participantId = message.targetParticipantId;
-
-    if (participantId === null || participantId === undefined) {
-      return;
-    }
-
-    const participantName = getWaitingParticipantName(message);
-    const isNewWaitingParticipant = !waitingParticipantsRef.current.some(
-      (participant) => participant.participantId === participantId,
-    );
-
-    setWaitingParticipants((currentParticipants) => {
-      const existingParticipantIndex = currentParticipants.findIndex(
-        (participant) => participant.participantId === participantId,
-      );
-
-      if (existingParticipantIndex >= 0) {
-        const nextParticipants = [...currentParticipants];
-        nextParticipants[existingParticipantIndex] = {
-          ...nextParticipants[existingParticipantIndex],
-          name: participantName,
-        };
-        return nextParticipants;
-      }
-
-      return [
-        ...currentParticipants,
-        {
-          participantId,
-          name: participantName,
-          requestedAt: Date.now(),
-        },
-      ];
-    });
-
-    if (isNewWaitingParticipant) {
-      // toast.info("New join request", {
-      //   description: `${participantName} is waiting for your approval.`,
-      // });
-
-      const hostWaitingRequestAudio = hostWaitingRequestAudioRef.current;
-
-      if (hostWaitingRequestAudio) {
-        hostWaitingRequestAudio.currentTime = 0;
-        void hostWaitingRequestAudio.play().catch(() => {
-          playHostWaitingRequestSound();
-        });
-      } else {
-        playHostWaitingRequestSound();
-      }
-    }
-  }, []);
-
-  const removeWaitingParticipant = useCallback((participantId?: number | null) => {
-    if (participantId === null || participantId === undefined) {
-      return;
-    }
-
-    setWaitingParticipants((currentParticipants) =>
-      currentParticipants.filter((participant) => participant.participantId !== participantId),
-    );
-  }, []);
-
-  const syncWaitingParticipants = useCallback(async () => {
-    if (!canManageWaitingRoom || !meetingToken) {
-      setWaitingParticipants([]);
-      return;
-    }
-
-    const syncStartedAt = Date.now();
-
-    try {
-      const response = await meetingApi.getWaitingRoomRequests(meetingCode, meetingToken);
-      const verifiedResponse = assertApiSuccess(response);
-      const serverWaitingParticipants = (verifiedResponse.data ?? [])
-        .map((request) => mapWaitingRoomRequestToParticipant(request))
-        .filter((participant): participant is WaitingParticipant => Boolean(participant));
-
-      setWaitingParticipants((currentParticipants) => {
-        const mergedParticipants = new Map<number, WaitingParticipant>();
-
-        serverWaitingParticipants.forEach((participant) => {
-          mergedParticipants.set(participant.participantId, participant);
-        });
-
-        currentParticipants.forEach((participant) => {
-          if (
-            !mergedParticipants.has(participant.participantId)
-            && participant.requestedAt >= syncStartedAt
-          ) {
-            mergedParticipants.set(participant.participantId, participant);
-          }
-        });
-
-        return Array.from(mergedParticipants.values()).sort(
-          (leftParticipant, rightParticipant) => leftParticipant.requestedAt - rightParticipant.requestedAt,
-        );
-      });
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unable to refresh waiting-room requests.";
-
-      setLiveKitError(errorMessage);
-    }
-  }, [canManageWaitingRoom, meetingCode, meetingToken]);
-
-  const requestWaitingRoomResync = useCallback(() => {
-    window.setTimeout(() => {
-      void syncWaitingParticipants();
-    }, 300);
-  }, [syncWaitingParticipants]);
-
   const clearWaitingMenuCloseTimeout = useCallback(() => {
     if (waitingMenuCloseTimeoutRef.current !== null) {
       window.clearTimeout(waitingMenuCloseTimeoutRef.current);
@@ -961,7 +527,7 @@ export default function MeetingRoom({
 
   useEffect(() => {
     if (!canManageWaitingRoom || !meetingToken) {
-      setWaitingParticipants([]);
+      clearWaitingParticipants();
       return;
     }
 
@@ -969,19 +535,19 @@ export default function MeetingRoom({
     // created while the host tab was away disappeared from the UI after rejoin.
     // NEW: fetch the current pending list from the API whenever the host enters/re-enters the room.
     void syncWaitingParticipants();
-  }, [canManageWaitingRoom, meetingToken, syncWaitingParticipants]);
+  }, [canManageWaitingRoom, clearWaitingParticipants, meetingToken, syncWaitingParticipants]);
 
   useEffect(() => {
-    meetingSocketRef.current?.disconnect();
+    disconnectMeetingSocket(meetingSocketRef.current);
     meetingSocketRef.current = null;
 
     if (!meetingToken) {
-      setWaitingParticipants([]);
+      clearWaitingParticipants();
       return;
     }
 
     if (!canManageWaitingRoom) {
-      setWaitingParticipants([]);
+      clearWaitingParticipants();
     }
 
     const connection = connectMeetingSocket({
@@ -1044,7 +610,7 @@ export default function MeetingRoom({
     meetingSocketRef.current = connection;
 
     return () => {
-      connection.disconnect();
+      disconnectMeetingSocket(connection);
 
       if (meetingSocketRef.current === connection) {
         meetingSocketRef.current = null;
@@ -1052,6 +618,9 @@ export default function MeetingRoom({
     };
   }, [
     canManageWaitingRoom,
+    clearWaitingParticipants,
+    connectMeetingSocket,
+    disconnectMeetingSocket,
     exitMeeting,
     meetingCode,
     meetingToken,
@@ -1059,288 +628,6 @@ export default function MeetingRoom({
     syncWaitingParticipants,
     upsertWaitingParticipant,
   ]);
-
-  useEffect(() => {
-    if (!isLiveKitEnabled || !livekitToken) {
-      roomRef.current = null;
-      setChatMessages([]);
-      setIsRoomConnected(false);
-      setUnreadChatCount(0);
-      seenChatMessageIdsRef.current = new Set();
-      return;
-    }
-
-    let isDisposed = false;
-    let syncParticipantsFrameId: number | null = null;
-    const room = new LiveKitRoom(LIVEKIT_ROOM_OPTIONS);
-    roomRef.current = room;
-    setChatMessages([]);
-    setIsRoomConnected(false);
-    setUnreadChatCount(0);
-    seenChatMessageIdsRef.current = new Set();
-    const participantSpeakingListeners = new Map<LiveKitParticipant, () => void>();
-
-    const syncParticipantsNow = () => {
-      if (isDisposed) {
-        return;
-      }
-
-      const nextParticipants = sortParticipantsByRaisedHand([
-        mapParticipantToUiParticipant(
-          room.localParticipant,
-          displayName,
-          localEmail,
-          localAvatarUrl,
-          resolvedHostId,
-          resolvedHostName,
-          localRole,
-          localHandStateRef.current,
-          preferLocalHandStateRef.current,
-        ),
-        ...Array.from(room.remoteParticipants.values()).map((participant) =>
-          mapParticipantToUiParticipant(
-            participant,
-            displayName,
-            localEmail,
-            localAvatarUrl,
-            resolvedHostId,
-            resolvedHostName,
-            localRole,
-            localHandStateRef.current,
-            false,
-          ),
-        ),
-      ]);
-
-      setLiveParticipants((currentParticipants) =>
-        areParticipantsEqual(currentParticipants, nextParticipants)
-          ? currentParticipants
-          : nextParticipants,
-      );
-    };
-
-    const scheduleSyncParticipants = () => {
-      if (isDisposed || syncParticipantsFrameId !== null) {
-        return;
-      }
-
-      syncParticipantsFrameId = window.requestAnimationFrame(() => {
-        syncParticipantsFrameId = null;
-        syncParticipantsNow();
-      });
-    };
-
-    const bindParticipantSpeakingListener = (participant: LiveKitParticipant) => {
-      if (participantSpeakingListeners.has(participant)) {
-        return;
-      }
-
-      const handleSpeakingChange = () => {
-        if (isDisposed) {
-          return;
-        }
-
-        scheduleSyncParticipants();
-      };
-
-      participant.on(ParticipantEvent.IsSpeakingChanged, handleSpeakingChange);
-      participantSpeakingListeners.set(participant, () => {
-        participant.off(ParticipantEvent.IsSpeakingChanged, handleSpeakingChange);
-      });
-    };
-
-    const unbindParticipantSpeakingListener = (participant: LiveKitParticipant) => {
-      participantSpeakingListeners.get(participant)?.();
-      participantSpeakingListeners.delete(participant);
-    };
-
-    bindParticipantSpeakingListener(room.localParticipant);
-
-    const handleMediaDeviceError = (error: Error) => {
-      if (isDisposed) {
-        return;
-      }
-
-      setLiveKitError(error.message);
-    };
-
-    const handleChatMessage = (
-      message: LiveKitChatMessage,
-      participant?: LiveKitParticipant,
-    ) => {
-      if (isDisposed) {
-        return;
-      }
-
-      const nextMessage = mapChatMessageToUiMessage(
-        message,
-        participant,
-        displayName,
-        localEmail,
-        localAvatarUrl,
-        room.localParticipant.identity,
-      );
-
-      if (!nextMessage) {
-        return;
-      }
-
-      const isExistingMessage = seenChatMessageIdsRef.current.has(nextMessage.id);
-
-      if (!isExistingMessage) {
-        seenChatMessageIdsRef.current.add(nextMessage.id);
-
-        if (!nextMessage.isLocal && activePanelRef.current !== "chat") {
-          setUnreadChatCount((currentCount) => currentCount + 1);
-        }
-      }
-
-      setChatMessages((currentMessages) => {
-        const existingMessageIndex = currentMessages.findIndex(
-          (currentMessage) => currentMessage.id === nextMessage.id,
-        );
-
-        if (existingMessageIndex >= 0) {
-          const updatedMessages = [...currentMessages];
-          updatedMessages[existingMessageIndex] = nextMessage;
-          return updatedMessages.sort((left, right) => left.timestamp - right.timestamp);
-        }
-
-        return [...currentMessages, nextMessage].sort(
-          (left, right) => left.timestamp - right.timestamp,
-        );
-      });
-    };
-
-    room
-      .on(RoomEvent.Connected, () => {
-        setIsRoomConnected(true);
-        scheduleSyncParticipants();
-      })
-      .on(RoomEvent.Reconnected, () => {
-        setIsRoomConnected(true);
-        scheduleSyncParticipants();
-      })
-      .on(RoomEvent.Disconnected, () => {
-        if (isDisposed) {
-          return;
-        }
-
-        setIsRoomConnected(false);
-      })
-      .on(RoomEvent.ParticipantConnected, (participant) => {
-        bindParticipantSpeakingListener(participant);
-        scheduleSyncParticipants();
-      })
-      .on(RoomEvent.ParticipantDisconnected, (participant) => {
-        unbindParticipantSpeakingListener(participant);
-        scheduleSyncParticipants();
-      })
-      .on(RoomEvent.TrackSubscribed, scheduleSyncParticipants)
-      .on(RoomEvent.TrackUnsubscribed, scheduleSyncParticipants)
-      .on(RoomEvent.TrackMuted, scheduleSyncParticipants)
-      .on(RoomEvent.TrackUnmuted, scheduleSyncParticipants)
-      .on(RoomEvent.LocalTrackPublished, () => {
-        scheduleSyncParticipants();
-        void syncAvailableDevices(room);
-      })
-      .on(RoomEvent.LocalTrackUnpublished, () => {
-        scheduleSyncParticipants();
-        void syncAvailableDevices(room);
-      })
-      .on(RoomEvent.ActiveSpeakersChanged, scheduleSyncParticipants)
-      .on(RoomEvent.ParticipantAttributesChanged, (_changedAttributes, participant) => {
-        if (participant.isLocal) {
-          const nextLocalHandState = getParticipantHandState(participant.attributes);
-          setLocalHandState(nextLocalHandState);
-          setPreferLocalHandState(false);
-        }
-
-        scheduleSyncParticipants();
-      })
-      .on(RoomEvent.ParticipantNameChanged, scheduleSyncParticipants)
-      .on(RoomEvent.MediaDevicesChanged, () => {
-        void syncAvailableDevices(room);
-      })
-      .on(RoomEvent.ConnectionStateChanged, () => {
-        if (isDisposed) {
-          return;
-        }
-
-        scheduleSyncParticipants();
-      })
-      .on(RoomEvent.AudioPlaybackStatusChanged, (playing) => {
-        if (isDisposed) {
-          return;
-        }
-
-        setCanPlaybackAudio(playing);
-      })
-      .on(RoomEvent.ChatMessage, handleChatMessage)
-      .on(RoomEvent.MediaDevicesError, handleMediaDeviceError);
-
-    const connectRoom = async () => {
-      try {
-        setLiveKitError(null);
-        room.prepareConnection(liveKitUrl, livekitToken);
-        await room.connect(liveKitUrl, livekitToken);
-
-        if (isDisposed) {
-          room.disconnect();
-          return;
-        }
-
-        bindParticipantSpeakingListener(room.localParticipant);
-        Array.from(room.remoteParticipants.values()).forEach(bindParticipantSpeakingListener);
-        setCanPlaybackAudio(room.canPlaybackAudio);
-
-        if (isCameraOn && isMicOn) {
-          await room.localParticipant.enableCameraAndMicrophone();
-        } else {
-          if (isCameraOn) {
-            await room.localParticipant.setCameraEnabled(true);
-          }
-
-          if (isMicOn) {
-            await room.localParticipant.setMicrophoneEnabled(true);
-          }
-        }
-
-        await syncAvailableDevices(room);
-        syncParticipantsNow();
-      } catch (error) {
-        if (isDisposed) {
-          return;
-        }
-
-        const errorMessage =
-          error instanceof Error ? error.message : "Unable to connect to LiveKit.";
-
-        setLiveKitError(errorMessage);
-      }
-    };
-
-    void connectRoom();
-
-    return () => {
-      isDisposed = true;
-      setIsRoomConnected(false);
-      seenChatMessageIdsRef.current = new Set();
-      participantSpeakingListeners.forEach((disposeListener) => {
-        disposeListener();
-      });
-      participantSpeakingListeners.clear();
-      if (syncParticipantsFrameId !== null) {
-        window.cancelAnimationFrame(syncParticipantsFrameId);
-      }
-      room.removeAllListeners();
-      room.disconnect();
-
-      if (roomRef.current === room) {
-        roomRef.current = null;
-      }
-    };
-  }, [displayName, isCameraOn, isLiveKitEnabled, isMicOn, liveKitUrl, livekitToken, localAvatarUrl, localEmail, localRole, resolvedHostId, resolvedHostName, syncAvailableDevices]);
 
   const fallbackLocalParticipantIsHost =
     localRole === "HOST"
@@ -1531,46 +818,6 @@ export default function MeetingRoom({
     });
   };
 
-  const handleSelectMicrophone = (deviceId: string) => {
-    setActiveMicrophoneId(deviceId);
-
-    const room = roomRef.current;
-
-    if (!room || !isLiveKitEnabled) {
-      return;
-    }
-
-    void room.switchActiveDevice("audioinput", deviceId).then(() => {
-      void syncAvailableDevices(room);
-    }).catch((error) => {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unable to switch microphone.";
-
-      void syncAvailableDevices(room);
-      setLiveKitError(errorMessage);
-    });
-  };
-
-  const handleSelectCamera = (deviceId: string) => {
-    setActiveCameraId(deviceId);
-
-    const room = roomRef.current;
-
-    if (!room || !isLiveKitEnabled) {
-      return;
-    }
-
-    void room.switchActiveDevice("videoinput", deviceId).then(() => {
-      void syncAvailableDevices(room);
-    }).catch((error) => {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unable to switch camera.";
-
-      void syncAvailableDevices(room);
-      setLiveKitError(errorMessage);
-    });
-  };
-
   const handleStartAudio = () => {
     const room = roomRef.current;
 
@@ -1623,7 +870,7 @@ export default function MeetingRoom({
 
   const handleApproveWaitingParticipant = useCallback((participant: WaitingParticipant) => {
     try {
-      meetingSocketRef.current?.sendAccept({
+      sendAccept({
         meetingCode,
         targetParticipantId: participant.participantId,
         targetName: participant.name,
@@ -1636,11 +883,11 @@ export default function MeetingRoom({
 
       setLiveKitError(errorMessage);
     }
-  }, [meetingCode, removeWaitingParticipant, requestWaitingRoomResync]);
+  }, [meetingCode, removeWaitingParticipant, requestWaitingRoomResync, sendAccept]);
 
   const handleRejectWaitingParticipant = useCallback((participant: WaitingParticipant) => {
     try {
-      meetingSocketRef.current?.sendReject({
+      sendReject({
         meetingCode,
         targetParticipantId: participant.participantId,
         targetName: participant.name,
@@ -1653,14 +900,14 @@ export default function MeetingRoom({
 
       setLiveKitError(errorMessage);
     }
-  }, [meetingCode, removeWaitingParticipant, requestWaitingRoomResync]);
+  }, [meetingCode, removeWaitingParticipant, requestWaitingRoomResync, sendReject]);
 
   const handleApproveAllWaitingParticipants = useCallback(() => {
     let hasQueuedResync = false;
 
     waitingParticipants.forEach((participant) => {
       try {
-        meetingSocketRef.current?.sendAccept({
+        sendAccept({
           meetingCode,
           targetParticipantId: participant.participantId,
           targetName: participant.name,
@@ -1678,39 +925,7 @@ export default function MeetingRoom({
     if (hasQueuedResync) {
       requestWaitingRoomResync();
     }
-  }, [meetingCode, removeWaitingParticipant, requestWaitingRoomResync, waitingParticipants]);
-
-  const handleSendChatMessage = (payload: OutboundChatMessage) => {
-    if (payload.type === "text" && !payload.content.trim()) {
-      return;
-    }
-
-    if (payload.type === "sticker" && !isStickerKey(payload.stickerKey)) {
-      return;
-    }
-
-    const room = roomRef.current;
-
-    if (!room || !isLiveKitEnabled) {
-      setLiveKitError("Connect to the LiveKit room before sending messages.");
-      return;
-    }
-
-    setIsSendingChat(true);
-
-    void room.localParticipant.sendChatMessage(serializeOutgoingChatPayload(payload)).then(() => {
-      if (payload.type === "text") {
-        setChatDraft("");
-      }
-    }).catch((error) => {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unable to send chat message.";
-
-      setLiveKitError(errorMessage);
-    }).finally(() => {
-      setIsSendingChat(false);
-    });
-  };
+  }, [meetingCode, removeWaitingParticipant, requestWaitingRoomResync, sendAccept, waitingParticipants]);
 
   const sidebarPanel = activePanel ?? renderedPanel;
   const isSidebarOpen = Boolean(activePanel);

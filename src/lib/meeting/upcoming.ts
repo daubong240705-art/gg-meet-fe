@@ -1,4 +1,4 @@
-import type { UpcomingMeetingResponseData } from "@/service/meeting.service";
+import type { UpcomingMeetingResponseData } from "@/shared/services/meeting.service";
 
 const TIMEZONE_SUFFIX_PATTERN = /(?:Z|[+-]\d{2}:?\d{2})$/i;
 const LOCAL_DATE_TIME_PATTERN =

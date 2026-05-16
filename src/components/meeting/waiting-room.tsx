@@ -11,7 +11,7 @@ import {
   meetingApi,
   normalizeMeetingParticipantStatus,
   type MeetingParticipantStatus,
-} from "@/service/meeting.service";
+} from "@/shared/services/meeting.service";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
@@ -192,6 +192,7 @@ export default function WaitingRoom({
       return;
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void checkWaitingRoomStatus(true);
 
     const intervalId = window.setInterval(() => {
