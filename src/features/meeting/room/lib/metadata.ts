@@ -71,3 +71,27 @@ export function getParticipantAvatarFromMetadata(metadata?: string | null) {
     return null;
   }
 }
+
+export function getParticipantIdFromMetadata(metadata?: string | null): number | null {
+  if (!metadata) {
+    return null;
+  }
+
+  try {
+    const parsedMetadata = JSON.parse(metadata);
+
+    if (typeof parsedMetadata !== "object" || parsedMetadata === null) {
+      return null;
+    }
+
+    if ("participantId" in parsedMetadata) {
+      const raw = parsedMetadata.participantId;
+      const parsed = typeof raw === "number" ? raw : Number(raw);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}

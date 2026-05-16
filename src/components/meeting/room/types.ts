@@ -27,6 +27,7 @@ export type AudioTrackReference = LocalAudioTrack | RemoteAudioTrack;
 export type Participant = {
   id: string;
   identity: string;
+  participantId: number | null;
   name: string;
   avatarSource: string;
   avatarUrl?: string | null;

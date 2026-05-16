@@ -14,6 +14,7 @@ import { getLiveKitParticipantTracks } from "@/features/livekit/hooks";
 
 import {
   getParticipantAvatarFromMetadata,
+  getParticipantIdFromMetadata,
   getParticipantRoleFromMetadata,
 } from "./metadata";
 
@@ -83,6 +84,22 @@ function getParticipantStatus(participant: LiveKitParticipant) {
   return "Muted";
 }
 
+function resolveParticipantId(participant: LiveKitParticipant): number | null {
+  const fromMetadata = getParticipantIdFromMetadata(participant.metadata);
+  if (fromMetadata !== null) return fromMetadata;
+
+  const fromAttributes = participant.attributes?.["participantId"];
+  if (fromAttributes) {
+    const parsed = Number(fromAttributes);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+
+  const fromIdentity = Number(participant.identity);
+  if (Number.isFinite(fromIdentity)) return fromIdentity;
+
+  return null;
+}
+
 export function mapParticipantToUiParticipant(
   participant: LiveKitParticipant,
   localDisplayName: string,
@@ -93,6 +110,7 @@ export function mapParticipantToUiParticipant(
   localRole: string | null,
   localHandState: ParticipantHandState,
   preferLocalHandState: boolean,
+  localParticipantId?: number | null,
 ): Participant {
   const identity = participant.identity || participant.sid || localDisplayName || "participant";
   const cameraPublication = participant.getTrackPublication(Track.Source.Camera);
@@ -109,10 +127,14 @@ export function mapParticipantToUiParticipant(
         participant.attributes,
         participant.isLocal ? localHandState : getDefaultParticipantHandState(),
       );
+  const participantId = participant.isLocal
+    ? (localParticipantId ?? resolveParticipantId(participant))
+    : resolveParticipantId(participant);
 
   return {
     id: identity,
     identity,
+    participantId,
     name:
       participant.isLocal
         ? localDisplayName
@@ -151,10 +173,12 @@ export function getFallbackLocalParticipant(
   isScreenSharing: boolean,
   isHost: boolean,
   handState: ParticipantHandState,
+  localParticipantId?: number | null,
 ): Participant {
   return {
     id: "self",
     identity: "self",
+    participantId: localParticipantId ?? null,
     name: displayName,
     avatarSource: localEmail?.trim() || displayName,
     avatarUrl: localAvatarUrl,
@@ -184,6 +208,7 @@ export function areParticipantsEqual(currentParticipants: Participant[], nextPar
 
     return participant.id === nextParticipant.id
       && participant.identity === nextParticipant.identity
+      && participant.participantId === nextParticipant.participantId
       && participant.name === nextParticipant.name
       && participant.avatarUrl === nextParticipant.avatarUrl
       && participant.isHost === nextParticipant.isHost

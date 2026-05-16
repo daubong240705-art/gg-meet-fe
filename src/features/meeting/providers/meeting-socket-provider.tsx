@@ -28,6 +28,7 @@ type MeetingSocketContextValue = {
   sendAccept: (message: MeetingSocketMessage) => void;
   sendReject: (message: MeetingSocketMessage) => void;
   sendCancel: (message: MeetingSocketMessage) => void;
+  sendKickout: (message: MeetingSocketMessage) => void;
 };
 
 const MeetingSocketContext = createContext<MeetingSocketContextValue | null>(null);
@@ -117,6 +118,10 @@ export function MeetingSocketProvider({ children }: { children: ReactNode }) {
     getActiveConnection(connectionRef.current).sendCancel(message);
   }, []);
 
+  const sendKickout = useCallback((message: MeetingSocketMessage) => {
+    getActiveConnection(connectionRef.current).sendKickout(message);
+  }, []);
+
   useEffect(() => {
     return () => {
       connectionRef.current?.disconnect();
@@ -134,6 +139,7 @@ export function MeetingSocketProvider({ children }: { children: ReactNode }) {
     sendAccept,
     sendReject,
     sendCancel,
+    sendKickout,
   }), [
     connect,
     disconnect,
@@ -144,6 +150,7 @@ export function MeetingSocketProvider({ children }: { children: ReactNode }) {
     sendCancel,
     sendJoinRequest,
     sendReject,
+    sendKickout,
   ]);
 
   return (
