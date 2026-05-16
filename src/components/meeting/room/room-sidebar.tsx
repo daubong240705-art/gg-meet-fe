@@ -10,6 +10,7 @@ import {
   Send,
   SmilePlus,
   Users,
+  UserMinus,
   Video,
   VideoOff,
   X,
@@ -18,6 +19,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { cn } from "@/lib/utils";
 
@@ -47,6 +56,7 @@ type RoomSidebarProps = {
   onApproveWaitingParticipant: (participant: WaitingParticipant) => void;
   onRejectWaitingParticipant: (participant: WaitingParticipant) => void;
   onApproveAllWaitingParticipants: () => void;
+  onKickParticipant?: (participant: Participant, isBan: boolean) => void;
   onPanelChange: (panel: SidebarPanel) => void;
   onClose: () => void;
 };
@@ -109,6 +119,7 @@ export default function RoomSidebar({
   onApproveWaitingParticipant,
   onRejectWaitingParticipant,
   onApproveAllWaitingParticipants,
+  onKickParticipant,
   onPanelChange,
   onClose,
 }: RoomSidebarProps) {
@@ -117,6 +128,8 @@ export default function RoomSidebar({
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
   const stickerPickerRef = useRef<HTMLDivElement | null>(null);
   const [isStickerPickerOpen, setIsStickerPickerOpen] = useState(false);
+  const [kickTarget, setKickTarget] = useState<Participant | null>(null);
+  const [isBanChecked, setIsBanChecked] = useState(false);
 
   const focusChatInput = useCallback(() => {
     if (currentTab !== "chat" || !isChatReady) {
@@ -376,11 +389,78 @@ export default function RoomSidebar({
                       ) : (
                         <Video className="h-4 w-4 text-sky-400" />
                       )}
+                      {canManageWaitingRoom && !participant.isLocal && !participant.isHost ? (
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          className="ml-1 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          title={`Remove ${participant.name} from meeting`}
+                          onClick={() => {
+                            setKickTarget(participant);
+                            setIsBanChecked(false);
+                          }}
+                        >
+                          <UserMinus className="h-4 w-4" />
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 ))}
               </div>
             </section>
+
+            <Dialog
+              open={kickTarget !== null}
+              onOpenChange={(open) => {
+                if (!open) setKickTarget(null);
+              }}
+            >
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Remove from meeting</DialogTitle>
+                  <DialogDescription>
+                    Are you sure you want to remove{" "}
+                    <span className="font-medium text-foreground">{kickTarget?.name}</span>{" "}
+                    from this meeting?
+                  </DialogDescription>
+                </DialogHeader>
+
+                <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-border/70 bg-background/35 px-4 py-3 hover:bg-background/50">
+                  <input
+                    type="checkbox"
+                    checked={isBanChecked}
+                    onChange={(e) => setIsBanChecked(e.target.checked)}
+                    className="h-4 w-4 accent-destructive"
+                  />
+                  <span className="text-sm text-foreground">Ban from rejoining this meeting</span>
+                </label>
+
+                <DialogFooter className="gap-2 sm:gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-full"
+                    onClick={() => setKickTarget(null)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="rounded-full"
+                    onClick={() => {
+                      if (kickTarget) {
+                        onKickParticipant?.(kickTarget, isBanChecked);
+                        setKickTarget(null);
+                      }
+                    }}
+                  >
+                    Remove
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-150 motion-reduce:animate-none">

@@ -98,6 +98,7 @@ function MeetingRoomContent({
     disconnect: disconnectMeetingSocket,
     sendAccept,
     sendReject,
+    sendKickout,
   } = useMeetingSocket();
   const localEmail = user?.email?.trim() || null;
   const localAvatarUrl = user?.avatarUrl?.trim() || null;
@@ -259,6 +260,8 @@ function MeetingRoomContent({
     setPreferLocalHandState(false);
   }, []);
 
+  const localMeetingParticipantId = decodedMeetingToken.participantId;
+
   const handleLiveKitParticipantsChange = useCallback((room: LiveKitRoom) => {
     const nextParticipants = [
       mapParticipantToUiParticipant(
@@ -271,6 +274,7 @@ function MeetingRoomContent({
         localRole,
         localHandStateRef.current,
         preferLocalHandStateRef.current,
+        localMeetingParticipantId,
       ),
       ...Array.from(room.remoteParticipants.values()).map((participant) =>
         mapParticipantToUiParticipant(
@@ -292,7 +296,7 @@ function MeetingRoomContent({
         ? currentParticipants
         : nextParticipants,
     );
-  }, [displayName, localAvatarUrl, localEmail, localRole, resolvedHostId, resolvedHostName]);
+  }, [displayName, localAvatarUrl, localEmail, localMeetingParticipantId, localRole, resolvedHostId, resolvedHostName]);
 
   const liveKitRoomRef = useLiveKitRoom({
     enabled: isLiveKitEnabled,
@@ -567,7 +571,7 @@ function MeetingRoomContent({
       meetingToken,
       subscribeToMeetingTopic: true,
       subscribeToWaitingTopic: canManageWaitingRoom,
-      subscribeToParticipantTopic: canManageWaitingRoom,
+      subscribeToParticipantTopic: true,
       onConnect: () => {
         if (canManageWaitingRoom) {
           void syncWaitingParticipants();
@@ -599,6 +603,25 @@ function MeetingRoomContent({
             description: "The host ended the meeting for everyone.",
           });
           exitMeeting("ended");
+          return;
+        }
+
+        if (action === "USER_KICKED") {
+          const localParticipantId = decodedMeetingToken.participantId;
+
+          if (
+            message.targetParticipantId !== null
+            && message.targetParticipantId !== undefined
+            && localParticipantId !== null
+            && message.targetParticipantId === localParticipantId
+          ) {
+            toast.error("Removed from meeting", {
+              description: "You have been removed from the meeting by the host.",
+            });
+            exitMeeting("ended");
+          } else if (message.targetName) {
+            toast(`${message.targetName} was removed from the meeting.`);
+          }
         }
       },
       onParticipantMessage: (message) => {
@@ -612,6 +635,23 @@ function MeetingRoomContent({
           || action === "LEFT"
         ) {
           removeWaitingParticipant(message.targetParticipantId);
+          return;
+        }
+
+        if (action === "USER_KICKED") {
+          const localParticipantId = decodedMeetingToken.participantId;
+
+          if (
+            message.targetParticipantId !== null
+            && message.targetParticipantId !== undefined
+            && localParticipantId !== null
+            && message.targetParticipantId === localParticipantId
+          ) {
+            toast.error("Removed from meeting", {
+              description: "You have been removed from the meeting by the host.",
+            });
+            exitMeeting("ended");
+          }
         }
       },
       onError: (error) => {
@@ -632,6 +672,7 @@ function MeetingRoomContent({
     canManageWaitingRoom,
     clearWaitingParticipants,
     connectMeetingSocket,
+    decodedMeetingToken.participantId,
     disconnectMeetingSocket,
     exitMeeting,
     meetingCode,
@@ -651,8 +692,8 @@ function MeetingRoomContent({
     isLiveKitEnabled
       ? liveParticipants.length > 0
         ? liveParticipants
-        : [getFallbackLocalParticipant(displayName, localEmail, localAvatarUrl, isMicEnabled, isCameraEnabled, false, fallbackLocalParticipantIsHost, localHandState)]
-      : [getFallbackLocalParticipant(displayName, localEmail, localAvatarUrl, isMicEnabled, isCameraEnabled, false, fallbackLocalParticipantIsHost, localHandState)];
+        : [getFallbackLocalParticipant(displayName, localEmail, localAvatarUrl, isMicEnabled, isCameraEnabled, false, fallbackLocalParticipantIsHost, localHandState, localMeetingParticipantId)]
+      : [getFallbackLocalParticipant(displayName, localEmail, localAvatarUrl, isMicEnabled, isCameraEnabled, false, fallbackLocalParticipantIsHost, localHandState, localMeetingParticipantId)];
 
   const screenShareParticipants = baseParticipants.filter((participant) => participant.isScreenSharing);
   const participants = screenShareParticipants.length > 0
@@ -959,6 +1000,32 @@ function MeetingRoomContent({
     }
   }, [meetingCode, removeWaitingParticipant, requestWaitingRoomResync, sendAccept, waitingParticipants]);
 
+  const handleKickParticipant = useCallback((participant: Participant, isBan: boolean) => {
+    const targetParticipantId = participant.participantId;
+
+    if (targetParticipantId === null) {
+      toast.error("Unable to remove participant", {
+        description: "This participant's ID could not be resolved.",
+      });
+      return;
+    }
+
+    try {
+      sendKickout({
+        meetingCode,
+        targetParticipantId,
+        targetName: participant.name,
+        isBan,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unable to remove this participant.";
+      toast.error("Unable to remove participant", {
+        description: errorMessage,
+      });
+    }
+  }, [meetingCode, sendKickout]);
+
   const sidebarPanel = activePanel ?? renderedPanel;
   const isSidebarOpen = Boolean(activePanel);
   const isSidebarRendered = Boolean(sidebarPanel);
@@ -1237,6 +1304,7 @@ function MeetingRoomContent({
                 onApproveWaitingParticipant={handleApproveWaitingParticipant}
                 onRejectWaitingParticipant={handleRejectWaitingParticipant}
                 onApproveAllWaitingParticipants={handleApproveAllWaitingParticipants}
+                onKickParticipant={handleKickParticipant}
                 onPanelChange={handlePanelChange}
                 onClose={() => handlePanelChange(null)}
               />
@@ -1306,6 +1374,7 @@ function MeetingRoomContent({
                 onApproveWaitingParticipant={handleApproveWaitingParticipant}
                 onRejectWaitingParticipant={handleRejectWaitingParticipant}
                 onApproveAllWaitingParticipants={handleApproveAllWaitingParticipants}
+                onKickParticipant={handleKickParticipant}
                 onPanelChange={handlePanelChange}
                 onClose={() => handlePanelChange(null)}
               />

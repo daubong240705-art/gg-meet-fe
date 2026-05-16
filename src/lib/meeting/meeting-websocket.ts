@@ -15,6 +15,7 @@ export type MeetingSocketMessage = {
     targetParticipantId?: number | null;
     targetName?: string | null;
     action?: MeetingSocketAction | null;
+    isBan?: boolean | null;
 };
 
 type DecodedMeetingToken = {
@@ -46,6 +47,7 @@ export type MeetingSocketConnection = {
     sendAccept: (message: MeetingSocketMessage) => void;
     sendReject: (message: MeetingSocketMessage) => void;
     sendCancel: (message: MeetingSocketMessage) => void;
+    sendKickout: (message: MeetingSocketMessage) => void;
     isConnected: () => boolean;
 };
 
@@ -126,6 +128,7 @@ function publishMeetingAction(
             targetParticipantId: message.targetParticipantId ?? null,
             targetName: message.targetName ?? null,
             action: message.action ?? null,
+            isBan: message.isBan ?? null,
         }),
     });
 }
@@ -259,6 +262,9 @@ export function connectMeetingSocket({
         },
         sendCancel: (message) => {
             publishMeetingAction(client, "/api/meeting/cancel-join", message);
+        },
+        sendKickout: (message) => {
+            publishMeetingAction(client, "/api/meeting/kickout", message);
         },
         isConnected: () => client.connected,
     };
