@@ -16,7 +16,6 @@ type UseWaitingRoomRequestsParams = {
   canManageWaitingRoom: boolean;
   meetingCode: string;
   meetingToken?: string | null;
-  hostWaitingRequestAudioRef: { current: HTMLAudioElement | null };
   onError: (message: string) => void;
 };
 
@@ -24,7 +23,6 @@ export function useWaitingRoomRequests({
   canManageWaitingRoom,
   meetingCode,
   meetingToken,
-  hostWaitingRequestAudioRef,
   onError,
 }: UseWaitingRoomRequestsParams) {
   const [waitingParticipants, setWaitingParticipants] = useState<WaitingParticipant[]>([]);
@@ -85,18 +83,8 @@ export function useWaitingRoomRequests({
       return;
     }
 
-    const hostWaitingRequestAudio = hostWaitingRequestAudioRef.current;
-
-    if (hostWaitingRequestAudio) {
-      hostWaitingRequestAudio.currentTime = 0;
-      void hostWaitingRequestAudio.play().catch(() => {
-        playHostWaitingRequestSound();
-      });
-      return;
-    }
-
     playHostWaitingRequestSound();
-  }, [hostWaitingRequestAudioRef, setWaitingParticipantsAndRef]);
+  }, [setWaitingParticipantsAndRef]);
 
   const removeWaitingParticipant = useCallback((participantId?: number | null) => {
     if (participantId === null || participantId === undefined) {

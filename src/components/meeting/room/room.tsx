@@ -19,7 +19,6 @@ import { getLiveKitWebsocketUrl } from "@/lib/config/api-url";
 import { cn } from "@/lib/utils";
 import {
   ensureMeetingAudioReady,
-  HOST_WAITING_REQUEST_AUDIO_SRC,
 } from "@/lib/meeting/lobby-audio";
 import {
   decodeMeetingToken,
@@ -86,6 +85,8 @@ function MeetingRoomContent({
   userName,
   isMicOn,
   isCameraOn,
+  selectedMic,
+  selectedCamera,
   livekitToken,
   meetingToken,
   hostId,
@@ -119,7 +120,6 @@ function MeetingRoomContent({
   const resolvedHostName = hostName?.trim() || null;
   const roomRef = useRef<LiveKitRoom | null>(null);
   const meetingSocketRef = useRef<MeetingSocketConnection | null>(null);
-  const hostWaitingRequestAudioRef = useRef<HTMLAudioElement | null>(null);
   const activePanelRef = useRef<SidebarPanel>(null);
   const localHandStateRef = useRef<ParticipantHandState>(getDefaultParticipantHandState());
   const preferLocalHandStateRef = useRef(false);
@@ -207,7 +207,6 @@ function MeetingRoomContent({
     canManageWaitingRoom,
     meetingCode,
     meetingToken,
-    hostWaitingRequestAudioRef,
     onError: handleRoomDeviceError,
   });
 
@@ -305,6 +304,8 @@ function MeetingRoomContent({
     options: LIVEKIT_ROOM_OPTIONS,
     initialCameraEnabled: isCameraOn,
     initialMicrophoneEnabled: isMicOn,
+    initialCameraDeviceId: selectedCamera,
+    initialMicrophoneDeviceId: selectedMic,
     onConnectionChange: setIsRoomConnected,
     onAudioPlaybackChange: setCanPlaybackAudio,
     onParticipantsChange: handleLiveKitParticipantsChange,
@@ -322,7 +323,6 @@ function MeetingRoomContent({
 
   useEffect(() => {
     ensureMeetingAudioReady();
-    hostWaitingRequestAudioRef.current?.load();
   }, []);
 
   useEffect(() => {
@@ -1032,12 +1032,6 @@ function MeetingRoomContent({
 
   return (
     <div className="h-screen overflow-hidden bg-background">
-      <audio
-        ref={hostWaitingRequestAudioRef}
-        src={HOST_WAITING_REQUEST_AUDIO_SRC}
-        preload="auto"
-        className="hidden"
-      />
       <div className="flex h-screen flex-col overflow-hidden bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.12),transparent_42%),linear-gradient(180deg,rgba(15,23,42,1),rgba(30,41,59,0.9))]">
         <div className="pointer-events-none fixed inset-x-0 top-0 z-40 px-3 pt-3 lg:px-5 lg:pt-4">
           <div className="pointer-events-auto grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,auto)_minmax(0,1fr)]">

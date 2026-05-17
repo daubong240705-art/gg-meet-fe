@@ -21,6 +21,7 @@ import {
   persistInstantMeetingSession,
   readInstantMeetingSession,
 } from "@/lib/meeting/instant-meeting-session";
+import { getMeetingDevicePreferences } from "@/lib/meeting/device-preferences";
 import { LobbyDeviceSelector, LobbyVideoPreview } from "@/features/lobby/components";
 import { useLobbyDevices } from "@/features/lobby/hooks";
 import { MEETING_IMAGES } from "@/lib/meeting/assets";
@@ -53,6 +54,8 @@ type LobbyJoinPayload = {
   guestId?: string | null;
   isMicOn: boolean;
   isCameraOn: boolean;
+  selectedMic?: string | null;
+  selectedCamera?: string | null;
   livekitToken?: string | null;
   meetingToken?: string | null;
   participantStatus?: string | null;
@@ -219,6 +222,7 @@ function LobbyContent({
     sendCancel,
   } = useMeetingSocket();
   const initialMeetingSession = readInstantMeetingSession(meetingCode);
+  const initialDevicePreferences = getMeetingDevicePreferences();
   const initialParticipantStatus = normalizeMeetingParticipantStatus(
     initialMeetingSession?.participantStatus,
   );
@@ -252,8 +256,14 @@ function LobbyContent({
     setSelectedMic,
     setOpenMenu,
   } = useLobbyDevices({
-    initialIsCameraOn: initialMeetingSession?.isCameraOn ?? true,
-    initialIsMicOn: initialMeetingSession?.isMicOn ?? true,
+    initialIsCameraOn: initialMeetingSession?.isCameraOn ?? initialDevicePreferences.cameraEnabledOnJoin,
+    initialIsMicOn: initialMeetingSession?.isMicOn ?? initialDevicePreferences.microphoneEnabledOnJoin,
+    initialCameraDeviceId:
+      initialMeetingSession?.selectedCamera?.trim()
+      || initialDevicePreferences.defaultCameraDeviceId,
+    initialMicrophoneDeviceId:
+      initialMeetingSession?.selectedMic?.trim()
+      || initialDevicePreferences.defaultMicrophoneDeviceId,
   });
   const [waitingSocketError, setWaitingSocketError] = useState("");
   const [isWaitingSocketConnected, setIsWaitingSocketConnected] = useState(false);
@@ -269,6 +279,8 @@ function LobbyContent({
       guestId: initialMeetingSession.guestId ?? null,
       isMicOn: initialMeetingSession.isMicOn,
       isCameraOn: initialMeetingSession.isCameraOn,
+      selectedMic: initialMeetingSession.selectedMic ?? null,
+      selectedCamera: initialMeetingSession.selectedCamera ?? null,
       livekitToken: initialMeetingSession.livekitToken ?? null,
       meetingToken: initialMeetingSession.meetingToken ?? null,
       participantStatus: initialParticipantStatus,
@@ -331,6 +343,8 @@ function LobbyContent({
       guestId: payload.guestId ?? null,
       isMicOn: payload.isMicOn,
       isCameraOn: payload.isCameraOn,
+      selectedMic: payload.selectedMic ?? null,
+      selectedCamera: payload.selectedCamera ?? null,
       livekitToken: payload.livekitToken ?? null,
       meetingToken: payload.meetingToken ?? null,
       participantStatus,
@@ -368,6 +382,8 @@ function LobbyContent({
         title: responseData?.title?.trim() || baseState.title || null,
         isMicOn,
         isCameraOn,
+        selectedMic,
+        selectedCamera,
         livekitToken,
         meetingToken,
         participantStatus,
@@ -375,7 +391,7 @@ function LobbyContent({
         hostName: responseData?.host?.fullName?.trim() || baseState.hostName || null,
       } satisfies LobbyJoinPayload,
     };
-  }, [isCameraOn, isMicOn, meetingCode]);
+  }, [isCameraOn, isMicOn, meetingCode, selectedCamera, selectedMic]);
 
   const handleMeetingEnded = useCallback(() => {
     if (hasHandledMeetingEndedRef.current) {
@@ -848,6 +864,8 @@ function LobbyContent({
         userName: pendingJoinState.userName,
         isMicOn,
         isCameraOn,
+        selectedMic,
+        selectedCamera,
       },
       pendingParticipantStatus ?? "WAITING",
     );
@@ -859,6 +877,8 @@ function LobbyContent({
     pendingJoinState,
     pendingParticipantStatus,
     persistLobbySession,
+    selectedCamera,
+    selectedMic,
   ]);
 
   if (isWaitingForApproval && pendingJoinState) {
@@ -1048,6 +1068,8 @@ function LobbyContent({
                       guestId: isSignedIn ? null : guestId,
                       isMicOn,
                       isCameraOn,
+                      selectedMic,
+                      selectedCamera,
                     })
                   }
                   size="lg"

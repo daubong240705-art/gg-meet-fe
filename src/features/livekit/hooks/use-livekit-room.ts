@@ -18,6 +18,8 @@ type UseLiveKitRoomParams = {
   options?: RoomOptions;
   initialCameraEnabled: boolean;
   initialMicrophoneEnabled: boolean;
+  initialCameraDeviceId?: string | null;
+  initialMicrophoneDeviceId?: string | null;
   onConnectionChange?: (isConnected: boolean) => void;
   onAudioPlaybackChange?: (canPlaybackAudio: boolean) => void;
   onParticipantsChange?: (room: LiveKitRoom) => void;
@@ -40,6 +42,8 @@ export function useLiveKitRoom({
   options,
   initialCameraEnabled,
   initialMicrophoneEnabled,
+  initialCameraDeviceId,
+  initialMicrophoneDeviceId,
   onConnectionChange,
   onAudioPlaybackChange,
   onParticipantsChange,
@@ -183,6 +187,14 @@ export function useLiveKitRoom({
         Array.from(room.remoteParticipants.values()).forEach(bindParticipantSpeakingListener);
         onAudioPlaybackChange?.(room.canPlaybackAudio);
 
+        if (initialCameraDeviceId?.trim()) {
+          await room.switchActiveDevice("videoinput", initialCameraDeviceId.trim()).catch(() => undefined);
+        }
+
+        if (initialMicrophoneDeviceId?.trim()) {
+          await room.switchActiveDevice("audioinput", initialMicrophoneDeviceId.trim()).catch(() => undefined);
+        }
+
         if (initialCameraEnabled && initialMicrophoneEnabled) {
           await room.localParticipant.enableCameraAndMicrophone();
         } else {
@@ -227,7 +239,9 @@ export function useLiveKitRoom({
     };
   }, [
     enabled,
+    initialCameraDeviceId,
     initialCameraEnabled,
+    initialMicrophoneDeviceId,
     initialMicrophoneEnabled,
     onAudioPlaybackChange,
     onChatMessage,

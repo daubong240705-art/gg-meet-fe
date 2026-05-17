@@ -132,6 +132,8 @@ export default function WaitingRoom({
         guestId: joinState.guestId ?? null,
         isMicOn: joinState.isMicOn,
         isCameraOn: joinState.isCameraOn,
+        selectedMic: joinState.selectedMic ?? null,
+        selectedCamera: joinState.selectedCamera ?? null,
         livekitToken: nextLivekitToken,
         meetingToken: nextMeetingToken,
         participantStatus: nextParticipantStatus,

@@ -3,6 +3,11 @@
 import { useCallback, useState } from "react";
 import { Room as LiveKitRoom } from "livekit-client";
 
+import {
+  rememberMeetingCameraDevice,
+  rememberMeetingMicrophoneDevice,
+} from "@/lib/meeting/device-preferences";
+
 type UseRoomDevicesParams = {
   roomRef: { current: LiveKitRoom | null };
   isLiveKitEnabled: boolean;
@@ -42,6 +47,7 @@ export function useRoomDevices({
 
   const handleSelectMicrophone = useCallback((deviceId: string) => {
     setActiveMicrophoneId(deviceId);
+    rememberMeetingMicrophoneDevice(deviceId);
 
     const room = roomRef.current;
 
@@ -62,6 +68,7 @@ export function useRoomDevices({
 
   const handleSelectCamera = useCallback((deviceId: string) => {
     setActiveCameraId(deviceId);
+    rememberMeetingCameraDevice(deviceId);
 
     const room = roomRef.current;
 

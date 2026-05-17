@@ -2,6 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import {
+  rememberMeetingCameraDevice,
+  rememberMeetingMicrophoneDevice,
+} from "@/lib/meeting/device-preferences";
+
 export type LobbyDeviceMenuKey =
   | "selector-camera"
   | "selector-mic"
@@ -10,11 +15,15 @@ export type LobbyDeviceMenuKey =
 type UseLobbyDevicesParams = {
   initialIsCameraOn: boolean;
   initialIsMicOn: boolean;
+  initialCameraDeviceId?: string;
+  initialMicrophoneDeviceId?: string;
 };
 
 export function useLobbyDevices({
   initialIsCameraOn,
   initialIsMicOn,
+  initialCameraDeviceId = "",
+  initialMicrophoneDeviceId = "",
 }: UseLobbyDevicesParams) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -22,8 +31,8 @@ export function useLobbyDevices({
   const [isMicOn, setIsMicOn] = useState(initialIsMicOn);
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
-  const [selectedCamera, setSelectedCamera] = useState("");
-  const [selectedMic, setSelectedMic] = useState("");
+  const [selectedCamera, setSelectedCameraState] = useState(initialCameraDeviceId);
+  const [selectedMic, setSelectedMicState] = useState(initialMicrophoneDeviceId);
   const [openMenu, setOpenMenu] = useState<LobbyDeviceMenuKey>(null);
   const [deviceError, setDeviceError] = useState("");
 
@@ -47,8 +56,26 @@ export function useLobbyDevices({
 
     setVideoDevices(cameras);
     setAudioDevices(microphones);
-    setSelectedCamera((current) => current || cameras[0]?.deviceId || "");
-    setSelectedMic((current) => current || microphones[0]?.deviceId || "");
+    setSelectedCameraState((current) => (
+      current && cameras.some((device) => device.deviceId === current)
+        ? current
+        : cameras[0]?.deviceId || ""
+    ));
+    setSelectedMicState((current) => (
+      current && microphones.some((device) => device.deviceId === current)
+        ? current
+        : microphones[0]?.deviceId || ""
+    ));
+  }
+
+  function setSelectedCamera(deviceId: string) {
+    setSelectedCameraState(deviceId);
+    rememberMeetingCameraDevice(deviceId);
+  }
+
+  function setSelectedMic(deviceId: string) {
+    setSelectedMicState(deviceId);
+    rememberMeetingMicrophoneDevice(deviceId);
   }
 
   useEffect(() => {
@@ -62,6 +89,7 @@ export function useLobbyDevices({
 
       if (!isCameraOn && !isMicOn) {
         stopStream();
+        await loadDevices();
         return;
       }
 

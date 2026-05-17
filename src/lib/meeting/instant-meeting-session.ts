@@ -9,6 +9,8 @@ export type InstantMeetingSession = {
     guestId?: string | null;
     isMicOn: boolean;
     isCameraOn: boolean;
+    selectedMic?: string | null;
+    selectedCamera?: string | null;
     livekitToken?: string | null;
     meetingToken?: string | null;
     participantStatus?: string | null;

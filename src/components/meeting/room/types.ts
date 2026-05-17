@@ -11,6 +11,8 @@ export type MeetingRoomProps = {
   userName: string;
   isMicOn: boolean;
   isCameraOn: boolean;
+  selectedMic?: string | null;
+  selectedCamera?: string | null;
   livekitToken?: string | null;
   meetingToken?: string | null;
   hostId?: string | null;

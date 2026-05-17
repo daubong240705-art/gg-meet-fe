@@ -174,6 +174,8 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
       guestId: pendingSession.guestId ?? null,
       isMicOn: pendingSession.isMicOn,
       isCameraOn: pendingSession.isCameraOn,
+      selectedMic: pendingSession.selectedMic ?? null,
+      selectedCamera: pendingSession.selectedCamera ?? null,
       livekitToken: pendingSession.livekitToken ?? null,
       meetingToken: pendingSession.meetingToken ?? null,
       participantStatus,
@@ -342,6 +344,8 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
       userName={joinState.userName}
       isMicOn={joinState.isMicOn}
       isCameraOn={joinState.isCameraOn}
+      selectedMic={joinState.selectedMic}
+      selectedCamera={joinState.selectedCamera}
       livekitToken={joinState.livekitToken}
       meetingToken={joinState.meetingToken}
       hostId={joinState.hostId}
