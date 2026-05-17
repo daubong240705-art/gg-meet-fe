@@ -20,18 +20,48 @@ export default function Homefooter() {
                     <div>
                         <h4 className="font-semibold mb-3">Ngô Minh Đức</h4>
                         <ul className="space-y-2 text-sm text-muted-foreground">
-                            <li><a href="#" className="hover:text-foreground transition-colors">Gmail: </a></li>
-                            <li><a href="#" className="hover:text-foreground transition-colors">Github: </a></li>
+                            <li>
+                                <a
+                                    className="hover:text-foreground transition-colors"
+                                >
+                                    Gmail: daubong@gmail.com
+                                </a>
+                            </li>
 
+                            <li>
+                                <a
+                                    href="https://github.com/daubong240705-art"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="hover:text-foreground transition-colors"
+                                >
+                                    Github: daubong240705-art
+                                </a>
+                            </li>
                         </ul>
                     </div>
 
                     <div>
-                        <h4 className="font-semibold mb-3">Giang gay</h4>
+                        <h4 className="font-semibold mb-3">Nguyễn Trường Giang</h4>
                         <ul className="space-y-2 text-sm text-muted-foreground">
-                            <li><a href="#" className="hover:text-foreground transition-colors">Gmail: </a></li>
-                            <li><a href="#" className="hover:text-foreground transition-colors">Github: </a></li>
+                            <li>
+                                <a
+                                    className="hover:text-foreground transition-colors"
+                                >
+                                    Gmail: truonggiang29122005@gmail.com
+                                </a>
+                            </li>
 
+                            <li>
+                                <a
+                                    href="https://github.com/NTG259"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="hover:text-foreground transition-colors"
+                                >
+                                    Github: NTG259
+                                </a>
+                            </li>
                         </ul>
                     </div>
 
