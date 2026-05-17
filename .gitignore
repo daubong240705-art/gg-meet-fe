@@ -43,5 +43,7 @@ next-env.d.ts
 pnpm-lock.yaml
 pnpm-workspace.yaml
 
-#doccs
-/docs
+# docs
+/docs/*
+!/docs/meeting-room-hooks-refactor-plan.md
+!/docs/refactor-file-audit.md
