@@ -106,6 +106,7 @@ function parseMeetingSocketMessage(frame: IMessage): MeetingSocketMessage | null
                     : null,
             targetName: typeof parsedBody.targetName === "string" ? parsedBody.targetName : null,
             action: typeof parsedBody.action === "string" ? parsedBody.action : null,
+            isBan: typeof parsedBody.isBan === "boolean" ? parsedBody.isBan : null,
         };
     } catch {
         return null;

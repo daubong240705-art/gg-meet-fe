@@ -16,7 +16,7 @@ import type { LobbyJoinPayload } from "@/features/lobby/types";
 export type MeetingJoinState = LobbyJoinPayload;
 export type MeetingExitState = {
   leftAt: number;
-  reason: "left" | "ended";
+  reason: "left" | "ended" | "kicked" | "banned";
 };
 
 type VerifyQuerySnapshot = {
@@ -86,7 +86,7 @@ export function useMeetingPageState(
   }, []);
 
   const handleLeaveMeeting = useCallback(
-    (reason: "left" | "ended" = "left") => {
+    (reason: "left" | "ended" | "kicked" | "banned" = "left") => {
       clearInstantMeetingSession(meetingCode);
       setJoinState(null);
       setLeftMeetingState({ leftAt: Date.now(), reason });

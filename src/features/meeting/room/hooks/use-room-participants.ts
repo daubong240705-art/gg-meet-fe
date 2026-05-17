@@ -49,6 +49,12 @@ export function useRoomParticipants({
 }: UseRoomParticipantsParams) {
   const [liveParticipants, setLiveParticipants] = useState<Participant[]>([]);
 
+  const removeParticipantByMeetingId = useCallback((participantId: number) => {
+    setLiveParticipants((current) =>
+      current.filter((p) => p.participantId !== participantId),
+    );
+  }, []);
+
   const handleLiveKitParticipantsChange = useCallback((room: LiveKitRoom) => {
     const nextParticipants = [
       mapParticipantToUiParticipant(
@@ -133,5 +139,6 @@ export function useRoomParticipants({
     participants,
     liveParticipants,
     handleLiveKitParticipantsChange,
+    removeParticipantByMeetingId,
   };
 }

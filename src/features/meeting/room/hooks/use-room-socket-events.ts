@@ -21,7 +21,8 @@ type UseRoomSocketEventsParams = {
   syncWaitingParticipants: () => Promise<void>;
   upsertWaitingParticipant: (message: MeetingSocketMessage) => void;
   removeWaitingParticipant: (participantId?: number | null) => void;
-  exitMeeting: (reason?: "left" | "ended") => void;
+  removeParticipantByMeetingId: (participantId: number) => void;
+  exitMeeting: (reason?: "left" | "ended" | "kicked" | "banned") => void;
   onError: (message: string) => void;
 };
 
@@ -73,6 +74,7 @@ export function useRoomSocketEvents({
   syncWaitingParticipants,
   upsertWaitingParticipant,
   removeWaitingParticipant,
+  removeParticipantByMeetingId,
   exitMeeting,
   onError,
 }: UseRoomSocketEventsParams) {
@@ -124,12 +126,11 @@ export function useRoomSocketEvents({
         }
 
         if (action === "USER_KICKED") {
-          if (isLocalKickMessage(message, localMeetingParticipantId)) {
-            toast.error("Removed from meeting", {
-              description: "You have been removed from the meeting by the host.",
-            });
-            exitMeeting("ended");
-          } else if (message.targetName) {
+          if (message.targetParticipantId != null) {
+            removeParticipantByMeetingId(message.targetParticipantId);
+          }
+
+          if (!isLocalKickMessage(message, localMeetingParticipantId) && message.targetName) {
             toast(`${message.targetName} was removed from the meeting.`);
           }
         }
@@ -143,10 +144,13 @@ export function useRoomSocketEvents({
         }
 
         if (action === "USER_KICKED" && isLocalKickMessage(message, localMeetingParticipantId)) {
-          toast.error("Removed from meeting", {
-            description: "You have been removed from the meeting by the host.",
+          const isBanned = message.isBan === true;
+          toast.error(isBanned ? "Banned from meeting" : "Removed from meeting", {
+            description: isBanned
+              ? "You have been banned from this meeting by the host."
+              : "You have been removed from the meeting by the host.",
           });
-          exitMeeting("ended");
+          exitMeeting(isBanned ? "banned" : "kicked");
         }
       },
       onError: (error) => {
@@ -174,6 +178,7 @@ export function useRoomSocketEvents({
     meetingSocketRef,
     meetingToken,
     onError,
+    removeParticipantByMeetingId,
     removeWaitingParticipant,
     syncWaitingParticipants,
     upsertWaitingParticipant,

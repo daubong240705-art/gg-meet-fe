@@ -218,6 +218,7 @@ function MeetingRoomContent({
   const {
     participants,
     handleLiveKitParticipantsChange,
+    removeParticipantByMeetingId,
   } = useRoomParticipants({
     displayName,
     localEmail,
@@ -305,6 +306,7 @@ function MeetingRoomContent({
     syncWaitingParticipants,
     upsertWaitingParticipant,
     removeWaitingParticipant,
+    removeParticipantByMeetingId,
     exitMeeting,
     onError: handleRoomDeviceError,
   });

@@ -57,7 +57,7 @@ export function LeftMeetingView({
   onRejoin,
   onGoHome,
 }: {
-  reason: "left" | "ended";
+  reason: "left" | "ended" | "kicked" | "banned";
   onRejoin: () => void;
   onGoHome: () => void;
 }) {
@@ -81,16 +81,30 @@ export function LeftMeetingView({
     };
   }, [onGoHome]);
 
+  const title =
+    reason === "banned"
+      ? "You've been banned from this meeting"
+      : reason === "kicked"
+        ? "You were removed from this meeting"
+        : reason === "ended"
+          ? "This meeting has ended"
+          : "You left the meeting";
+
+  const description =
+    reason === "banned"
+      ? "The host has banned you from rejoining this meeting."
+      : reason === "kicked"
+        ? `You were removed by the host. Returning to the homepage in ${secondsRemaining}s.`
+        : reason === "ended"
+          ? `The host ended this meeting. Returning to the homepage in ${secondsRemaining}s.`
+          : `Returning to the homepage in ${secondsRemaining}s.`;
+
   return (
     <MeetingStatusView
-      title={reason === "ended" ? "This meeting has ended" : "You left the meeting"}
-      description={
-        reason === "ended"
-          ? `The host ended this meeting. Returning to the homepage in ${secondsRemaining}s.`
-          : `Returning to the homepage in ${secondsRemaining}s.`
-      }
+      title={title}
+      description={description}
       imageSrc={MEETING_IMAGES.bye}
-      imageAlt={reason === "ended" ? "Meeting ended" : "Left meeting"}
+      imageAlt={title}
       actions={(
         <>
           {reason === "left" ? (

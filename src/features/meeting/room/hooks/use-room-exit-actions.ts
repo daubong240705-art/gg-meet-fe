@@ -16,7 +16,7 @@ type UseRoomExitActionsParams = {
   meetingSocketRef: { current: MeetingSocketConnection | null };
   disconnectMeetingSocket: (connection?: MeetingSocketConnection | null) => void;
   resetHandRaise: () => void;
-  onLeave: (reason?: "left" | "ended") => void;
+  onLeave: (reason?: "left" | "ended" | "kicked" | "banned") => void;
   onError: (message: string) => void;
 };
 
@@ -34,7 +34,7 @@ export function useRoomExitActions({
   const hasExitedMeetingRef = useRef(false);
   const [isEndingMeeting, setIsEndingMeeting] = useState(false);
 
-  const exitMeeting = useCallback((reason: "left" | "ended" = "left") => {
+  const exitMeeting = useCallback((reason: "left" | "ended" | "kicked" | "banned" = "left") => {
     if (hasExitedMeetingRef.current) {
       return;
     }
