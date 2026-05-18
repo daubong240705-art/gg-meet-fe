@@ -20,6 +20,11 @@ export type MeetingSocketMessage = {
 
 type DecodedMeetingToken = {
     participantId?: number | string;
+    participantID?: number | string;
+    participant_id?: number | string;
+    meetingParticipantId?: number | string;
+    meetingParticipantID?: number | string;
+    meeting_participant_id?: number | string;
     sub?: number | string;
     role?: string;
     meetingCode?: string;
@@ -54,6 +59,36 @@ export type MeetingSocketConnection = {
 function normalizeRole(role?: string | null) {
     const normalizedRole = role?.trim().toUpperCase();
     return normalizedRole || null;
+}
+
+function parseFiniteNumber(value: unknown) {
+    if (typeof value === "number") {
+        return Number.isFinite(value) ? value : null;
+    }
+
+    if (typeof value === "string" && value.trim()) {
+        const parsedValue = Number(value);
+        return Number.isFinite(parsedValue) ? parsedValue : null;
+    }
+
+    return null;
+}
+
+function getFirstNumericField(
+    data: Record<string, unknown>,
+    fieldNames: string[],
+) {
+    for (const fieldName of fieldNames) {
+        if (fieldName in data) {
+            const parsedValue = parseFiniteNumber(data[fieldName]);
+
+            if (parsedValue !== null) {
+                return parsedValue;
+            }
+        }
+    }
+
+    return null;
 }
 
 function decodeJwtPayload<T extends Record<string, unknown>>(token?: string | null): T | null {
@@ -91,19 +126,24 @@ function parseMeetingSocketMessage(frame: IMessage): MeetingSocketMessage | null
             return null;
         }
 
-        const parsedParticipantId =
-            typeof parsedBody.targetParticipantId === "number"
-                ? parsedBody.targetParticipantId
-                : typeof parsedBody.targetParticipantId === "string"
-                    ? Number(parsedBody.targetParticipantId)
-                    : null;
+        const parsedParticipantId = getFirstNumericField(
+            parsedBody as Record<string, unknown>,
+            [
+                "targetParticipantId",
+                "target_participant_id",
+                "participantId",
+                "participantID",
+                "participant_id",
+                "meetingParticipantId",
+                "meetingParticipantID",
+                "meeting_participant_id",
+            ],
+        );
 
         return {
             meetingCode: typeof parsedBody.meetingCode === "string" ? parsedBody.meetingCode : null,
             targetParticipantId:
-                typeof parsedParticipantId === "number" && Number.isFinite(parsedParticipantId)
-                    ? parsedParticipantId
-                    : null,
+                parsedParticipantId !== null ? parsedParticipantId : null,
             targetName: typeof parsedBody.targetName === "string" ? parsedBody.targetName : null,
             action: typeof parsedBody.action === "string" ? parsedBody.action : null,
             isBan: typeof parsedBody.isBan === "boolean" ? parsedBody.isBan : null,
@@ -136,16 +176,20 @@ function publishMeetingAction(
 
 export function decodeMeetingToken(meetingToken?: string | null) {
     const payload = decodeJwtPayload<DecodedMeetingToken>(meetingToken);
-    const participantIdValue = payload?.participantId ?? payload?.sub;
-    const nextParticipantId =
-        typeof participantIdValue === "number"
-            ? participantIdValue
-            : typeof participantIdValue === "string" && participantIdValue.trim()
-                ? Number(participantIdValue)
-                : null;
+    const nextParticipantId = payload
+        ? getFirstNumericField(payload, [
+            "participantId",
+            "participantID",
+            "participant_id",
+            "meetingParticipantId",
+            "meetingParticipantID",
+            "meeting_participant_id",
+            "sub",
+        ])
+        : null;
 
     return {
-        participantId: Number.isFinite(nextParticipantId) ? nextParticipantId : null,
+        participantId: nextParticipantId,
         role: normalizeRole(payload?.role),
         meetingCode: payload?.meetingCode?.trim() || null,
         payload,

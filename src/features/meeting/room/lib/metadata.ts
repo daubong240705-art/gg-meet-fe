@@ -3,6 +3,47 @@ export function normalizeParticipantRole(role?: string | null) {
   return normalizedRole || null;
 }
 
+function getFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const parsedValue = Number(value);
+    return Number.isFinite(parsedValue) ? parsedValue : null;
+  }
+
+  return null;
+}
+
+function getNumericField(
+  data: Record<string, unknown>,
+  fieldNames: string[],
+): number | null {
+  for (const fieldName of fieldNames) {
+    if (fieldName in data) {
+      const parsedValue = getFiniteNumber(data[fieldName]);
+
+      if (parsedValue !== null) {
+        return parsedValue;
+      }
+    }
+  }
+
+  return null;
+}
+
+export const PARTICIPANT_ID_FIELD_NAMES = [
+  "participantId",
+  "participantID",
+  "participant_id",
+  "meetingParticipantId",
+  "meetingParticipantID",
+  "meeting_participant_id",
+  "targetParticipantId",
+  "target_participant_id",
+];
+
 export function decodeJwtPayload<
   T extends {
     sub?: string;
@@ -78,20 +119,27 @@ export function getParticipantIdFromMetadata(metadata?: string | null): number |
   }
 
   try {
-    const parsedMetadata = JSON.parse(metadata);
+    const parsedMetadata = JSON.parse(metadata) as unknown;
 
     if (typeof parsedMetadata !== "object" || parsedMetadata === null) {
       return null;
     }
 
-    if ("participantId" in parsedMetadata) {
-      const raw = parsedMetadata.participantId;
-      const parsed = typeof raw === "number" ? raw : Number(raw);
-      return Number.isFinite(parsed) ? parsed : null;
-    }
+    return getNumericField(
+      parsedMetadata as Record<string, unknown>,
+      PARTICIPANT_ID_FIELD_NAMES,
+    );
   } catch {
     return null;
   }
+}
 
-  return null;
+export function getParticipantIdFromRecord(
+  data?: Record<string, unknown> | null,
+): number | null {
+  if (!data) {
+    return null;
+  }
+
+  return getNumericField(data, PARTICIPANT_ID_FIELD_NAMES);
 }

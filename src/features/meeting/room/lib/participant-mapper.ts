@@ -15,6 +15,7 @@ import { getLiveKitParticipantTracks } from "@/features/livekit/hooks";
 import {
   getParticipantAvatarFromMetadata,
   getParticipantIdFromMetadata,
+  getParticipantIdFromRecord,
   getParticipantRoleFromMetadata,
 } from "./metadata";
 
@@ -88,11 +89,8 @@ function resolveParticipantId(participant: LiveKitParticipant): number | null {
   const fromMetadata = getParticipantIdFromMetadata(participant.metadata);
   if (fromMetadata !== null) return fromMetadata;
 
-  const fromAttributes = participant.attributes?.["participantId"];
-  if (fromAttributes) {
-    const parsed = Number(fromAttributes);
-    if (Number.isFinite(parsed)) return parsed;
-  }
+  const fromAttributes = getParticipantIdFromRecord(participant.attributes);
+  if (fromAttributes !== null) return fromAttributes;
 
   const fromIdentity = Number(participant.identity);
   if (Number.isFinite(fromIdentity)) return fromIdentity;
