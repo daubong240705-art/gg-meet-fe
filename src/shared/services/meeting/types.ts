@@ -78,6 +78,14 @@ export type WaitingRoomRequestData = {
 export type LeaveMeetingResponseData = null;
 export type EndMeetingResponseData = null;
 
+export type MeetingTrackType = "AUDIO" | "VIDEO";
+
+export type MuteParticipantTrackRequest = {
+  trackType: MeetingTrackType;
+};
+
+export type MuteParticipantTrackResponseData = null;
+
 export type MeetingApiFieldError = {
   field: string;
   message: string;

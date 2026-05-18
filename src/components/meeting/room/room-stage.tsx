@@ -5,6 +5,7 @@ import { Monitor } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type { MeetingTrackType } from "@/shared/services/meeting.service";
 
 import ParticipantCard from "./participant-card";
 import {
@@ -15,12 +16,20 @@ import {
 import { AudioTrackView, VideoTrackView } from "./track-view";
 import type { Participant } from "./types";
 
+type MutingParticipantTrack = {
+  participantId: number;
+  trackType: MeetingTrackType;
+};
+
 type RoomStageProps = {
   participants: Participant[];
   screenShareParticipant: Participant | null;
   isPageVisible: boolean;
   isLayoutMotionEnabled?: boolean;
   isViewportResizing?: boolean;
+  canManageParticipantMedia?: boolean;
+  mutingParticipantTrack?: MutingParticipantTrack | null;
+  onMuteParticipantTrack?: (participant: Participant, trackType: MeetingTrackType) => void;
 };
 
 const ROOM_STAGE_LAYOUT_TRANSITION: Transition = {
@@ -119,6 +128,9 @@ export default function RoomStage({
   isPageVisible,
   isLayoutMotionEnabled = true,
   isViewportResizing = false,
+  canManageParticipantMedia = false,
+  mutingParticipantTrack,
+  onMuteParticipantTrack,
 }: RoomStageProps) {
   const screenShareParticipantId = screenShareParticipant?.id ?? null;
   const isFramerLayoutEnabled = isLayoutMotionEnabled && !isViewportResizing;
@@ -157,6 +169,9 @@ export default function RoomStage({
               isLayoutTransitionEnabled={!isViewportResizing}
               renderAudio={false}
               renderVideo={isPageVisible}
+              canManageParticipantMedia={canManageParticipantMedia}
+              mutingParticipantTrack={mutingParticipantTrack}
+              onMuteParticipantTrack={onMuteParticipantTrack}
             />
           </motion.div>
         ))}
@@ -283,6 +298,9 @@ export default function RoomStage({
               isLayoutTransitionEnabled={!isViewportResizing}
               renderAudio={false}
               renderVideo={isPageVisible}
+              canManageParticipantMedia={canManageParticipantMedia}
+              mutingParticipantTrack={mutingParticipantTrack}
+              onMuteParticipantTrack={onMuteParticipantTrack}
             />
           </motion.div>
         ))}

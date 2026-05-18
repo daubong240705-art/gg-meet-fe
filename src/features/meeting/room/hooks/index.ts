@@ -9,6 +9,7 @@ export * from "./use-room-hand-raise";
 export * from "./use-room-identity";
 export * from "./use-room-participants";
 export * from "./use-room-screen-share";
+export * from "./use-room-targeted-mute";
 export * from "./use-room-livekit-session";
 export * from "./use-room-socket-events";
 export * from "./use-waiting-room-actions";

@@ -1,14 +1,21 @@
 "use client";
 
-import { Hand, MicOff, MoreVertical } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Hand, MicOff, MoreVertical, VideoOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { cn } from "@/lib/utils";
+import type { MeetingTrackType } from "@/shared/services/meeting.service";
 
 import { AudioTrackView, VideoTrackView } from "./track-view";
 import type { Participant } from "./types";
+
+type MutingParticipantTrack = {
+  participantId: number;
+  trackType: MeetingTrackType;
+};
 
 type ParticipantCardProps = {
   participant: Participant;
@@ -18,6 +25,9 @@ type ParticipantCardProps = {
   isLayoutTransitionEnabled?: boolean;
   renderAudio?: boolean;
   renderVideo?: boolean;
+  canManageParticipantMedia?: boolean;
+  mutingParticipantTrack?: MutingParticipantTrack | null;
+  onMuteParticipantTrack?: (participant: Participant, trackType: MeetingTrackType) => void;
 };
 
 export default function ParticipantCard({
@@ -28,14 +38,63 @@ export default function ParticipantCard({
   isLayoutTransitionEnabled = true,
   renderAudio = true,
   renderVideo = true,
+  canManageParticipantMedia = false,
+  mutingParticipantTrack,
+  onMuteParticipantTrack,
 }: ParticipantCardProps) {
   const isActiveSpeaker = !participant.isMuted && participant.isSpeaking;
   const shouldRenderVideo = renderVideo && !participant.isCameraOff && participant.cameraTrack;
+  const canMuteParticipantMedia =
+    canManageParticipantMedia && !participant.isLocal && !participant.isHost;
+  const isMutingAudio =
+    mutingParticipantTrack?.participantId === participant.participantId
+    && mutingParticipantTrack.trackType === "AUDIO";
+  const isMutingVideo =
+    mutingParticipantTrack?.participantId === participant.participantId
+    && mutingParticipantTrack.trackType === "VIDEO";
+  const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
+  const actionMenuRef = useRef<HTMLDivElement | null>(null);
+  const canMuteAudio = canMuteParticipantMedia && !participant.isMuted;
+  const canMuteVideo = canMuteParticipantMedia && !participant.isCameraOff;
+  const hasActionMenu = canMuteAudio || canMuteVideo;
+
+  useEffect(() => {
+    if (!isActionMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (actionMenuRef.current?.contains(event.target as Node)) {
+        return;
+      }
+
+      setIsActionMenuOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsActionMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isActionMenuOpen]);
+
+  const handleMuteTrack = (trackType: MeetingTrackType) => {
+    setIsActionMenuOpen(false);
+    onMuteParticipantTrack?.(participant, trackType);
+  };
 
   return (
     <Card
       className={cn(
-        "relative z-0 aspect-video min-h-32 min-w-0 w-full max-w-full gap-0 overflow-hidden border border-border/70 px-0 py-0 sm:min-h-40 lg:min-h-48",
+        "group/card relative z-0 aspect-video min-h-32 min-w-0 w-full max-w-full gap-0 overflow-hidden border border-border/70 px-0 py-0 sm:min-h-40 lg:min-h-48",
         "bg-linear-to-br from-card via-card to-muted/60 shadow-sm motion-reduce:transition-none",
         isLayoutTransitionEnabled
           ? "motion-safe:transition-[opacity,border-color,box-shadow,background-color] motion-safe:duration-200 motion-safe:ease-out"
@@ -115,7 +174,59 @@ export default function ParticipantCard({
               </div>
             ) : null}
 
-            {participant.isMuted ? (
+            {hasActionMenu ? (
+              <div
+                ref={actionMenuRef}
+                className={cn(
+                  "relative opacity-0 motion-safe:transition-opacity motion-safe:duration-150 group-hover/card:opacity-100 group-focus-within/card:opacity-100",
+                  compact && "opacity-100",
+                )}
+              >
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className={cn(
+                    "rounded-full bg-black/40 text-white shadow-sm backdrop-blur-sm hover:bg-black/55 hover:text-white",
+                    compact && "size-6",
+                  )}
+                  title={`Open actions for ${participant.name}`}
+                  aria-label={`Open actions for ${participant.name}`}
+                  aria-expanded={isActionMenuOpen}
+                  onClick={() => setIsActionMenuOpen((currentValue) => !currentValue)}
+                >
+                  <MoreVertical className={cn(compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
+                </Button>
+
+                {isActionMenuOpen ? (
+                  <div className="absolute right-0 top-9 z-30 w-48 overflow-hidden rounded-lg border border-white/10 bg-slate-950/92 p-1 text-white shadow-xl backdrop-blur-md motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-100 motion-reduce:animate-none">
+                    {canMuteAudio ? (
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition hover:bg-red-500/20 hover:text-red-100 disabled:pointer-events-none disabled:opacity-50"
+                        disabled={isMutingAudio}
+                        onClick={() => handleMuteTrack("AUDIO")}
+                      >
+                        <MicOff className="h-4 w-4" />
+                        Mute microphone
+                      </button>
+                    ) : null}
+
+                    {canMuteVideo ? (
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition hover:bg-red-500/20 hover:text-red-100 disabled:pointer-events-none disabled:opacity-50"
+                        disabled={isMutingVideo}
+                        onClick={() => handleMuteTrack("VIDEO")}
+                      >
+                        <VideoOff className="h-4 w-4" />
+                        Turn off camera
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : participant.isMuted ? (
               <div
                 className={cn(
                   "flex items-center justify-center rounded-full border border-white/10 bg-black/45 text-white backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-200 motion-reduce:animate-none",
@@ -124,15 +235,6 @@ export default function ParticipantCard({
               >
                 <MicOff className={cn(compact ? "h-4 w-4" : "h-4.5 w-4.5")} />
               </div>
-            ) : !compact && !participant.handRaised ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="rounded-full bg-black/30 text-white hover:bg-black/45 hover:text-white"
-              >
-                <MoreVertical className="h-4 w-4" />
-              </Button>
             ) : null}
           </div>
         </div>

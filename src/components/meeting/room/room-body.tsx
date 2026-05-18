@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type { MeetingTrackType } from "@/shared/services/meeting.service";
 
 import RoomSidebar from "./room-sidebar";
 import RoomStage from "./room-stage";
@@ -13,6 +14,11 @@ import type {
   SidebarPanel,
   WaitingParticipant,
 } from "./types";
+
+type MutingParticipantTrack = {
+  participantId: number;
+  trackType: MeetingTrackType;
+};
 
 type RoomBodyProps = {
   isSidebarRendered: boolean;
@@ -38,6 +44,8 @@ type RoomBodyProps = {
   onRejectWaitingParticipant: (participant: WaitingParticipant) => void;
   onApproveAllWaitingParticipants: () => void;
   onKickParticipant: (participant: Participant, isBan: boolean) => void;
+  mutingParticipantTrack?: MutingParticipantTrack | null;
+  onMuteParticipantTrack: (participant: Participant, trackType: MeetingTrackType) => void;
   onPanelChange: (panel: SidebarPanel) => void;
 };
 
@@ -65,6 +73,8 @@ export default function RoomBody({
   onRejectWaitingParticipant,
   onApproveAllWaitingParticipants,
   onKickParticipant,
+  mutingParticipantTrack,
+  onMuteParticipantTrack,
   onPanelChange,
 }: RoomBodyProps) {
   return (
@@ -102,6 +112,8 @@ export default function RoomBody({
               onRejectWaitingParticipant={onRejectWaitingParticipant}
               onApproveAllWaitingParticipants={onApproveAllWaitingParticipants}
               onKickParticipant={onKickParticipant}
+              mutingParticipantTrack={mutingParticipantTrack}
+              onMuteParticipantTrack={onMuteParticipantTrack}
               onPanelChange={onPanelChange}
               onClose={() => onPanelChange(null)}
             />
@@ -142,6 +154,9 @@ export default function RoomBody({
               isPageVisible={isPageVisible}
               isLayoutMotionEnabled={isLayoutMotionEnabled}
               isViewportResizing={isViewportResizing}
+              canManageParticipantMedia={canManageWaitingRoom}
+              mutingParticipantTrack={mutingParticipantTrack}
+              onMuteParticipantTrack={onMuteParticipantTrack}
             />
           </div>
         </div>
@@ -171,6 +186,8 @@ export default function RoomBody({
               onRejectWaitingParticipant={onRejectWaitingParticipant}
               onApproveAllWaitingParticipants={onApproveAllWaitingParticipants}
               onKickParticipant={onKickParticipant}
+              mutingParticipantTrack={mutingParticipantTrack}
+              onMuteParticipantTrack={onMuteParticipantTrack}
               onPanelChange={onPanelChange}
               onClose={() => onPanelChange(null)}
             />

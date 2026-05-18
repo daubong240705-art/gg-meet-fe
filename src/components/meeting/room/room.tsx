@@ -17,6 +17,7 @@ import {
   useRoomScreenShare,
   useRoomSidebarState,
   useRoomSocketEvents,
+  useRoomTargetedMute,
   useRoomViewportState,
   useWaitingRoomRequests,
   useWaitingRoomActions,
@@ -102,12 +103,37 @@ function MeetingRoomContent({
     togglePanel,
     handlePanelChange,
   } = useRoomSidebarState();
+  const [isCompactControlsOpen, setIsCompactControlsOpen] = useState(false);
+
+  const handleToggleMeetingPanel = useCallback((panel: Exclude<typeof activePanel, null>) => {
+    setIsCompactControlsOpen(false);
+    togglePanel(panel);
+  }, [togglePanel]);
+
+  const handleMeetingPanelChange = useCallback((panel: typeof activePanel) => {
+    if (panel) {
+      setIsCompactControlsOpen(false);
+    }
+
+    handlePanelChange(panel);
+  }, [handlePanelChange]);
+
+  const handleToggleCompactControls = useCallback(() => {
+    const shouldOpenCompactControls = !isCompactControlsOpen;
+
+    if (shouldOpenCompactControls) {
+      handlePanelChange(null);
+    }
+
+    setIsCompactControlsOpen(shouldOpenCompactControls);
+  }, [handlePanelChange, isCompactControlsOpen]);
 
   const {
     isMicEnabled,
     isCameraEnabled,
     handleToggleMic,
     handleToggleCamera,
+    syncLocalMediaState,
   } = useRoomMediaControls({
     roomRef,
     isLiveKitEnabled,
@@ -251,6 +277,14 @@ function MeetingRoomContent({
   });
 
   const {
+    mutingParticipantTrack,
+    handleMuteParticipantTrack,
+  } = useRoomTargetedMute({
+    meetingCode,
+    meetingToken,
+  });
+
+  const {
     canPlaybackAudio,
     isRoomConnected,
     handleStartAudio,
@@ -265,6 +299,7 @@ function MeetingRoomContent({
     initialCameraDeviceId: selectedCamera,
     initialMicrophoneDeviceId: selectedMic,
     onParticipantsChange: handleLiveKitParticipantsChange,
+    onLocalMediaStateChange: syncLocalMediaState,
     onLocalAttributesChange: handleLiveKitLocalAttributesChange,
     onChatMessage: handleLiveKitChatMessage,
     onDeviceChange: handleLiveKitDeviceChange,
@@ -322,7 +357,7 @@ function MeetingRoomContent({
           canManageWaitingRoom={canManageWaitingRoom}
           waitingParticipants={waitingParticipants}
           onScreenShareParticipantChange={setActiveScreenShareId}
-          onPanelChange={handlePanelChange}
+          onPanelChange={handleMeetingPanelChange}
           onApproveWaitingParticipant={handleApproveWaitingParticipant}
           onRejectWaitingParticipant={handleRejectWaitingParticipant}
           onApproveAllWaitingParticipants={handleApproveAllWaitingParticipants}
@@ -352,7 +387,9 @@ function MeetingRoomContent({
           onRejectWaitingParticipant={handleRejectWaitingParticipant}
           onApproveAllWaitingParticipants={handleApproveAllWaitingParticipants}
           onKickParticipant={handleKickParticipant}
-          onPanelChange={handlePanelChange}
+          mutingParticipantTrack={mutingParticipantTrack}
+          onMuteParticipantTrack={handleMuteParticipantTrack}
+          onPanelChange={handleMeetingPanelChange}
         />
 
         <RoomFooter
@@ -379,7 +416,9 @@ function MeetingRoomContent({
           onRefreshDevices={() => {
             void syncAvailableDevices();
           }}
-          onTogglePanel={togglePanel}
+          onTogglePanel={handleToggleMeetingPanel}
+          isCompactControlsOpen={isCompactControlsOpen}
+          onToggleCompactControls={handleToggleCompactControls}
           isHost={canManageWaitingRoom}
           isEndingMeeting={isEndingMeeting}
           onEndMeeting={handleEndMeeting}

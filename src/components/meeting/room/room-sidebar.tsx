@@ -1,5 +1,7 @@
 "use client";
 
+import type { MeetingTrackType } from "@/shared/services/meeting.service";
+
 import { RoomSidebarChatPanel } from "./room-sidebar-chat-panel";
 import { RoomSidebarParticipantsPanel } from "./room-sidebar-participants-panel";
 import { RoomSidebarShell } from "./room-sidebar-shell";
@@ -11,6 +13,11 @@ import type {
   SidebarTab,
   WaitingParticipant,
 } from "./types";
+
+type MutingParticipantTrack = {
+  participantId: number;
+  trackType: MeetingTrackType;
+};
 
 type RoomSidebarProps = {
   activePanel: SidebarPanel;
@@ -28,6 +35,8 @@ type RoomSidebarProps = {
   onRejectWaitingParticipant: (participant: WaitingParticipant) => void;
   onApproveAllWaitingParticipants: () => void;
   onKickParticipant?: (participant: Participant, isBan: boolean) => void;
+  mutingParticipantTrack?: MutingParticipantTrack | null;
+  onMuteParticipantTrack?: (participant: Participant, trackType: MeetingTrackType) => void;
   onPanelChange: (panel: SidebarPanel) => void;
   onClose: () => void;
 };
@@ -48,6 +57,8 @@ export default function RoomSidebar({
   onRejectWaitingParticipant,
   onApproveAllWaitingParticipants,
   onKickParticipant,
+  mutingParticipantTrack,
+  onMuteParticipantTrack,
   onPanelChange,
   onClose,
 }: RoomSidebarProps) {
@@ -74,6 +85,8 @@ export default function RoomSidebar({
           onRejectWaitingParticipant={onRejectWaitingParticipant}
           onApproveAllWaitingParticipants={onApproveAllWaitingParticipants}
           onKickParticipant={onKickParticipant}
+          mutingParticipantTrack={mutingParticipantTrack}
+          onMuteParticipantTrack={onMuteParticipantTrack}
         />
       ) : (
         <RoomSidebarChatPanel

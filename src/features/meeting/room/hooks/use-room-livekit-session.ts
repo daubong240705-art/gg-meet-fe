@@ -22,6 +22,7 @@ type UseRoomLiveKitSessionParams = {
   initialCameraDeviceId?: string | null;
   initialMicrophoneDeviceId?: string | null;
   onParticipantsChange: (room: LiveKitRoom) => void;
+  onLocalMediaStateChange?: (room: LiveKitRoom) => void;
   onLocalAttributesChange: (participant: LiveKitParticipant) => void;
   onChatMessage: (
     message: LiveKitChatMessage,
@@ -44,6 +45,7 @@ export function useRoomLiveKitSession({
   initialCameraDeviceId,
   initialMicrophoneDeviceId,
   onParticipantsChange,
+  onLocalMediaStateChange,
   onLocalAttributesChange,
   onChatMessage,
   onDeviceChange,
@@ -75,6 +77,7 @@ export function useRoomLiveKitSession({
     onConnectionChange: setIsRoomConnected,
     onAudioPlaybackChange: setCanPlaybackAudio,
     onParticipantsChange,
+    onLocalMediaStateChange,
     onLocalAttributesChange,
     onChatMessage,
     onDeviceChange,

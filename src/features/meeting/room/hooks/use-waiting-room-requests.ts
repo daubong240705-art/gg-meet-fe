@@ -12,6 +12,8 @@ import {
   mapWaitingRoomRequestToParticipant,
 } from "@/features/meeting/room/lib";
 
+const RECENTLY_HANDLED_WAITING_PARTICIPANT_TTL_MS = 5000;
+
 type UseWaitingRoomRequestsParams = {
   canManageWaitingRoom: boolean;
   meetingCode: string;
@@ -27,6 +29,36 @@ export function useWaitingRoomRequests({
 }: UseWaitingRoomRequestsParams) {
   const [waitingParticipants, setWaitingParticipants] = useState<WaitingParticipant[]>([]);
   const waitingParticipantsRef = useRef<WaitingParticipant[]>([]);
+  const recentlyHandledParticipantIdsRef = useRef<Map<number, number>>(new Map());
+
+  const pruneRecentlyHandledParticipantIds = useCallback((now = Date.now()) => {
+    recentlyHandledParticipantIdsRef.current.forEach((expiresAt, participantId) => {
+      if (expiresAt <= now) {
+        recentlyHandledParticipantIdsRef.current.delete(participantId);
+      }
+    });
+  }, []);
+
+  const markWaitingParticipantHandled = useCallback((participantId?: number | null) => {
+    if (participantId === null || participantId === undefined) {
+      return;
+    }
+
+    const now = Date.now();
+    pruneRecentlyHandledParticipantIds(now);
+    recentlyHandledParticipantIdsRef.current.set(
+      participantId,
+      now + RECENTLY_HANDLED_WAITING_PARTICIPANT_TTL_MS,
+    );
+  }, [pruneRecentlyHandledParticipantIds]);
+
+  const isWaitingParticipantRecentlyHandled = useCallback((participantId: number) => {
+    const now = Date.now();
+    pruneRecentlyHandledParticipantIds(now);
+
+    const expiresAt = recentlyHandledParticipantIdsRef.current.get(participantId);
+    return expiresAt !== undefined && expiresAt > now;
+  }, [pruneRecentlyHandledParticipantIds]);
 
   const setWaitingParticipantsAndRef = useCallback((
     nextValue: WaitingParticipant[] | ((currentParticipants: WaitingParticipant[]) => WaitingParticipant[]),
@@ -40,6 +72,7 @@ export function useWaitingRoomRequests({
   }, []);
 
   const clearWaitingParticipants = useCallback(() => {
+    recentlyHandledParticipantIdsRef.current.clear();
     setWaitingParticipantsAndRef([]);
   }, [setWaitingParticipantsAndRef]);
 
@@ -47,6 +80,10 @@ export function useWaitingRoomRequests({
     const participantId = message.targetParticipantId;
 
     if (participantId === null || participantId === undefined) {
+      return;
+    }
+
+    if (isWaitingParticipantRecentlyHandled(participantId)) {
       return;
     }
 
@@ -84,17 +121,18 @@ export function useWaitingRoomRequests({
     }
 
     playHostWaitingRequestSound();
-  }, [setWaitingParticipantsAndRef]);
+  }, [isWaitingParticipantRecentlyHandled, setWaitingParticipantsAndRef]);
 
   const removeWaitingParticipant = useCallback((participantId?: number | null) => {
     if (participantId === null || participantId === undefined) {
       return;
     }
 
+    markWaitingParticipantHandled(participantId);
     setWaitingParticipantsAndRef((currentParticipants) =>
       currentParticipants.filter((participant) => participant.participantId !== participantId),
     );
-  }, [setWaitingParticipantsAndRef]);
+  }, [markWaitingParticipantHandled, setWaitingParticipantsAndRef]);
 
   const syncWaitingParticipants = useCallback(async () => {
     if (!canManageWaitingRoom || !meetingToken) {
@@ -109,7 +147,10 @@ export function useWaitingRoomRequests({
       const verifiedResponse = assertApiSuccess(response);
       const serverWaitingParticipants = (verifiedResponse.data ?? [])
         .map((request) => mapWaitingRoomRequestToParticipant(request))
-        .filter((participant): participant is WaitingParticipant => Boolean(participant));
+        .filter((participant): participant is WaitingParticipant => {
+          return participant !== null
+            && !isWaitingParticipantRecentlyHandled(participant.participantId);
+        });
 
       setWaitingParticipantsAndRef((currentParticipants) => {
         const mergedParticipants = new Map<number, WaitingParticipant>();
@@ -140,6 +181,7 @@ export function useWaitingRoomRequests({
   }, [
     canManageWaitingRoom,
     clearWaitingParticipants,
+    isWaitingParticipantRecentlyHandled,
     meetingCode,
     meetingToken,
     onError,

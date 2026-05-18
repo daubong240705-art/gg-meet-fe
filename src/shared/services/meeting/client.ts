@@ -15,6 +15,8 @@ import type {
   JoinRequestStatusResponseData,
   LeaveMeetingResponseData,
   MeetingRequestOptions,
+  MeetingTrackType,
+  MuteParticipantTrackResponseData,
   ScheduleMeetingRequest,
   ScheduleMeetingResponseData,
   UpcomingMeetingsResponseData,
@@ -137,6 +139,29 @@ export const meetingApi = {
       queryParams: {
         meetingCode,
       },
+      useCredentials: true,
+      auth: Boolean(accessToken),
+      accessToken,
+      redirectOnAuthFail: false,
+    });
+  },
+
+  muteParticipantTrack(
+    meetingCode: string,
+    participantId: number,
+    trackType: MeetingTrackType,
+    meetingToken?: string | null,
+  ) {
+    const accessToken =
+      typeof window !== "undefined" ? readStoredAccessToken() : null;
+
+    return sendRequest<IBackendRes<MuteParticipantTrackResponseData>>({
+      url: `${API_URL}/meetings/${encodeURIComponent(meetingCode)}/participants/${participantId}/mute`,
+      method: "POST",
+      body: {
+        trackType,
+      },
+      headers: getMeetingTokenHeaders(meetingToken),
       useCredentials: true,
       auth: Boolean(accessToken),
       accessToken,

@@ -32,6 +32,8 @@ type RoomFooterProps = {
   onSelectCamera: (deviceId: string) => void;
   onRefreshDevices: () => void;
   onTogglePanel: (panel: Exclude<SidebarPanel, null>) => void;
+  isCompactControlsOpen: boolean;
+  onToggleCompactControls: () => void;
   onLeave: () => void;
   isHost?: boolean;
   isEndingMeeting?: boolean;
@@ -61,6 +63,8 @@ export default function RoomFooter({
   onSelectCamera,
   onRefreshDevices,
   onTogglePanel,
+  isCompactControlsOpen,
+  onToggleCompactControls,
   onLeave,
   isHost = false,
   isEndingMeeting = false,
@@ -69,7 +73,6 @@ export default function RoomFooter({
   const footerRef = useRef<HTMLElement | null>(null);
   const [openMenu, setOpenMenu] = useState<FooterMenuKey>(null);
   const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false);
-  const [isCompactControlsOpen, setIsCompactControlsOpen] = useState(false);
 
   useEffect(() => {
     if (!openMenu) {
@@ -149,9 +152,12 @@ export default function RoomFooter({
           isCompactControlsOpen={isCompactControlsOpen}
           onToggleCompactControls={() => {
             setOpenMenu(null);
-            setIsCompactControlsOpen((currentValue) => !currentValue);
+            onToggleCompactControls();
           }}
-          onTogglePanel={onTogglePanel}
+          onTogglePanel={(panel) => {
+            setOpenMenu(null);
+            onTogglePanel(panel);
+          }}
         />
       </div>
 
