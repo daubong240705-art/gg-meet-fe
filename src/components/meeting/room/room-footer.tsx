@@ -1,10 +1,12 @@
 "use client";
 
-import { Check, ChevronDown, ChevronUp, Copy, Hand, MessageSquare, Mic, MicOff, Monitor, Phone, Users, Video, VideoOff, type LucideIcon } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { cn } from "@/lib/utils";
-
+import { RoomFooterControls } from "./room-footer-controls";
+import { RoomFooterMeetingInfo } from "./room-footer-meeting-info";
+import { RoomFooterPanelButtons } from "./room-footer-panel-buttons";
+import type { FooterMenuKey } from "./room-footer-types";
+import { RoomLeaveDialog } from "./room-leave-dialog";
 import type { SidebarPanel } from "./types";
 
 type RoomFooterProps = {
@@ -30,121 +32,13 @@ type RoomFooterProps = {
   onSelectCamera: (deviceId: string) => void;
   onRefreshDevices: () => void;
   onTogglePanel: (panel: Exclude<SidebarPanel, null>) => void;
+  isCompactControlsOpen: boolean;
+  onToggleCompactControls: () => void;
   onLeave: () => void;
   isHost?: boolean;
   isEndingMeeting?: boolean;
   onEndMeeting?: () => void;
 };
-
-type FooterMenuKey = "microphone" | "camera" | "screen" | null;
-
-type SplitControlButtonProps = {
-  label: string;
-  icon: LucideIcon;
-  mainAriaLabel: string;
-  menuAriaLabel: string;
-  isActive?: boolean;
-  isDestructive?: boolean;
-  isMenuOpen?: boolean;
-  onMainClick: () => void;
-  onMenuClick: () => void;
-};
-
-type FooterMenuPanelProps = {
-  title: string;
-  widthClassName?: string;
-  children: ReactNode;
-};
-
-function formatTime(now: Date) {
-  return new Intl.DateTimeFormat("vi-VN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(now);
-}
-
-function getDeviceLabel(device: MediaDeviceInfo, fallbackLabel: string, index: number) {
-  return device.label || `${fallbackLabel} ${index + 1}`;
-}
-
-function FooterMenuPanel({
-  title,
-  widthClassName = "w-72",
-  children,
-}: FooterMenuPanelProps) {
-  return (
-    <div
-      className={cn(
-        "absolute bottom-full left-1/2 z-30 mb-3 -translate-x-1/2 rounded-[28px] border border-border/80 bg-card/95 p-3 text-card-foreground shadow-[0_20px_60px_rgba(2,6,23,0.45)] backdrop-blur-xl motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:slide-in-from-bottom-2 motion-safe:duration-200 motion-reduce:animate-none",
-        widthClassName,
-      )}
-    >
-      <p className="px-2 pb-2 text-sm font-semibold text-muted-foreground">
-        {title}
-      </p>
-      <div className="space-y-1">{children}</div>
-    </div>
-  );
-}
-
-function SplitControlButton({
-  label,
-  icon: Icon,
-  mainAriaLabel,
-  menuAriaLabel,
-  isActive = false,
-  isDestructive = false,
-  isMenuOpen = false,
-  onMainClick,
-  onMenuClick,
-}: SplitControlButtonProps) {
-  const toneClassName = isActive
-    ? "bg-primary text-primary-foreground"
-    : isDestructive
-      ? "bg-destructive text-destructive-foreground"
-      : "bg-secondary text-secondary-foreground";
-
-  const hoverToneClassName = isActive
-    ? "hover:bg-primary/90"
-    : isDestructive
-      ? "hover:bg-destructive/90"
-      : "hover:bg-secondary/85";
-
-  return (
-    <div className="relative">
-      <div className="flex items-center rounded-full bg-background/75 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-        <button
-          type="button"
-          aria-label={mainAriaLabel}
-          title={label}
-          onClick={onMainClick}
-          className={cn(
-            "flex size-10 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
-            "motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 motion-reduce:transform-none",
-            toneClassName,
-            hoverToneClassName,
-          )}
-        >
-          <Icon className="h-5 w-5" />
-        </button>
-
-        <button
-          type="button"
-          aria-label={menuAriaLabel}
-          aria-expanded={isMenuOpen}
-          onClick={onMenuClick}
-          className={cn(
-            "flex h-10 w-7 items-center justify-center rounded-full text-muted-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
-            "motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 motion-reduce:transform-none",
-            isMenuOpen ? "bg-muted text-foreground" : "hover:bg-muted hover:text-foreground",
-          )}
-        >
-          <ChevronUp className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  );
-}
 
 export default function RoomFooter({
   meetingCode,
@@ -169,36 +63,16 @@ export default function RoomFooter({
   onSelectCamera,
   onRefreshDevices,
   onTogglePanel,
+  isCompactControlsOpen,
+  onToggleCompactControls,
   onLeave,
   isHost = false,
   isEndingMeeting = false,
   onEndMeeting,
 }: RoomFooterProps) {
   const footerRef = useRef<HTMLElement | null>(null);
-  const copyTimeoutRef = useRef<number | null>(null);
   const [openMenu, setOpenMenu] = useState<FooterMenuKey>(null);
-  const [now, setNow] = useState(() => new Date());
-  const [copied, setCopied] = useState(false);
   const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false);
-  const [isCompactControlsOpen, setIsCompactControlsOpen] = useState(false);
-
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      setNow(new Date());
-    }, 30000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (copyTimeoutRef.current !== null) {
-        window.clearTimeout(copyTimeoutRef.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (!openMenu) {
@@ -228,24 +102,6 @@ export default function RoomFooter({
     };
   }, [openMenu]);
 
-  useEffect(() => {
-    if (!isLeaveDialogOpen) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsLeaveDialogOpen(false);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isLeaveDialogOpen]);
-
   const handleToggleMenu = (menu: Exclude<FooterMenuKey, null>) => {
     setOpenMenu((currentMenu) => {
       const nextMenu = currentMenu === menu ? null : menu;
@@ -258,360 +114,60 @@ export default function RoomFooter({
     });
   };
 
-  const handleCopyMeetingLink = async () => {
-    if (typeof window === "undefined" || !navigator.clipboard?.writeText) {
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(`${window.location.origin}/${meetingCode}`);
-      setCopied(true);
-
-      if (copyTimeoutRef.current !== null) {
-        window.clearTimeout(copyTimeoutRef.current);
-      }
-
-      copyTimeoutRef.current = window.setTimeout(() => {
-        setCopied(false);
-      }, 2000);
-    } catch {
-      setCopied(false);
-    }
-  };
-
   return (
     <footer ref={footerRef} className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-3 pb-3 pt-3 sm:px-4 lg:px-6 lg:pb-4">
       <div className="mx-auto flex max-w-420 flex-col gap-2 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:items-center">
-        <div className="pointer-events-auto order-2 flex items-center justify-center gap-2 text-xs text-muted-foreground lg:order-1 lg:justify-start">
-          <span className="font-semibold text-foreground">{formatTime(now)}</span>
-          <span className="text-border">|</span>
-          <div className="flex items-center gap-2">
-            <span className="tracking-wide">{meetingCode}</span>
-            <button
-              type="button"
-              aria-label="Copy meeting link"
-              onClick={handleCopyMeetingLink}
-              className="flex size-7 items-center justify-center rounded-full bg-muted/80 text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-            >
-              {copied ? (
-                <Check className="h-3.5 w-3.5 text-emerald-400" />
-              ) : (
-                <Copy className="h-3.5 w-3.5" />
-              )}
-            </button>
-          </div>
-        </div>
+        <RoomFooterMeetingInfo meetingCode={meetingCode} />
 
-        <div className="pointer-events-auto order-1 flex justify-center lg:order-2">
-          <div
-            className={cn(
-              "flex flex-wrap items-center justify-center gap-1.5 rounded-full border border-border/80 bg-card/95 px-2 py-1.5 text-foreground shadow-[0_12px_36px_rgba(2,6,23,0.28)] backdrop-blur-xl motion-safe:transition-[transform,opacity,box-shadow] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none",
-              !isCompactControlsOpen && "hidden lg:flex",
-            )}
-          >
-            <div className="relative">
-              <SplitControlButton
-                label={isMicEnabled ? "Mute microphone" : "Unmute microphone"}
-                icon={isMicEnabled ? Mic : MicOff}
-                mainAriaLabel={isMicEnabled ? "Mute microphone" : "Unmute microphone"}
-                menuAriaLabel="Open microphone device menu"
-                isDestructive={!isMicEnabled}
-                isMenuOpen={openMenu === "microphone"}
-                onMainClick={() => {
-                  setOpenMenu(null);
-                  onToggleMic();
-                }}
-                onMenuClick={() => handleToggleMenu("microphone")}
-              />
-              {openMenu === "microphone" ? (
-                <FooterMenuPanel title="Microphone">
-                  {microphoneDevices.length > 0 ? (
-                    microphoneDevices.map((device, index) => (
-                      <button
-                        key={device.deviceId || `${device.kind}-${index}`}
-                        type="button"
-                        onClick={() => {
-                          onSelectMicrophone(device.deviceId);
-                          setOpenMenu(null);
-                        }}
-                        className={cn(
-                          "flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm transition motion-safe:duration-150 motion-safe:ease-out hover:bg-muted",
-                          activeMicrophoneId === device.deviceId && "bg-muted",
-                        )}
-                      >
-                        <span className="truncate">
-                          {getDeviceLabel(device, "Microphone", index)}
-                        </span>
-                        {activeMicrophoneId === device.deviceId ? (
-                          <Check className="h-4 w-4 shrink-0 text-primary" />
-                        ) : null}
-                      </button>
-                    ))
-                  ) : (
-                    <div className="rounded-2xl px-3 py-4 text-sm text-muted-foreground">
-                      No microphone devices found.
-                    </div>
-                  )}
-                </FooterMenuPanel>
-              ) : null}
-            </div>
+        <RoomFooterControls
+          isCompactControlsOpen={isCompactControlsOpen}
+          openMenu={openMenu}
+          isMicEnabled={isMicEnabled}
+          isCameraEnabled={isCameraEnabled}
+          isScreenSharing={isScreenSharing}
+          isHandRaised={isHandRaised}
+          isHandRaiseCoolingDown={isHandRaiseCoolingDown}
+          microphoneDevices={microphoneDevices}
+          cameraDevices={cameraDevices}
+          activeMicrophoneId={activeMicrophoneId}
+          activeCameraId={activeCameraId}
+          isHost={isHost}
+          onToggleMenu={handleToggleMenu}
+          onCloseMenu={() => setOpenMenu(null)}
+          onToggleMic={onToggleMic}
+          onToggleCamera={onToggleCamera}
+          onToggleScreenShare={onToggleScreenShare}
+          onToggleHandRaise={onToggleHandRaise}
+          onPresentOtherContent={onPresentOtherContent}
+          onSelectMicrophone={onSelectMicrophone}
+          onSelectCamera={onSelectCamera}
+          onLeave={onLeave}
+          onOpenLeaveDialog={() => setIsLeaveDialogOpen(true)}
+        />
 
-            <div className="relative">
-              <SplitControlButton
-                label={isCameraEnabled ? "Turn camera off" : "Turn camera on"}
-                icon={isCameraEnabled ? Video : VideoOff}
-                mainAriaLabel={isCameraEnabled ? "Turn camera off" : "Turn camera on"}
-                menuAriaLabel="Open camera device menu"
-                isDestructive={!isCameraEnabled}
-                isMenuOpen={openMenu === "camera"}
-                onMainClick={() => {
-                  setOpenMenu(null);
-                  onToggleCamera();
-                }}
-                onMenuClick={() => handleToggleMenu("camera")}
-              />
-              {openMenu === "camera" ? (
-                <FooterMenuPanel title="Camera">
-                  {cameraDevices.length > 0 ? (
-                    cameraDevices.map((device, index) => (
-                      <button
-                        key={device.deviceId || `${device.kind}-${index}`}
-                        type="button"
-                        onClick={() => {
-                          onSelectCamera(device.deviceId);
-                          setOpenMenu(null);
-                        }}
-                        className={cn(
-                          "flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm transition motion-safe:duration-150 motion-safe:ease-out hover:bg-muted",
-                          activeCameraId === device.deviceId && "bg-muted",
-                        )}
-                      >
-                        <span className="truncate">
-                          {getDeviceLabel(device, "Camera", index)}
-                        </span>
-                        {activeCameraId === device.deviceId ? (
-                          <Check className="h-4 w-4 shrink-0 text-primary" />
-                        ) : null}
-                      </button>
-                    ))
-                  ) : (
-                    <div className="rounded-2xl px-3 py-4 text-sm text-muted-foreground">
-                      No camera devices found.
-                    </div>
-                  )}
-                </FooterMenuPanel>
-              ) : null}
-            </div>
-
-            <div className="relative">
-              <SplitControlButton
-                label={isScreenSharing ? "Presentation controls" : "Present now"}
-                icon={Monitor}
-                mainAriaLabel={isScreenSharing ? "Open presentation controls" : "Present now"}
-                menuAriaLabel="Open presentation menu"
-                isActive={isScreenSharing}
-                isMenuOpen={openMenu === "screen"}
-                onMainClick={() => handleToggleMenu("screen")}
-                onMenuClick={() => handleToggleMenu("screen")}
-              />
-              {openMenu === "screen" ? (
-                <FooterMenuPanel title="Present" widthClassName="w-80">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (isScreenSharing) {
-                        onPresentOtherContent();
-                      } else {
-                        onToggleScreenShare();
-                      }
-                      setOpenMenu(null);
-                    }}
-                    className="flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm transition motion-safe:duration-150 motion-safe:ease-out hover:bg-muted"
-                  >
-                    <span>{isScreenSharing ? "Present other content" : "Present now"}</span>
-                    <Monitor className="h-4 w-4 shrink-0 text-primary" />
-                  </button>
-
-                  {isScreenSharing ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onToggleScreenShare();
-                        setOpenMenu(null);
-                      }}
-                      className="flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm text-destructive transition motion-safe:duration-150 motion-safe:ease-out hover:bg-destructive/10"
-                    >
-                      <span>Stop presenting</span>
-                      <Monitor className="h-4 w-4 shrink-0" />
-                    </button>
-                  ) : null}
-                </FooterMenuPanel>
-              ) : null}
-            </div>
-
-            <button
-              type="button"
-              aria-label={isHandRaised ? "Lower hand" : "Raise hand"}
-              title={
-                isHandRaiseCoolingDown
-                  ? "Hand control is cooling down"
-                  : isHandRaised ? "Lower hand" : "Raise hand"
-              }
-              onClick={onToggleHandRaise}
-              disabled={isHandRaiseCoolingDown}
-              className={cn(
-                "flex size-11 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-70 motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 disabled:hover:translate-y-0 motion-reduce:transform-none",
-                isHandRaised
-                  ? "bg-amber-300 text-slate-950 hover:bg-amber-200"
-                  : "bg-secondary text-secondary-foreground hover:bg-secondary/85",
-              )}
-            >
-              <Hand className="h-5 w-5" />
-            </button>
-
-            <button
-              type="button"
-              aria-label="Leave meeting"
-              onClick={() => {
-                setOpenMenu(null);
-
-                if (isHost) {
-                  setIsLeaveDialogOpen(true);
-                  return;
-                }
-
-                onLeave();
-              }}
-              className="ml-1 flex h-11 items-center justify-center rounded-full bg-destructive px-4 text-destructive-foreground transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 motion-reduce:transform-none"
-            >
-              <Phone className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-
-        <div className="pointer-events-auto order-3 flex items-center justify-center gap-2 lg:justify-end">
-          <button
-            type="button"
-            aria-label={isCompactControlsOpen ? "Hide meeting controls" : "Open meeting controls"}
-            aria-expanded={isCompactControlsOpen}
-            title="Controls"
-            onClick={() => {
-              setOpenMenu(null);
-              setIsCompactControlsOpen((currentValue) => !currentValue);
-            }}
-            className={cn(
-              "relative flex size-10 items-center justify-center rounded-full border border-border/80 bg-card/95 text-foreground transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transform-none lg:hidden",
-              isCompactControlsOpen && "bg-primary text-primary-foreground hover:bg-primary/90",
-            )}
-          >
-            {isCompactControlsOpen ? (
-              <ChevronDown className="h-5 w-5" />
-            ) : (
-              <ChevronUp className="h-5 w-5" />
-            )}
-          </button>
-
-          <button
-            type="button"
-            aria-label="Open participants"
-            onClick={() => onTogglePanel("participants")}
-            className={cn(
-              "relative flex size-10 items-center justify-center rounded-full border border-border/80 bg-card/95 text-foreground transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transform-none",
-              activePanel === "participants" && "bg-primary text-primary-foreground hover:bg-primary/90",
-            )}
-          >
-            <Users className="h-5 w-5" />
-            <span
-              className={cn(
-                "absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-semibold motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-150 motion-reduce:animate-none",
-                activePanel === "participants"
-                  ? "bg-background text-foreground"
-                  : "bg-primary text-primary-foreground",
-              )}
-            >
-              {participantsCount}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            aria-label="Open chat"
-            onClick={() => onTogglePanel("chat")}
-            className={cn(
-              "relative flex size-10 items-center justify-center rounded-full border border-border/80 bg-card/95 text-foreground transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transform-none",
-              activePanel === "chat" && "bg-primary text-primary-foreground hover:bg-primary/90",
-            )}
-          >
-            <MessageSquare className="h-5 w-5" />
-            {unreadChatCount > 0 ? (
-              <span
-                className={cn(
-                  "absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-semibold motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-150 motion-reduce:animate-none",
-                  activePanel === "chat"
-                    ? "bg-background text-foreground"
-                    : "bg-destructive text-destructive-foreground",
-                )}
-              >
-                {unreadChatCount > 99 ? "99+" : unreadChatCount}
-              </span>
-            ) : null}
-          </button>
-        </div>
+        <RoomFooterPanelButtons
+          participantsCount={participantsCount}
+          unreadChatCount={unreadChatCount}
+          activePanel={activePanel}
+          isCompactControlsOpen={isCompactControlsOpen}
+          onToggleCompactControls={() => {
+            setOpenMenu(null);
+            onToggleCompactControls();
+          }}
+          onTogglePanel={(panel) => {
+            setOpenMenu(null);
+            onTogglePanel(panel);
+          }}
+        />
       </div>
 
-      {isHost && isLeaveDialogOpen ? (
-        <>
-          <button
-            type="button"
-            aria-label="Close leave meeting dialog"
-            className="pointer-events-auto fixed inset-0 z-40 bg-background/70 backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150 motion-reduce:animate-none"
-            onClick={() => setIsLeaveDialogOpen(false)}
-          />
-          <div className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center px-4">
-            <div className="w-full max-w-sm rounded-[2rem] border border-border/80 bg-card/95 p-6 text-center text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.32)] backdrop-blur-xl motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:slide-in-from-bottom-3 motion-safe:duration-200 motion-safe:ease-out motion-reduce:animate-none">
-              <div className="space-y-2">
-                <h2 className="text-2xl font-medium tracking-tight text-foreground">
-                  Leave meeting?
-                </h2>
-                <p className="mx-auto max-w-xs text-sm leading-6 text-muted-foreground">
-                  Leave now to keep the meeting open, or end it for everyone.
-                </p>
-              </div>
-
-              <div className="mt-6 flex flex-col gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsLeaveDialogOpen(false);
-                    onLeave();
-                  }}
-                  className="flex h-12 items-center justify-center rounded-full border border-border/80 bg-background/80 px-4 text-sm font-medium text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-                >
-                  Leave meeting
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsLeaveDialogOpen(false);
-                    onEndMeeting?.();
-                  }}
-                  disabled={isEndingMeeting}
-                  className="flex h-12 items-center justify-center rounded-full bg-destructive px-4 text-sm font-medium text-destructive-foreground transition hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isEndingMeeting ? "Ending..." : "End for everyone"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsLeaveDialogOpen(false)}
-                  className="flex h-10 items-center justify-center rounded-full px-4 text-sm font-medium text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
-      ) : null}
+      <RoomLeaveDialog
+        open={isHost && isLeaveDialogOpen}
+        isEndingMeeting={isEndingMeeting}
+        onClose={() => setIsLeaveDialogOpen(false)}
+        onLeave={onLeave}
+        onEndMeeting={onEndMeeting}
+      />
     </footer>
   );
 }

@@ -23,6 +23,7 @@ type UseLiveKitRoomParams = {
   onConnectionChange?: (isConnected: boolean) => void;
   onAudioPlaybackChange?: (canPlaybackAudio: boolean) => void;
   onParticipantsChange?: (room: LiveKitRoom) => void;
+  onLocalMediaStateChange?: (room: LiveKitRoom) => void;
   onLocalAttributesChange?: (participant: LiveKitParticipant) => void;
   onChatMessage?: (
     message: LiveKitChatMessage,
@@ -47,6 +48,7 @@ export function useLiveKitRoom({
   onConnectionChange,
   onAudioPlaybackChange,
   onParticipantsChange,
+  onLocalMediaStateChange,
   onLocalAttributesChange,
   onChatMessage,
   onDeviceChange,
@@ -73,6 +75,7 @@ export function useLiveKitRoom({
     const syncParticipantsNow = () => {
       if (!isDisposed) {
         onParticipantsChange?.(room);
+        onLocalMediaStateChange?.(room);
       }
     };
 
@@ -248,6 +251,7 @@ export function useLiveKitRoom({
     onConnectionChange,
     onDeviceChange,
     onError,
+    onLocalMediaStateChange,
     onLocalAttributesChange,
     onParticipantsChange,
     onReset,
