@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import type { RoomSettings, UpdateRoomSettingsRequest } from "@/shared/services/meeting/types";
+
 import { RoomFooterControls } from "./room-footer-controls";
 import { RoomFooterMeetingInfo } from "./room-footer-meeting-info";
 import { RoomFooterPanelButtons } from "./room-footer-panel-buttons";
@@ -15,8 +17,10 @@ type RoomFooterProps = {
   unreadChatCount: number;
   activePanel: SidebarPanel;
   isMicEnabled: boolean;
+  canUnmuteMicrophone: boolean;
   isCameraEnabled: boolean;
   isScreenSharing: boolean;
+  isWaitingForShareApproval: boolean;
   isHandRaised: boolean;
   isHandRaiseCoolingDown?: boolean;
   microphoneDevices: MediaDeviceInfo[];
@@ -36,6 +40,9 @@ type RoomFooterProps = {
   onToggleCompactControls: () => void;
   onLeave: () => void;
   isHost?: boolean;
+  roomSettings: RoomSettings;
+  updatingRoomSettingsFields: Partial<Record<keyof RoomSettings, boolean>>;
+  onUpdateRoomSettings: (patch: UpdateRoomSettingsRequest) => void;
   isEndingMeeting?: boolean;
   onEndMeeting?: () => void;
 };
@@ -56,6 +63,7 @@ export default function RoomFooter({
   activeCameraId,
   onToggleMic,
   onToggleCamera,
+  isWaitingForShareApproval,
   onToggleScreenShare,
   onToggleHandRaise,
   onPresentOtherContent,
@@ -67,6 +75,10 @@ export default function RoomFooter({
   onToggleCompactControls,
   onLeave,
   isHost = false,
+  canUnmuteMicrophone,
+  roomSettings,
+  updatingRoomSettingsFields,
+  onUpdateRoomSettings,
   isEndingMeeting = false,
   onEndMeeting,
 }: RoomFooterProps) {
@@ -123,8 +135,10 @@ export default function RoomFooter({
           isCompactControlsOpen={isCompactControlsOpen}
           openMenu={openMenu}
           isMicEnabled={isMicEnabled}
+          canUnmuteMicrophone={canUnmuteMicrophone}
           isCameraEnabled={isCameraEnabled}
           isScreenSharing={isScreenSharing}
+          isWaitingForShareApproval={isWaitingForShareApproval}
           isHandRaised={isHandRaised}
           isHandRaiseCoolingDown={isHandRaiseCoolingDown}
           microphoneDevices={microphoneDevices}
@@ -132,6 +146,9 @@ export default function RoomFooter({
           activeMicrophoneId={activeMicrophoneId}
           activeCameraId={activeCameraId}
           isHost={isHost}
+          roomSettings={roomSettings}
+          updatingRoomSettingsFields={updatingRoomSettingsFields}
+          onUpdateRoomSettings={onUpdateRoomSettings}
           onToggleMenu={handleToggleMenu}
           onCloseMenu={() => setOpenMenu(null)}
           onToggleMic={onToggleMic}

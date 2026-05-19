@@ -8,14 +8,23 @@ export type MeetingSocketAction =
     | "ADMITTED"
     | "REJECTED"
     | "CANCEL_SUCCESS"
+    | "ROOM_SETTINGS_CHANGED"
+    | "SCREEN_SHARE_REQUESTED"
+    | "SCREEN_SHARE_APPROVED"
+    | "SCREEN_SHARE_REJECTED"
+    | "SCREEN_SHARE_STOPPED"
     | (string & {});
 
 export type MeetingSocketMessage = {
     meetingCode?: string | null;
     targetParticipantId?: number | null;
     targetName?: string | null;
+    requesterId?: number | null;
+    requesterName?: string | null;
     action?: MeetingSocketAction | null;
     isBan?: boolean | null;
+    allowParticipantUnmute?: boolean | null;
+    allowParticipantShareScreen?: boolean | null;
 };
 
 type DecodedMeetingToken = {
@@ -126,8 +135,9 @@ function parseMeetingSocketMessage(frame: IMessage): MeetingSocketMessage | null
             return null;
         }
 
+        const parsedRecord = parsedBody as Record<string, unknown>;
         const parsedParticipantId = getFirstNumericField(
-            parsedBody as Record<string, unknown>,
+            parsedRecord,
             [
                 "targetParticipantId",
                 "target_participant_id",
@@ -140,13 +150,38 @@ function parseMeetingSocketMessage(frame: IMessage): MeetingSocketMessage | null
             ],
         );
 
+        const requesterId = getFirstNumericField(
+            parsedRecord,
+            [
+                "requesterId",
+                "requesterID",
+                "requester_id",
+                "requesterParticipantId",
+                "requesterParticipantID",
+                "requester_participant_id",
+                "screenShareRequesterId",
+                "screenShareRequesterID",
+                "screen_share_requester_id",
+            ],
+        );
+
         return {
             meetingCode: typeof parsedBody.meetingCode === "string" ? parsedBody.meetingCode : null,
-            targetParticipantId:
-                parsedParticipantId !== null ? parsedParticipantId : null,
+            targetParticipantId: parsedParticipantId !== null ? parsedParticipantId : null,
             targetName: typeof parsedBody.targetName === "string" ? parsedBody.targetName : null,
+            requesterId: requesterId !== null ? requesterId : null,
+            requesterName:
+                typeof parsedBody.requesterName === "string"
+                    ? parsedBody.requesterName
+                    : typeof parsedRecord.requester_name === "string"
+                        ? parsedRecord.requester_name
+                        : null,
             action: typeof parsedBody.action === "string" ? parsedBody.action : null,
             isBan: typeof parsedBody.isBan === "boolean" ? parsedBody.isBan : null,
+            allowParticipantUnmute:
+                typeof parsedBody.allowParticipantUnmute === "boolean" ? parsedBody.allowParticipantUnmute : null,
+            allowParticipantShareScreen:
+                typeof parsedBody.allowParticipantShareScreen === "boolean" ? parsedBody.allowParticipantShareScreen : null,
         };
     } catch {
         return null;

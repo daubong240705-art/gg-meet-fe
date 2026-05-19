@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Room as LiveKitRoom } from "livekit-client";
+import { toast } from "sonner";
 
 import { type MeetingSocketConnection } from "@/lib/meeting/meeting-websocket";
 import { MeetingSocketProvider, useMeetingSocket } from "@/features/meeting/providers";
@@ -15,17 +16,22 @@ import {
   useRoomMediaControls,
   useRoomParticipants,
   useRoomScreenShare,
+  useRoomSettings,
   useRoomSidebarState,
   useRoomSocketEvents,
   useRoomTargetedMute,
   useRoomViewportState,
+  useScreenShareRequests,
   useWaitingRoomRequests,
   useWaitingRoomActions,
 } from "@/features/meeting/room/hooks";
+import { meetingApi } from "@/shared/services/meeting.service";
+import type { Participant } from "@/components/meeting/room/types";
 
 import RoomBody from "./room-body";
 import RoomFooter from "./room-footer";
 import RoomHeader from "./room-header";
+import { ScreenShareRequestDialog } from "./screen-share-request-dialog";
 import type { MeetingRoomProps } from "./types";
 
 const LIVEKIT_ROOM_OPTIONS = {
@@ -85,11 +91,9 @@ function MeetingRoomContent({
   });
   const roomRef = useRef<LiveKitRoom | null>(null);
   const meetingSocketRef = useRef<MeetingSocketConnection | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [liveKitError, setLiveKitError] = useState<string | null>(null);
 
-  const handleRoomDeviceError = useCallback((message: string) => {
-    setLiveKitError(message);
+  const handleRoomDeviceError = useCallback((_message: string | null) => {
+    // errors surfaced via toast in individual hooks
   }, []);
 
   const { isPageVisible, isViewportResizing } = useRoomViewportState();
@@ -128,6 +132,23 @@ function MeetingRoomContent({
     setIsCompactControlsOpen(shouldOpenCompactControls);
   }, [handlePanelChange, isCompactControlsOpen]);
 
+  // Room settings
+  const {
+    settings: roomSettings,
+    updatingFields: updatingRoomSettingsFields,
+    handleRoomMetadataChanged,
+    handleRoomConnected,
+    updateSettings: updateRoomSettings,
+  } = useRoomSettings({
+    roomRef,
+    meetingCode,
+    meetingToken,
+  });
+
+  // canUnmuteMicrophone: host always can, participant can if setting allows OR if already unmuted
+  const canUnmuteMicrophone = canManageWaitingRoom
+    || roomSettings.allowParticipantUnmute;
+
   const {
     isMicEnabled,
     isCameraEnabled,
@@ -139,6 +160,7 @@ function MeetingRoomContent({
     isLiveKitEnabled,
     initialMicrophoneEnabled: isMicOn,
     initialCameraEnabled: isCameraOn,
+    canUnmuteMicrophone,
     onError: handleRoomDeviceError,
   });
 
@@ -267,12 +289,24 @@ function MeetingRoomContent({
     screenShareParticipant,
     setActiveScreenShareId,
     isScreenSharing,
+    isShareRequestDialogOpen,
+    isWaitingForShareApproval,
+    isRequestingShareApproval,
     handleScreenShare,
     handlePresentOtherContent,
+    handleSendShareRequest,
+    handleShareApproved,
+    handleShareRejected,
+    handleShareStopped,
+    handleCloseShareRequestDialog,
   } = useRoomScreenShare({
     participants,
     roomRef,
     isLiveKitEnabled,
+    canShareScreen: roomSettings.allowParticipantShareScreen,
+    isHost: canManageWaitingRoom,
+    meetingCode,
+    meetingToken,
     onError: handleRoomDeviceError,
   });
 
@@ -282,6 +316,37 @@ function MeetingRoomContent({
   } = useRoomTargetedMute({
     meetingCode,
     meetingToken,
+  });
+
+  // Force stop screen share
+  const [forcingStopScreenShareParticipantId, setForcingStopScreenShareParticipantId] =
+    useState<number | null>(null);
+
+  const handleForceStopScreenShare = useCallback(async (participant: Participant) => {
+    const targetId = participant.participantId;
+    if (targetId == null || forcingStopScreenShareParticipantId !== null) return;
+
+    setForcingStopScreenShareParticipantId(targetId);
+    try {
+      await meetingApi.forceStopScreenShare(meetingCode, targetId, meetingToken);
+    } catch {
+      toast.error("Failed to stop screen share.", { description: "Please try again." });
+    } finally {
+      setForcingStopScreenShareParticipantId(null);
+    }
+  }, [forcingStopScreenShareParticipantId, meetingCode, meetingToken]);
+
+  // Screen share request handling (host side)
+  const {
+    pendingShareRequests,
+    processingRequesterId,
+    handleScreenShareRequested,
+    approveRequest,
+    rejectRequest,
+  } = useScreenShareRequests({
+    meetingCode,
+    meetingToken,
+    canManageWaitingRoom,
   });
 
   const {
@@ -303,7 +368,8 @@ function MeetingRoomContent({
     onLocalAttributesChange: handleLiveKitLocalAttributesChange,
     onChatMessage: handleLiveKitChatMessage,
     onDeviceChange: handleLiveKitDeviceChange,
-    onError: setLiveKitError,
+    onRoomMetadataChanged: handleRoomMetadataChanged,
+    onError: handleRoomDeviceError,
     onReset: resetChat,
   });
 
@@ -323,11 +389,27 @@ function MeetingRoomContent({
       return;
     }
 
-    // OLD: host waiting room only accumulated JOIN_REQUEST websocket events, so any request
-    // created while the host tab was away disappeared from the UI after rejoin.
-    // NEW: fetch the current pending list from the API whenever the host enters/re-enters the room.
     void syncWaitingParticipants();
   }, [canManageWaitingRoom, clearWaitingParticipants, meetingToken, syncWaitingParticipants]);
+
+  // Read initial room metadata when connected
+  useEffect(() => {
+    if (isRoomConnected) {
+      handleRoomConnected();
+    }
+  }, [isRoomConnected, handleRoomConnected]);
+
+  const handleScreenShareApproved = useCallback(() => {
+    handleShareApproved();
+  }, [handleShareApproved]);
+
+  const handleScreenShareRejected = useCallback(() => {
+    handleShareRejected();
+  }, [handleShareRejected]);
+
+  const handleScreenShareStopped = useCallback(() => {
+    handleShareStopped();
+  }, [handleShareStopped]);
 
   useRoomSocketEvents({
     meetingCode,
@@ -344,7 +426,29 @@ function MeetingRoomContent({
     removeParticipantByMeetingId,
     exitMeeting,
     onError: handleRoomDeviceError,
+    onScreenShareRequested: handleScreenShareRequested,
+    onScreenShareApproved: handleScreenShareApproved,
+    onScreenShareRejected: handleScreenShareRejected,
+    onScreenShareStopped: handleScreenShareStopped,
   });
+
+  // Show pending screen share requests as toasts with actions (host only)
+  useEffect(() => {
+    if (!canManageWaitingRoom || pendingShareRequests.length === 0) return;
+
+    const latestRequest = pendingShareRequests[pendingShareRequests.length - 1];
+    if (!latestRequest) return;
+
+    toast(`${latestRequest.requesterName} wants to present`, {
+      description: "Approve or reject their screen share request.",
+      duration: 10000,
+      action: {
+        label: "Approve",
+        onClick: () => void approveRequest(latestRequest.requesterId),
+      },
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingShareRequests.length]);
 
   return (
     <div className="h-screen overflow-hidden bg-background">
@@ -389,6 +493,9 @@ function MeetingRoomContent({
           onKickParticipant={handleKickParticipant}
           mutingParticipantTrack={mutingParticipantTrack}
           onMuteParticipantTrack={handleMuteParticipantTrack}
+          canForceStopScreenShare={canManageWaitingRoom}
+          forcingStopScreenShareParticipantId={forcingStopScreenShareParticipantId}
+          onForceStopScreenShare={handleForceStopScreenShare}
           onPanelChange={handleMeetingPanelChange}
         />
 
@@ -398,14 +505,20 @@ function MeetingRoomContent({
           unreadChatCount={unreadChatCount}
           activePanel={activePanel}
           isMicEnabled={isMicEnabled}
+          canUnmuteMicrophone={canUnmuteMicrophone}
           isCameraEnabled={isCameraEnabled}
           isScreenSharing={isScreenSharing}
+          isWaitingForShareApproval={isWaitingForShareApproval}
           isHandRaised={participants.some((participant) => participant.isLocal && participant.handRaised)}
           isHandRaiseCoolingDown={isHandRaiseCoolingDown}
           microphoneDevices={microphoneDevices}
           cameraDevices={cameraDevices}
           activeMicrophoneId={activeMicrophoneId}
           activeCameraId={activeCameraId}
+          isHost={canManageWaitingRoom}
+          roomSettings={roomSettings}
+          updatingRoomSettingsFields={updatingRoomSettingsFields}
+          onUpdateRoomSettings={(patch) => void updateRoomSettings(patch)}
           onToggleMic={handleToggleMic}
           onToggleCamera={handleToggleCamera}
           onToggleScreenShare={handleScreenShare}
@@ -419,12 +532,50 @@ function MeetingRoomContent({
           onTogglePanel={handleToggleMeetingPanel}
           isCompactControlsOpen={isCompactControlsOpen}
           onToggleCompactControls={handleToggleCompactControls}
-          isHost={canManageWaitingRoom}
           isEndingMeeting={isEndingMeeting}
           onEndMeeting={handleEndMeeting}
           onLeave={handleLeaveMeeting}
         />
+
+        <ScreenShareRequestDialog
+          open={isShareRequestDialogOpen}
+          isRequesting={isRequestingShareApproval}
+          onConfirm={() => void handleSendShareRequest()}
+          onClose={handleCloseShareRequestDialog}
+        />
       </div>
+
+      {/* Pending requests panel for host - visible in participants sidebar */}
+      {canManageWaitingRoom && pendingShareRequests.length > 0 ? (
+        <div className="fixed bottom-24 right-4 z-50 flex flex-col gap-2">
+          {pendingShareRequests.map((request) => (
+            <div
+              key={request.requesterId}
+              className="flex items-center gap-3 rounded-2xl border border-border/80 bg-card/95 px-4 py-3 shadow-xl backdrop-blur-xl"
+            >
+              <p className="text-sm font-medium">{request.requesterName} wants to present</p>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  disabled={processingRequesterId !== null}
+                  onClick={() => void rejectRequest(request.requesterId)}
+                  className="rounded-full bg-secondary px-3 py-1 text-xs font-medium transition hover:bg-secondary/80 disabled:opacity-50"
+                >
+                  Deny
+                </button>
+                <button
+                  type="button"
+                  disabled={processingRequesterId !== null}
+                  onClick={() => void approveRequest(request.requesterId)}
+                  className="rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
+                >
+                  Allow
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

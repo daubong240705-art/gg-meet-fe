@@ -28,8 +28,11 @@ type RoomStageProps = {
   isLayoutMotionEnabled?: boolean;
   isViewportResizing?: boolean;
   canManageParticipantMedia?: boolean;
+  canForceStopScreenShare?: boolean;
+  forcingStopScreenShareParticipantId?: number | null;
   mutingParticipantTrack?: MutingParticipantTrack | null;
   onMuteParticipantTrack?: (participant: Participant, trackType: MeetingTrackType) => void;
+  onForceStopScreenShare?: (participant: Participant) => void;
 };
 
 const ROOM_STAGE_LAYOUT_TRANSITION: Transition = {
@@ -129,8 +132,11 @@ export default function RoomStage({
   isLayoutMotionEnabled = true,
   isViewportResizing = false,
   canManageParticipantMedia = false,
+  canForceStopScreenShare = false,
+  forcingStopScreenShareParticipantId = null,
   mutingParticipantTrack,
   onMuteParticipantTrack,
+  onForceStopScreenShare,
 }: RoomStageProps) {
   const screenShareParticipantId = screenShareParticipant?.id ?? null;
   const isFramerLayoutEnabled = isLayoutMotionEnabled && !isViewportResizing;
@@ -170,8 +176,14 @@ export default function RoomStage({
               renderAudio={false}
               renderVideo={isPageVisible}
               canManageParticipantMedia={canManageParticipantMedia}
+              canForceStopScreenShare={canForceStopScreenShare}
+              isForceStoppingScreenShare={
+                participant.participantId !== null &&
+                participant.participantId === forcingStopScreenShareParticipantId
+              }
               mutingParticipantTrack={mutingParticipantTrack}
               onMuteParticipantTrack={onMuteParticipantTrack}
+              onForceStopScreenShare={onForceStopScreenShare}
             />
           </motion.div>
         ))}
@@ -299,8 +311,14 @@ export default function RoomStage({
               renderAudio={false}
               renderVideo={isPageVisible}
               canManageParticipantMedia={canManageParticipantMedia}
+              canForceStopScreenShare={canForceStopScreenShare}
+              isForceStoppingScreenShare={
+                participant.participantId !== null &&
+                participant.participantId === forcingStopScreenShareParticipantId
+              }
               mutingParticipantTrack={mutingParticipantTrack}
               onMuteParticipantTrack={onMuteParticipantTrack}
+              onForceStopScreenShare={onForceStopScreenShare}
             />
           </motion.div>
         ))}

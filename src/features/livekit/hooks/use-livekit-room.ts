@@ -31,6 +31,7 @@ type UseLiveKitRoomParams = {
     room: LiveKitRoom,
   ) => void;
   onDeviceChange?: (room: LiveKitRoom) => void;
+  onRoomMetadataChanged?: (metadata: string) => void;
   onError?: (error: Error | null) => void;
   onReset?: () => void;
 };
@@ -52,6 +53,7 @@ export function useLiveKitRoom({
   onLocalAttributesChange,
   onChatMessage,
   onDeviceChange,
+  onRoomMetadataChanged,
   onError,
   onReset,
 }: UseLiveKitRoomParams) {
@@ -173,7 +175,12 @@ export function useLiveKitRoom({
       .on(RoomEvent.ChatMessage, (message, participant) => {
         onChatMessage?.(message, participant, room);
       })
-      .on(RoomEvent.MediaDevicesError, handleMediaDeviceError);
+      .on(RoomEvent.MediaDevicesError, handleMediaDeviceError)
+      .on(RoomEvent.RoomMetadataChanged, (metadata) => {
+        if (!isDisposed) {
+          onRoomMetadataChanged?.(metadata);
+        }
+      });
 
     const connectRoom = async () => {
       try {
@@ -250,6 +257,7 @@ export function useLiveKitRoom({
     onChatMessage,
     onConnectionChange,
     onDeviceChange,
+    onRoomMetadataChanged,
     onError,
     onLocalMediaStateChange,
     onLocalAttributesChange,

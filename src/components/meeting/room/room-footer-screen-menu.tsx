@@ -6,6 +6,7 @@ import { FloatingMenuPanel } from "./floating-menu-panel";
 
 type RoomFooterScreenMenuProps = {
   isScreenSharing: boolean;
+  isWaitingForApproval?: boolean;
   onToggleScreenShare: () => void;
   onPresentOtherContent: () => void;
   onClose: () => void;
@@ -13,6 +14,7 @@ type RoomFooterScreenMenuProps = {
 
 export function RoomFooterScreenMenu({
   isScreenSharing,
+  isWaitingForApproval = false,
   onToggleScreenShare,
   onPresentOtherContent,
   onClose,
@@ -21,6 +23,7 @@ export function RoomFooterScreenMenu({
     <FloatingMenuPanel title="Present" widthClassName="w-80">
       <button
         type="button"
+        disabled={isWaitingForApproval}
         onClick={() => {
           if (isScreenSharing) {
             onPresentOtherContent();
@@ -29,9 +32,13 @@ export function RoomFooterScreenMenu({
           }
           onClose();
         }}
-        className="flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm transition motion-safe:duration-150 motion-safe:ease-out hover:bg-muted"
+        className="flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-3 text-left text-sm transition motion-safe:duration-150 motion-safe:ease-out hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
       >
-        <span>{isScreenSharing ? "Present other content" : "Present now"}</span>
+        <span>
+          {isWaitingForApproval
+            ? "Waiting for approval…"
+            : isScreenSharing ? "Present other content" : "Present now"}
+        </span>
         <Monitor className="h-4 w-4 shrink-0 text-primary" />
       </button>
 

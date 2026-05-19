@@ -9,6 +9,7 @@ type UseRoomMediaControlsParams = {
   isLiveKitEnabled: boolean;
   initialMicrophoneEnabled: boolean;
   initialCameraEnabled: boolean;
+  canUnmuteMicrophone: boolean;
   onError: (message: string) => void;
 };
 
@@ -17,6 +18,7 @@ export function useRoomMediaControls({
   isLiveKitEnabled,
   initialMicrophoneEnabled,
   initialCameraEnabled,
+  canUnmuteMicrophone,
   onError,
 }: UseRoomMediaControlsParams) {
   const [isMicEnabled, setIsMicEnabled] = useState(initialMicrophoneEnabled);
@@ -86,6 +88,14 @@ export function useRoomMediaControls({
 
   const handleToggleMic = useCallback(() => {
     const nextValue = !isMicEnabled;
+
+    if (nextValue && !canUnmuteMicrophone) {
+      toast("Microphone locked", {
+        description: "The host has disabled participants from unmuting.",
+      });
+      return;
+    }
+
     pendingLocalAudioMuteRef.current = !nextValue;
     updateMicEnabled(nextValue);
 

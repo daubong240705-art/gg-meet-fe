@@ -86,6 +86,20 @@ export type MuteParticipantTrackRequest = {
 
 export type MuteParticipantTrackResponseData = null;
 
+export type RoomSettings = {
+  allowParticipantUnmute: boolean;
+  allowParticipantShareScreen: boolean;
+};
+
+export type UpdateRoomSettingsRequest = Partial<RoomSettings>;
+
+export type UpdateRoomSettingsResponseData = null;
+
+export type ScreenShareRequestResponseData = null;
+export type ScreenShareApproveResponseData = null;
+export type ScreenShareRejectResponseData = null;
+export type ForceStopScreenShareResponseData = null;
+
 export type MeetingApiFieldError = {
   field: string;
   message: string;

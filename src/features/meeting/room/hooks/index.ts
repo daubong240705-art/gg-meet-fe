@@ -14,3 +14,5 @@ export * from "./use-room-livekit-session";
 export * from "./use-room-socket-events";
 export * from "./use-waiting-room-actions";
 export * from "./use-room-exit-actions";
+export * from "./use-room-settings";
+export * from "./use-screen-share-requests";

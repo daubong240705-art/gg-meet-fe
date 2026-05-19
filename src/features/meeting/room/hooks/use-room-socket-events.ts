@@ -24,6 +24,10 @@ type UseRoomSocketEventsParams = {
   removeParticipantByMeetingId: (participantId: number) => void;
   exitMeeting: (reason?: "left" | "ended" | "kicked" | "banned") => void;
   onError: (message: string) => void;
+  onScreenShareRequested?: (message: MeetingSocketMessage) => void;
+  onScreenShareApproved?: (message: MeetingSocketMessage) => void;
+  onScreenShareRejected?: (message: MeetingSocketMessage) => void;
+  onScreenShareStopped?: (message: MeetingSocketMessage) => void;
 };
 
 function normalizeSocketAction(action?: string | null) {
@@ -48,6 +52,27 @@ function isParticipantWaitingRemovalAction(action: string) {
     || action === "WAITING_CANCELLED"
     || action === "LEFT"
   );
+}
+
+function isScreenShareRequestedAction(action: string) {
+  return (
+    action === "SCREEN_SHARE_REQUESTED"
+    || action === "SCREEN_SHARE_REQUEST"
+    || action === "SHARE_SCREEN_REQUESTED"
+    || action === "REQUEST_SCREEN_SHARE"
+  );
+}
+
+function isScreenShareApprovedAction(action: string) {
+  return action === "SCREEN_SHARE_APPROVED" || action === "SHARE_SCREEN_APPROVED";
+}
+
+function isScreenShareRejectedAction(action: string) {
+  return action === "SCREEN_SHARE_REJECTED" || action === "SHARE_SCREEN_REJECTED";
+}
+
+function isScreenShareStoppedAction(action: string) {
+  return action === "SCREEN_SHARE_STOPPED" || action === "SHARE_SCREEN_STOPPED";
 }
 
 function isLocalKickMessage(
@@ -77,6 +102,10 @@ export function useRoomSocketEvents({
   removeParticipantByMeetingId,
   exitMeeting,
   onError,
+  onScreenShareRequested,
+  onScreenShareApproved,
+  onScreenShareRejected,
+  onScreenShareStopped,
 }: UseRoomSocketEventsParams) {
   useEffect(() => {
     disconnectMeetingSocket(meetingSocketRef.current);
@@ -107,6 +136,11 @@ export function useRoomSocketEvents({
 
         if (action === "JOIN_REQUEST") {
           upsertWaitingParticipant(message);
+          return;
+        }
+
+        if (isScreenShareRequestedAction(action)) {
+          onScreenShareRequested?.(message);
         }
       },
       onMeetingMessage: (message) => {
@@ -133,6 +167,11 @@ export function useRoomSocketEvents({
           if (!isLocalKickMessage(message, localMeetingParticipantId) && message.targetName) {
             toast(`${message.targetName} was removed from the meeting.`);
           }
+          return;
+        }
+
+        if (isScreenShareRequestedAction(action)) {
+          onScreenShareRequested?.(message);
         }
       },
       onParticipantMessage: (message) => {
@@ -151,6 +190,21 @@ export function useRoomSocketEvents({
               : "You have been removed from the meeting by the host.",
           });
           exitMeeting(isBanned ? "banned" : "kicked");
+          return;
+        }
+
+        if (isScreenShareApprovedAction(action)) {
+          onScreenShareApproved?.(message);
+          return;
+        }
+
+        if (isScreenShareRejectedAction(action)) {
+          onScreenShareRejected?.(message);
+          return;
+        }
+
+        if (isScreenShareStoppedAction(action)) {
+          onScreenShareStopped?.(message);
         }
       },
       onError: (error) => {
@@ -182,5 +236,9 @@ export function useRoomSocketEvents({
     removeWaitingParticipant,
     syncWaitingParticipants,
     upsertWaitingParticipant,
+    onScreenShareRequested,
+    onScreenShareApproved,
+    onScreenShareRejected,
+    onScreenShareStopped,
   ]);
 }

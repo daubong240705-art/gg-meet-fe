@@ -46,6 +46,9 @@ type RoomBodyProps = {
   onKickParticipant: (participant: Participant, isBan: boolean) => void;
   mutingParticipantTrack?: MutingParticipantTrack | null;
   onMuteParticipantTrack: (participant: Participant, trackType: MeetingTrackType) => void;
+  canForceStopScreenShare?: boolean;
+  forcingStopScreenShareParticipantId?: number | null;
+  onForceStopScreenShare?: (participant: Participant) => void;
   onPanelChange: (panel: SidebarPanel) => void;
 };
 
@@ -75,6 +78,9 @@ export default function RoomBody({
   onKickParticipant,
   mutingParticipantTrack,
   onMuteParticipantTrack,
+  canForceStopScreenShare,
+  forcingStopScreenShareParticipantId,
+  onForceStopScreenShare,
   onPanelChange,
 }: RoomBodyProps) {
   return (
@@ -157,6 +163,9 @@ export default function RoomBody({
               canManageParticipantMedia={canManageWaitingRoom}
               mutingParticipantTrack={mutingParticipantTrack}
               onMuteParticipantTrack={onMuteParticipantTrack}
+              canForceStopScreenShare={canForceStopScreenShare}
+              forcingStopScreenShareParticipantId={forcingStopScreenShareParticipantId}
+              onForceStopScreenShare={onForceStopScreenShare}
             />
           </div>
         </div>

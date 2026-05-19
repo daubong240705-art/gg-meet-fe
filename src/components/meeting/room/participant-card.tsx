@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { cn } from "@/lib/utils";
 import type { MeetingTrackType } from "@/shared/services/meeting.service";
+import { MonitorOff } from "lucide-react";
 
 import { AudioTrackView, VideoTrackView } from "./track-view";
 import type { Participant } from "./types";
@@ -26,8 +27,11 @@ type ParticipantCardProps = {
   renderAudio?: boolean;
   renderVideo?: boolean;
   canManageParticipantMedia?: boolean;
+  canForceStopScreenShare?: boolean;
+  isForceStoppingScreenShare?: boolean;
   mutingParticipantTrack?: MutingParticipantTrack | null;
   onMuteParticipantTrack?: (participant: Participant, trackType: MeetingTrackType) => void;
+  onForceStopScreenShare?: (participant: Participant) => void;
 };
 
 export default function ParticipantCard({
@@ -39,8 +43,11 @@ export default function ParticipantCard({
   renderAudio = true,
   renderVideo = true,
   canManageParticipantMedia = false,
+  canForceStopScreenShare = false,
+  isForceStoppingScreenShare = false,
   mutingParticipantTrack,
   onMuteParticipantTrack,
+  onForceStopScreenShare,
 }: ParticipantCardProps) {
   const isActiveSpeaker = !participant.isMuted && participant.isSpeaking;
   const shouldRenderVideo = renderVideo && !participant.isCameraOff && participant.cameraTrack;
@@ -56,7 +63,9 @@ export default function ParticipantCard({
   const actionMenuRef = useRef<HTMLDivElement | null>(null);
   const canMuteAudio = canMuteParticipantMedia && !participant.isMuted;
   const canMuteVideo = canMuteParticipantMedia && !participant.isCameraOff;
-  const hasActionMenu = canMuteAudio || canMuteVideo;
+  const canStopScreenShare =
+    canForceStopScreenShare && participant.isScreenSharing && !participant.isLocal;
+  const hasActionMenu = canMuteAudio || canMuteVideo || canStopScreenShare;
 
   useEffect(() => {
     if (!isActionMenuOpen) {
@@ -221,6 +230,21 @@ export default function ParticipantCard({
                       >
                         <VideoOff className="h-4 w-4" />
                         Turn off camera
+                      </button>
+                    ) : null}
+
+                    {canStopScreenShare ? (
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition hover:bg-red-500/20 hover:text-red-100 disabled:pointer-events-none disabled:opacity-50"
+                        disabled={isForceStoppingScreenShare}
+                        onClick={() => {
+                          setIsActionMenuOpen(false);
+                          onForceStopScreenShare?.(participant);
+                        }}
+                      >
+                        <MonitorOff className="h-4 w-4" />
+                        Stop presenting
                       </button>
                     ) : null}
                   </div>

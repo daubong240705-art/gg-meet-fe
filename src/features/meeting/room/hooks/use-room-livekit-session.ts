@@ -30,6 +30,7 @@ type UseRoomLiveKitSessionParams = {
     room: LiveKitRoom,
   ) => void;
   onDeviceChange: (room: LiveKitRoom) => void;
+  onRoomMetadataChanged?: (metadata: string) => void;
   onError: (message: string | null) => void;
   onReset: () => void;
 };
@@ -49,6 +50,7 @@ export function useRoomLiveKitSession({
   onLocalAttributesChange,
   onChatMessage,
   onDeviceChange,
+  onRoomMetadataChanged,
   onError,
   onReset,
 }: UseRoomLiveKitSessionParams) {
@@ -81,6 +83,7 @@ export function useRoomLiveKitSession({
     onLocalAttributesChange,
     onChatMessage,
     onDeviceChange,
+    onRoomMetadataChanged,
     onError: handleLiveKitError,
     onReset: handleLiveKitReset,
   });

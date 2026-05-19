@@ -1,1 +1,1 @@
-export type FooterMenuKey = "microphone" | "camera" | "screen" | null;
+export type FooterMenuKey = "microphone" | "camera" | "screen" | "settings" | null;

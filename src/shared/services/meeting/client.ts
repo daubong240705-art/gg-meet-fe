@@ -10,6 +10,7 @@ import type {
   CancelJoinRequest,
   CreateMeetingResponseData,
   EndMeetingResponseData,
+  ForceStopScreenShareResponseData,
   GuestJoinRequest,
   JoinMeetingResponseData,
   JoinRequestStatusResponseData,
@@ -19,6 +20,11 @@ import type {
   MuteParticipantTrackResponseData,
   ScheduleMeetingRequest,
   ScheduleMeetingResponseData,
+  ScreenShareApproveResponseData,
+  ScreenShareRejectResponseData,
+  ScreenShareRequestResponseData,
+  UpdateRoomSettingsRequest,
+  UpdateRoomSettingsResponseData,
   UpcomingMeetingsResponseData,
   VerifyMeetingResponseData,
   WaitingRoomRequestData,
@@ -212,6 +218,98 @@ export const meetingApi = {
       accessToken,
       redirectOnAuthFail: false,
       nextOption: options?.keepalive ? { keepalive: true } : undefined,
+    });
+  },
+
+  updateRoomSettings(
+    meetingCode: string,
+    settings: UpdateRoomSettingsRequest,
+    meetingToken?: string | null,
+  ) {
+    const accessToken =
+      typeof window !== "undefined" ? readStoredAccessToken() : null;
+
+    return sendRequest<IBackendRes<UpdateRoomSettingsResponseData>>({
+      url: `${API_URL}/meetings/${encodeURIComponent(meetingCode)}/settings`,
+      method: "PATCH",
+      body: settings,
+      headers: getMeetingTokenHeaders(meetingToken),
+      useCredentials: true,
+      auth: Boolean(accessToken),
+      accessToken,
+      redirectOnAuthFail: false,
+    });
+  },
+
+  requestScreenShare(meetingCode: string, meetingToken?: string | null) {
+    const accessToken =
+      typeof window !== "undefined" ? readStoredAccessToken() : null;
+
+    return sendRequest<IBackendRes<ScreenShareRequestResponseData>>({
+      url: `${API_URL}/meetings/${encodeURIComponent(meetingCode)}/screen-share-requests`,
+      method: "POST",
+      headers: getMeetingTokenHeaders(meetingToken),
+      useCredentials: true,
+      auth: Boolean(accessToken),
+      accessToken,
+      redirectOnAuthFail: false,
+    });
+  },
+
+  approveScreenShare(
+    meetingCode: string,
+    requesterId: number,
+    meetingToken?: string | null,
+  ) {
+    const accessToken =
+      typeof window !== "undefined" ? readStoredAccessToken() : null;
+
+    return sendRequest<IBackendRes<ScreenShareApproveResponseData>>({
+      url: `${API_URL}/meetings/${encodeURIComponent(meetingCode)}/screen-share-requests/${requesterId}/approve`,
+      method: "POST",
+      headers: getMeetingTokenHeaders(meetingToken),
+      useCredentials: true,
+      auth: Boolean(accessToken),
+      accessToken,
+      redirectOnAuthFail: false,
+    });
+  },
+
+  rejectScreenShare(
+    meetingCode: string,
+    requesterId: number,
+    meetingToken?: string | null,
+  ) {
+    const accessToken =
+      typeof window !== "undefined" ? readStoredAccessToken() : null;
+
+    return sendRequest<IBackendRes<ScreenShareRejectResponseData>>({
+      url: `${API_URL}/meetings/${encodeURIComponent(meetingCode)}/screen-share-requests/${requesterId}/reject`,
+      method: "POST",
+      headers: getMeetingTokenHeaders(meetingToken),
+      useCredentials: true,
+      auth: Boolean(accessToken),
+      accessToken,
+      redirectOnAuthFail: false,
+    });
+  },
+
+  forceStopScreenShare(
+    meetingCode: string,
+    targetId: number,
+    meetingToken?: string | null,
+  ) {
+    const accessToken =
+      typeof window !== "undefined" ? readStoredAccessToken() : null;
+
+    return sendRequest<IBackendRes<ForceStopScreenShareResponseData>>({
+      url: `${API_URL}/meetings/${encodeURIComponent(meetingCode)}/screen-share/${targetId}/stop`,
+      method: "POST",
+      headers: getMeetingTokenHeaders(meetingToken),
+      useCredentials: true,
+      auth: Boolean(accessToken),
+      accessToken,
+      redirectOnAuthFail: false,
     });
   },
 

@@ -12,6 +12,7 @@ type SplitControlButtonProps = {
   isActive?: boolean;
   isDestructive?: boolean;
   isMenuOpen?: boolean;
+  isMainDisabled?: boolean;
   onMainClick: () => void;
   onMenuClick: () => void;
 };
@@ -24,6 +25,7 @@ export function SplitControlButton({
   isActive = false,
   isDestructive = false,
   isMenuOpen = false,
+  isMainDisabled = false,
   onMainClick,
   onMenuClick,
 }: SplitControlButtonProps) {
@@ -46,12 +48,14 @@ export function SplitControlButton({
           type="button"
           aria-label={mainAriaLabel}
           title={label}
+          disabled={isMainDisabled}
           onClick={onMainClick}
           className={cn(
             "flex size-10 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
             "motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 motion-reduce:transform-none",
+            "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0",
             toneClassName,
-            hoverToneClassName,
+            !isMainDisabled && hoverToneClassName,
           )}
         >
           <Icon className="h-5 w-5" />

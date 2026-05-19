@@ -113,6 +113,125 @@ export function getParticipantAvatarFromMetadata(metadata?: string | null) {
   }
 }
 
+function getStringField(
+  data: Record<string, unknown>,
+  fieldNames: string[],
+): string | null {
+  for (const fieldName of fieldNames) {
+    const value = data[fieldName];
+
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function getNestedRecordField(
+  data: Record<string, unknown>,
+  fieldNames: string[],
+): Record<string, unknown> | null {
+  for (const fieldName of fieldNames) {
+    const value = data[fieldName];
+
+    if (typeof value === "object" && value !== null) {
+      return value as Record<string, unknown>;
+    }
+  }
+
+  return null;
+}
+
+export function getParticipantDisplayNameFromRecord(
+  data?: Record<string, unknown> | null,
+): string | null {
+  if (!data) {
+    return null;
+  }
+
+  const directName = getStringField(data, [
+    "displayName",
+    "display_name",
+    "fullName",
+    "full_name",
+    "name",
+    "participantName",
+    "participant_name",
+    "targetName",
+    "target_name",
+    "requesterName",
+    "requester_name",
+    "userName",
+    "username",
+    "user_name",
+    "guestName",
+    "guest_name",
+    "email",
+  ]);
+
+  if (directName) {
+    return directName;
+  }
+
+  const nestedRecord = getNestedRecordField(data, [
+    "user",
+    "guest",
+    "participant",
+    "target",
+    "requester",
+    "profile",
+  ]);
+
+  return nestedRecord ? getParticipantDisplayNameFromRecord(nestedRecord) : null;
+}
+
+function normalizeFallbackDisplayName(fallback: string) {
+  const normalizedFallback = fallback.trim();
+
+  if (!normalizedFallback) {
+    return "Guest";
+  }
+
+  try {
+    const parsedFallback = JSON.parse(normalizedFallback) as unknown;
+
+    if (typeof parsedFallback === "object" && parsedFallback !== null) {
+      return getParticipantDisplayNameFromRecord(parsedFallback as Record<string, unknown>)
+        ?? "Guest";
+    }
+  } catch {
+    return normalizedFallback;
+  }
+
+  return normalizedFallback;
+}
+
+export function normalizeParticipantDisplayName(
+  value?: string | null,
+  fallback = "Guest",
+): string {
+  const normalizedFallback = normalizeFallbackDisplayName(fallback);
+  const normalizedValue = value?.trim();
+
+  if (!normalizedValue) {
+    return normalizedFallback;
+  }
+
+  try {
+    const parsedValue = JSON.parse(normalizedValue) as unknown;
+
+    if (typeof parsedValue === "object" && parsedValue !== null) {
+      return getParticipantDisplayNameFromRecord(parsedValue as Record<string, unknown>)
+        ?? normalizedFallback;
+    }
+  } catch {
+    return normalizedValue;
+  }
+
+  return normalizedValue;
+}
+
 export function getParticipantIdFromMetadata(metadata?: string | null): number | null {
   if (!metadata) {
     return null;

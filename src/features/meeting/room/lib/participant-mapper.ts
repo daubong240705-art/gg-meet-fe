@@ -17,6 +17,7 @@ import {
   getParticipantIdFromMetadata,
   getParticipantIdFromRecord,
   getParticipantRoleFromMetadata,
+  normalizeParticipantDisplayName,
 } from "./metadata";
 
 function isHostParticipant({
@@ -57,8 +58,8 @@ function isHostParticipant({
   return false;
 }
 
-function getParticipantStatus(participant: LiveKitParticipant) {
-  if (participant.isScreenShareEnabled) {
+function getParticipantStatus(participant: LiveKitParticipant, isScreenSharing: boolean) {
+  if (isScreenSharing) {
     return "Presenting";
   }
 
@@ -115,6 +116,7 @@ export function mapParticipantToUiParticipant(
   const audioPublication = participant.getTrackPublication(Track.Source.Microphone);
   const screenSharePublication = participant.getTrackPublication(Track.Source.ScreenShare);
   const participantTracks = getLiveKitParticipantTracks(participant);
+  const isScreenSharing = Boolean(screenSharePublication && !screenSharePublication.isMuted);
   const participantAvatarUrl = participant.isLocal
     ? localAvatarUrl
     : getParticipantAvatarFromMetadata(participant.metadata);
@@ -128,6 +130,12 @@ export function mapParticipantToUiParticipant(
   const participantId = participant.isLocal
     ? (localParticipantId ?? resolveParticipantId(participant))
     : resolveParticipantId(participant);
+  const participantDisplayName = participant.isLocal
+    ? localDisplayName
+    : normalizeParticipantDisplayName(
+      participant.name,
+      normalizeParticipantDisplayName(participant.metadata, participant.identity || "Guest"),
+    );
 
   return {
     id: identity,
@@ -136,10 +144,10 @@ export function mapParticipantToUiParticipant(
     name:
       participant.isLocal
         ? localDisplayName
-        : participant.name?.trim() || participant.identity || "Guest",
+        : participantDisplayName,
     avatarSource: participant.isLocal
       ? localEmail?.trim() || identity
-      : participant.identity?.trim() || participant.name?.trim() || identity,
+      : participant.identity?.trim() || participantDisplayName || identity,
     avatarUrl: participantAvatarUrl,
     isHost: isHostParticipant({
       participant,
@@ -153,9 +161,9 @@ export function mapParticipantToUiParticipant(
     isMuted: !(audioPublication && !audioPublication.isMuted),
     isCameraOff: !(cameraPublication && !cameraPublication.isMuted),
     isSpeaking: participant.isSpeaking,
-    isScreenSharing: Boolean(screenSharePublication),
+    isScreenSharing,
     accentClassName: getParticipantAccentClassName(identity),
-    status: getParticipantStatus(participant),
+    status: getParticipantStatus(participant, isScreenSharing),
     cameraTrack: participantTracks.cameraTrack,
     audioTrack: participant.isLocal ? null : participantTracks.audioTrack,
     screenShareTrack: participantTracks.screenShareTrack,

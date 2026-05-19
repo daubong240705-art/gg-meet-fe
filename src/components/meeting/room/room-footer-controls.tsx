@@ -1,20 +1,24 @@
 "use client";
 
-import { Hand, Mic, MicOff, Monitor, Phone, Video, VideoOff } from "lucide-react";
+import { Hand, Mic, MicOff, Monitor, Phone, Settings, Video, VideoOff } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import type { RoomSettings, UpdateRoomSettingsRequest } from "@/shared/services/meeting/types";
 
 import { RoomFooterDeviceMenu } from "./room-footer-device-menu";
 import { RoomFooterScreenMenu } from "./room-footer-screen-menu";
 import type { FooterMenuKey } from "./room-footer-types";
+import { RoomSettingsMenu } from "./room-settings-menu";
 import { SplitControlButton } from "./split-control-button";
 
 type RoomFooterControlsProps = {
   isCompactControlsOpen: boolean;
   openMenu: FooterMenuKey;
   isMicEnabled: boolean;
+  canUnmuteMicrophone: boolean;
   isCameraEnabled: boolean;
   isScreenSharing: boolean;
+  isWaitingForShareApproval: boolean;
   isHandRaised: boolean;
   isHandRaiseCoolingDown: boolean;
   microphoneDevices: MediaDeviceInfo[];
@@ -22,8 +26,11 @@ type RoomFooterControlsProps = {
   activeMicrophoneId: string;
   activeCameraId: string;
   isHost: boolean;
+  roomSettings: RoomSettings;
+  updatingRoomSettingsFields: Partial<Record<keyof RoomSettings, boolean>>;
   onToggleMenu: (menu: Exclude<FooterMenuKey, null>) => void;
   onCloseMenu: () => void;
+  onUpdateRoomSettings: (patch: UpdateRoomSettingsRequest) => void;
   onToggleMic: () => void;
   onToggleCamera: () => void;
   onToggleScreenShare: () => void;
@@ -39,8 +46,10 @@ export function RoomFooterControls({
   isCompactControlsOpen,
   openMenu,
   isMicEnabled,
+  canUnmuteMicrophone,
   isCameraEnabled,
   isScreenSharing,
+  isWaitingForShareApproval,
   isHandRaised,
   isHandRaiseCoolingDown,
   microphoneDevices,
@@ -48,8 +57,11 @@ export function RoomFooterControls({
   activeMicrophoneId,
   activeCameraId,
   isHost,
+  roomSettings,
+  updatingRoomSettingsFields,
   onToggleMenu,
   onCloseMenu,
+  onUpdateRoomSettings,
   onToggleMic,
   onToggleCamera,
   onToggleScreenShare,
@@ -70,12 +82,17 @@ export function RoomFooterControls({
       >
         <div className="relative">
           <SplitControlButton
-            label={isMicEnabled ? "Mute microphone" : "Unmute microphone"}
+            label={
+              !isMicEnabled && !canUnmuteMicrophone
+                ? "Microphone locked by host"
+                : isMicEnabled ? "Mute microphone" : "Unmute microphone"
+            }
             icon={isMicEnabled ? Mic : MicOff}
             mainAriaLabel={isMicEnabled ? "Mute microphone" : "Unmute microphone"}
             menuAriaLabel="Open microphone device menu"
             isDestructive={!isMicEnabled}
             isMenuOpen={openMenu === "microphone"}
+            isMainDisabled={!isMicEnabled && !canUnmuteMicrophone}
             onMainClick={() => {
               onCloseMenu();
               onToggleMic();
@@ -138,6 +155,7 @@ export function RoomFooterControls({
           {openMenu === "screen" ? (
             <RoomFooterScreenMenu
               isScreenSharing={isScreenSharing}
+              isWaitingForApproval={isWaitingForShareApproval}
               onToggleScreenShare={onToggleScreenShare}
               onPresentOtherContent={onPresentOtherContent}
               onClose={onCloseMenu}
@@ -164,6 +182,33 @@ export function RoomFooterControls({
         >
           <Hand className="h-5 w-5" />
         </button>
+
+        {isHost ? (
+          <div className="relative">
+            <button
+              type="button"
+              aria-label="Room settings"
+              title="Room settings"
+              onClick={() => onToggleMenu("settings")}
+              className={cn(
+                "flex size-11 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 motion-reduce:transform-none",
+                openMenu === "settings"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-secondary text-secondary-foreground hover:bg-secondary/85",
+              )}
+            >
+              <Settings className="h-5 w-5" />
+            </button>
+            {openMenu === "settings" ? (
+              <RoomSettingsMenu
+                settings={roomSettings}
+                updatingFields={updatingRoomSettingsFields}
+                onUpdateSettings={onUpdateRoomSettings}
+                onClose={onCloseMenu}
+              />
+            ) : null}
+          </div>
+        ) : null}
 
         <button
           type="button"
