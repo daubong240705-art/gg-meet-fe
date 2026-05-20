@@ -113,7 +113,14 @@ export function useRoomMediaControls({
       updateMicEnabled(!nextValue);
       onError(errorMessage);
     });
-  }, [isLiveKitEnabled, isMicEnabled, onError, roomRef, updateMicEnabled]);
+  }, [
+    canUnmuteMicrophone,
+    isLiveKitEnabled,
+    isMicEnabled,
+    onError,
+    roomRef,
+    updateMicEnabled,
+  ]);
 
   const handleToggleCamera = useCallback(() => {
     const nextValue = !isCameraEnabled;

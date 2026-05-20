@@ -35,6 +35,24 @@ function parseRoomSettingsMetadata(metadata: string | undefined | null): RoomSet
   }
 }
 
+// Only returns fields that are explicitly present in the JSON — used for safe merge updates.
+function parseRoomSettingsMetadataPartial(metadata: string | undefined | null): Partial<RoomSettings> {
+  if (!metadata?.trim()) return {};
+  try {
+    const parsed = JSON.parse(metadata) as Record<string, unknown>;
+    const result: Partial<RoomSettings> = {};
+    if (typeof parsed.allowParticipantUnmute === "boolean") {
+      result.allowParticipantUnmute = parsed.allowParticipantUnmute;
+    }
+    if (typeof parsed.allowParticipantShareScreen === "boolean") {
+      result.allowParticipantShareScreen = parsed.allowParticipantShareScreen;
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
 function applyRoomSettingsPatch(
   current: RoomSettings,
   patch: UpdateRoomSettingsRequest,
@@ -67,8 +85,12 @@ export function useRoomSettings({
   const pendingUpdateRef = useRef<Partial<Record<keyof RoomSettings, boolean>>>({});
 
   const handleRoomMetadataChanged = useCallback((metadata: string) => {
-    const nextSettings = parseRoomSettingsMetadata(metadata);
-    setSettings(nextSettings);
+    // Merge only fields present in the metadata to avoid resetting unrelated settings
+    // when BE writes a partial metadata update.
+    const patch = parseRoomSettingsMetadataPartial(metadata);
+    if (Object.keys(patch).length > 0) {
+      setSettings((current) => ({ ...current, ...patch }));
+    }
     setUpdatingFields((current) => {
       const cleared: Partial<Record<keyof RoomSettings, boolean>> = {};
       for (const key of Object.keys(current) as (keyof RoomSettings)[]) {
@@ -81,6 +103,12 @@ export function useRoomSettings({
       }
       return cleared;
     });
+  }, []);
+
+  const patchSettings = useCallback((patch: Partial<RoomSettings>) => {
+    if (Object.keys(patch).length > 0) {
+      setSettings((current) => ({ ...current, ...patch }));
+    }
   }, []);
 
   const handleRoomConnected = useCallback(() => {
@@ -134,5 +162,6 @@ export function useRoomSettings({
     handleRoomMetadataChanged,
     handleRoomConnected,
     updateSettings,
+    patchSettings,
   };
 }

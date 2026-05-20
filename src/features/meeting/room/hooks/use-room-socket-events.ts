@@ -8,6 +8,7 @@ import type {
   MeetingSocketConnection,
   MeetingSocketMessage,
 } from "@/lib/meeting/meeting-websocket";
+import type { RoomSettings } from "@/shared/services/meeting/types";
 
 type UseRoomSocketEventsParams = {
   meetingCode: string;
@@ -28,6 +29,7 @@ type UseRoomSocketEventsParams = {
   onScreenShareApproved?: (message: MeetingSocketMessage) => void;
   onScreenShareRejected?: (message: MeetingSocketMessage) => void;
   onScreenShareStopped?: (message: MeetingSocketMessage) => void;
+  onRoomSettingsChanged?: (patch: Partial<RoomSettings>) => void;
 };
 
 function normalizeSocketAction(action?: string | null) {
@@ -106,6 +108,7 @@ export function useRoomSocketEvents({
   onScreenShareApproved,
   onScreenShareRejected,
   onScreenShareStopped,
+  onRoomSettingsChanged,
 }: UseRoomSocketEventsParams) {
   useEffect(() => {
     disconnectMeetingSocket(meetingSocketRef.current);
@@ -172,6 +175,20 @@ export function useRoomSocketEvents({
 
         if (isScreenShareRequestedAction(action)) {
           onScreenShareRequested?.(message);
+          return;
+        }
+
+        if (action === "ROOM_SETTINGS_CHANGED") {
+          const patch: Partial<RoomSettings> = {};
+          if (message.allowParticipantUnmute != null) {
+            patch.allowParticipantUnmute = message.allowParticipantUnmute;
+          }
+          if (message.allowParticipantShareScreen != null) {
+            patch.allowParticipantShareScreen = message.allowParticipantShareScreen;
+          }
+          if (Object.keys(patch).length > 0) {
+            onRoomSettingsChanged?.(patch);
+          }
         }
       },
       onParticipantMessage: (message) => {
@@ -240,5 +257,6 @@ export function useRoomSocketEvents({
     onScreenShareApproved,
     onScreenShareRejected,
     onScreenShareStopped,
+    onRoomSettingsChanged,
   ]);
 }

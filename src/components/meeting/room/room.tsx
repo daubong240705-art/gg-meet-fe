@@ -92,6 +92,7 @@ function MeetingRoomContent({
   const roomRef = useRef<LiveKitRoom | null>(null);
   const meetingSocketRef = useRef<MeetingSocketConnection | null>(null);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleRoomDeviceError = useCallback((_message: string | null) => {
     // errors surfaced via toast in individual hooks
   }, []);
@@ -139,6 +140,7 @@ function MeetingRoomContent({
     handleRoomMetadataChanged,
     handleRoomConnected,
     updateSettings: updateRoomSettings,
+    patchSettings: patchRoomSettings,
   } = useRoomSettings({
     roomRef,
     meetingCode,
@@ -430,6 +432,7 @@ function MeetingRoomContent({
     onScreenShareApproved: handleScreenShareApproved,
     onScreenShareRejected: handleScreenShareRejected,
     onScreenShareStopped: handleScreenShareStopped,
+    onRoomSettingsChanged: patchRoomSettings,
   });
 
   // Show pending screen share requests as toasts with actions (host only)
