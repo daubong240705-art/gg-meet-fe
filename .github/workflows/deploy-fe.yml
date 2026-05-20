@@ -16,15 +16,6 @@ jobs:
     runs-on: [self-hosted, kallio-local-fe]
 
     steps:
-      - name: Debug runner env
-        shell: sh
-        run: |
-          pwd
-          echo "SHELL=$SHELL"
-          env | sort | grep -E 'BASH_ENV|RUNNER|GITHUB|PATH' || true
-
       - name: Deploy frontend on local machine
-        shell: sh
         run: |
-          unset BASH_ENV
-          /usr/bin/env -u BASH_ENV /usr/bin/bash --noprofile --norc /home/lazy/kallio/deploy-fe.sh
+          bash /home/lazy/kallio/deploy-fe.sh
