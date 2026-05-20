@@ -170,6 +170,7 @@ function MeetingRoomContent({
     handleToggleMic,
     handleToggleCamera,
     syncLocalMediaState,
+    suppressLocalMediaNotifications,
   } = useRoomMediaControls({
     roomRef,
     isLiveKitEnabled,
@@ -253,6 +254,7 @@ function MeetingRoomContent({
     roomRef,
     meetingSocketRef,
     disconnectMeetingSocket,
+    onBeforeExit: suppressLocalMediaNotifications,
     resetHandRaise,
     onLeave,
     onError: handleRoomDeviceError,

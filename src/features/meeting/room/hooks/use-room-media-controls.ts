@@ -29,6 +29,7 @@ export function useRoomMediaControls({
   const pendingLocalAudioMuteRef = useRef(false);
   const pendingLocalAudioUnmuteRef = useRef(false);
   const pendingLocalVideoMuteRef = useRef(false);
+  const shouldSuppressLocalMediaNotificationsRef = useRef(false);
 
   const updateMicEnabled = useCallback((isEnabled: boolean) => {
     isMicEnabledRef.current = isEnabled;
@@ -38,6 +39,10 @@ export function useRoomMediaControls({
   const updateCameraEnabled = useCallback((isEnabled: boolean) => {
     isCameraEnabledRef.current = isEnabled;
     setIsCameraEnabled(isEnabled);
+  }, []);
+
+  const suppressLocalMediaNotifications = useCallback(() => {
+    shouldSuppressLocalMediaNotificationsRef.current = true;
   }, []);
 
   const syncLocalMediaState = useCallback((room?: LiveKitRoom | null) => {
@@ -55,6 +60,8 @@ export function useRoomMediaControls({
     );
     const nextMicEnabled = Boolean(microphonePublication && !microphonePublication.isMuted);
     const nextCameraEnabled = Boolean(cameraPublication && !cameraPublication.isMuted);
+    const shouldShowRemoteMediaChangeToast =
+      !shouldSuppressLocalMediaNotificationsRef.current;
 
     if (!hasSyncedLocalMediaRef.current) {
       hasSyncedLocalMediaRef.current = true;
@@ -74,7 +81,7 @@ export function useRoomMediaControls({
       if (isMicEnabledRef.current && !nextMicEnabled) {
         if (pendingLocalAudioMuteRef.current) {
           pendingLocalAudioMuteRef.current = false;
-        } else {
+        } else if (shouldShowRemoteMediaChangeToast) {
           toast("Microphone muted", {
             description: "Host muted your microphone.",
           });
@@ -86,7 +93,7 @@ export function useRoomMediaControls({
     if (isCameraEnabledRef.current && !nextCameraEnabled) {
       if (pendingLocalVideoMuteRef.current) {
         pendingLocalVideoMuteRef.current = false;
-      } else {
+      } else if (shouldShowRemoteMediaChangeToast) {
         toast("Camera turned off", {
           description: "Host turned off your camera.",
         });
@@ -166,5 +173,6 @@ export function useRoomMediaControls({
     handleToggleMic,
     handleToggleCamera,
     syncLocalMediaState,
+    suppressLocalMediaNotifications,
   };
 }

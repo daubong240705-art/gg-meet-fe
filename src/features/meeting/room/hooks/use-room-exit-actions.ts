@@ -15,6 +15,7 @@ type UseRoomExitActionsParams = {
   roomRef: { current: LiveKitRoom | null };
   meetingSocketRef: { current: MeetingSocketConnection | null };
   disconnectMeetingSocket: (connection?: MeetingSocketConnection | null) => void;
+  onBeforeExit?: () => void;
   resetHandRaise: () => void;
   onLeave: (reason?: "left" | "ended" | "kicked" | "banned") => void;
   onError: (message: string) => void;
@@ -27,6 +28,7 @@ export function useRoomExitActions({
   roomRef,
   meetingSocketRef,
   disconnectMeetingSocket,
+  onBeforeExit,
   resetHandRaise,
   onLeave,
   onError,
@@ -40,12 +42,13 @@ export function useRoomExitActions({
     }
 
     hasExitedMeetingRef.current = true;
+    onBeforeExit?.();
     resetHandRaise();
     disconnectMeetingSocket(meetingSocketRef.current);
     meetingSocketRef.current = null;
     roomRef.current?.disconnect();
     onLeave(reason);
-  }, [disconnectMeetingSocket, meetingSocketRef, onLeave, resetHandRaise, roomRef]);
+  }, [disconnectMeetingSocket, meetingSocketRef, onBeforeExit, onLeave, resetHandRaise, roomRef]);
 
   const reportLeaveMeeting = useCallback(() => {
     if (localMeetingParticipantId === null) {
