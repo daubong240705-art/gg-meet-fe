@@ -59,10 +59,6 @@ export function useRoomTargetedMute({
       );
 
       assertApiSuccess(response);
-
-      toast.success(`${trackType === "AUDIO" ? "Microphone" : "Camera"} muted`, {
-        description: `${participant.name}'s ${trackLabel} was turned off.`,
-      });
     } catch (error) {
       const response = error as IBackendRes<unknown>;
       const errorMessage =

@@ -108,9 +108,6 @@ export function useRoomScreenShare({
     }
 
     if (isWaitingForShareApproval) {
-      toast("Request already sent", {
-        description: "Waiting for the host to approve your screen share request.",
-      });
       return;
     }
 
@@ -129,9 +126,6 @@ export function useRoomScreenShare({
 
     if (!canUseScreenShare) {
       if (isWaitingForShareApproval) {
-        toast("Request already sent", {
-          description: "Waiting for the host to approve your screen share request.",
-        });
         return;
       }
       setIsShareRequestDialogOpen(true);
@@ -154,9 +148,6 @@ export function useRoomScreenShare({
       await meetingApi.requestScreenShare(meetingCode, meetingToken);
       setIsWaitingForShareApproval(true);
       setIsShareRequestDialogOpen(false);
-      toast("Screen share request sent", {
-        description: "Waiting for the host to approve.",
-      });
     } catch {
       toast.error("Failed to send screen share request.", {
         description: "Please try again.",

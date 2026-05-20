@@ -80,6 +80,7 @@ function MeetingRoomContent({
     resolvedHostName,
     localMeetingParticipantId,
     canManageWaitingRoom,
+    localUserCanUseHostMediaControls,
     fallbackLocalParticipantIsHost,
   } = useRoomIdentity({
     title,
@@ -92,9 +93,21 @@ function MeetingRoomContent({
   const roomRef = useRef<LiveKitRoom | null>(null);
   const meetingSocketRef = useRef<MeetingSocketConnection | null>(null);
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleRoomDeviceError = useCallback((_message: string | null) => {
-    // errors surfaced via toast in individual hooks
+  const handleRoomDeviceError = useCallback((message: string | null) => {
+    if (!message) {
+      return;
+    }
+
+    const isPermissionError = message === "Permission denied"
+      || message.toLowerCase().includes("permission denied")
+      || message.toLowerCase().includes("notallowederror");
+
+    toast.error(isPermissionError ? "Microphone access denied" : "Unable to update media", {
+      id: "media-device-error",
+      description: isPermissionError
+        ? "Allow microphone access in your browser settings, then try again."
+        : message,
+    });
   }, []);
 
   const { isPageVisible, isViewportResizing } = useRoomViewportState();
@@ -147,8 +160,8 @@ function MeetingRoomContent({
     meetingToken,
   });
 
-  // canUnmuteMicrophone: host always can, participant can if setting allows OR if already unmuted
-  const canUnmuteMicrophone = canManageWaitingRoom
+  // Host always can unmute; participants can only unmute when room settings allow it.
+  const canUnmuteMicrophone = localUserCanUseHostMediaControls
     || roomSettings.allowParticipantUnmute;
 
   const {
@@ -434,24 +447,6 @@ function MeetingRoomContent({
     onScreenShareStopped: handleScreenShareStopped,
     onRoomSettingsChanged: patchRoomSettings,
   });
-
-  // Show pending screen share requests as toasts with actions (host only)
-  useEffect(() => {
-    if (!canManageWaitingRoom || pendingShareRequests.length === 0) return;
-
-    const latestRequest = pendingShareRequests[pendingShareRequests.length - 1];
-    if (!latestRequest) return;
-
-    toast(`${latestRequest.requesterName} wants to present`, {
-      description: "Approve or reject their screen share request.",
-      duration: 10000,
-      action: {
-        label: "Approve",
-        onClick: () => void approveRequest(latestRequest.requesterId),
-      },
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingShareRequests.length]);
 
   return (
     <div className="h-screen overflow-hidden bg-background">

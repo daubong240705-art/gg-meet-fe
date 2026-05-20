@@ -113,9 +113,6 @@ export function useLobbyJoinFlow({
     setPendingJoinState(null);
     setIsWaitingSocketConnected(false);
     setWaitingSocketError("");
-    toast.error("Meeting ended", {
-      description: "The host ended this meeting while your join request was still pending.",
-    });
     onMeetingEnded();
   }, [
     clearDisconnectCancelTimeout,
@@ -295,9 +292,6 @@ export function useLobbyJoinFlow({
         updatePendingJoinState(nextJoinPayload);
         setWaitingSocketError("");
         setWaitingSocketRetryKey((currentValue) => currentValue + 1);
-        toast.success("Request sent", {
-          description: "Stay on this page while the host reviews your request.",
-        });
         return;
       }
 

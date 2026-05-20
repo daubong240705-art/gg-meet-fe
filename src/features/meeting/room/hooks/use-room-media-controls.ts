@@ -27,6 +27,7 @@ export function useRoomMediaControls({
   const isCameraEnabledRef = useRef(initialCameraEnabled);
   const hasSyncedLocalMediaRef = useRef(false);
   const pendingLocalAudioMuteRef = useRef(false);
+  const pendingLocalAudioUnmuteRef = useRef(false);
   const pendingLocalVideoMuteRef = useRef(false);
 
   const updateMicEnabled = useCallback((isEnabled: boolean) => {
@@ -62,14 +63,24 @@ export function useRoomMediaControls({
       return;
     }
 
-    if (isMicEnabledRef.current && !nextMicEnabled) {
-      if (pendingLocalAudioMuteRef.current) {
-        pendingLocalAudioMuteRef.current = false;
-      } else {
-        toast("Microphone muted", {
-          description: "Host muted your microphone.",
-        });
+    if (pendingLocalAudioUnmuteRef.current) {
+      if (nextMicEnabled) {
+        // Track reached the expected unmuted state — confirm and clear
+        pendingLocalAudioUnmuteRef.current = false;
+        updateMicEnabled(true);
       }
+      // else: unmute still in flight — preserve optimistic state, skip update
+    } else {
+      if (isMicEnabledRef.current && !nextMicEnabled) {
+        if (pendingLocalAudioMuteRef.current) {
+          pendingLocalAudioMuteRef.current = false;
+        } else {
+          toast("Microphone muted", {
+            description: "Host muted your microphone.",
+          });
+        }
+      }
+      updateMicEnabled(nextMicEnabled);
     }
 
     if (isCameraEnabledRef.current && !nextCameraEnabled) {
@@ -82,7 +93,6 @@ export function useRoomMediaControls({
       }
     }
 
-    updateMicEnabled(nextMicEnabled);
     updateCameraEnabled(nextCameraEnabled);
   }, [isLiveKitEnabled, roomRef, updateCameraEnabled, updateMicEnabled]);
 
@@ -96,7 +106,13 @@ export function useRoomMediaControls({
       return;
     }
 
-    pendingLocalAudioMuteRef.current = !nextValue;
+    if (nextValue) {
+      pendingLocalAudioMuteRef.current = false;
+      pendingLocalAudioUnmuteRef.current = true;
+    } else {
+      pendingLocalAudioMuteRef.current = true;
+      pendingLocalAudioUnmuteRef.current = false;
+    }
     updateMicEnabled(nextValue);
 
     const room = roomRef.current;
@@ -110,6 +126,7 @@ export function useRoomMediaControls({
         error instanceof Error ? error.message : "Unable to update microphone.";
 
       pendingLocalAudioMuteRef.current = false;
+      pendingLocalAudioUnmuteRef.current = false;
       updateMicEnabled(!nextValue);
       onError(errorMessage);
     });

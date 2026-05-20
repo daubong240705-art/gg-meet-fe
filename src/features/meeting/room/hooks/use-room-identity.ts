@@ -44,6 +44,9 @@ export function useRoomIdentity({
     const resolvedHostName = hostName?.trim() || null;
     const localMeetingParticipantId = decodedMeetingToken.participantId;
     const canManageWaitingRoom = localMeetingRole === "HOST" || localRole === "HOST";
+    const localUserCanUseHostMediaControls =
+      canManageWaitingRoom
+      || (resolvedHostId !== null && localTokenPayload?.sub?.trim() === resolvedHostId);
     const fallbackLocalParticipantIsHost =
       localRole === "HOST"
       || localMeetingRole === "HOST"
@@ -65,6 +68,7 @@ export function useRoomIdentity({
       resolvedHostName,
       localMeetingParticipantId,
       canManageWaitingRoom,
+      localUserCanUseHostMediaControls,
       fallbackLocalParticipantIsHost,
     };
   }, [

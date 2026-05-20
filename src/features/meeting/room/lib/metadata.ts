@@ -3,6 +3,16 @@ export function normalizeParticipantRole(role?: string | null) {
   return normalizedRole || null;
 }
 
+const ROLE_FIELD_NAMES = [
+  "role",
+  "participantRole",
+  "participant_role",
+  "meetingRole",
+  "meeting_role",
+  "userRole",
+  "user_role",
+];
+
 function getFiniteNumber(value: unknown): number | null {
   if (typeof value === "number") {
     return Number.isFinite(value) ? value : null;
@@ -82,10 +92,18 @@ export function getParticipantRoleFromMetadata(metadata?: string | null) {
   }
 
   try {
-    const parsedMetadata = JSON.parse(metadata);
+    const parsedMetadata = JSON.parse(metadata) as unknown;
 
-    if (typeof parsedMetadata === "object" && parsedMetadata !== null && "role" in parsedMetadata) {
-      return normalizeParticipantRole(String(parsedMetadata.role));
+    if (typeof parsedMetadata === "object" && parsedMetadata !== null) {
+      const metadataRecord = parsedMetadata as Record<string, unknown>;
+
+      for (const fieldName of ROLE_FIELD_NAMES) {
+        const fieldValue = metadataRecord[fieldName];
+
+        if (typeof fieldValue === "string" && fieldValue.trim()) {
+          return normalizeParticipantRole(fieldValue);
+        }
+      }
     }
   } catch {
     return normalizeParticipantRole(metadata);

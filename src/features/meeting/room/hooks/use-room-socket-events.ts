@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { toast } from "sonner";
 
 import type {
   ConnectMeetingSocketParams,
@@ -155,9 +154,6 @@ export function useRoomSocketEvents({
         }
 
         if (action === "MEETING_ENDED") {
-          toast.error("Meeting ended", {
-            description: "The host ended the meeting for everyone.",
-          });
           exitMeeting("ended");
           return;
         }
@@ -167,9 +163,6 @@ export function useRoomSocketEvents({
             removeParticipantByMeetingId(message.targetParticipantId);
           }
 
-          if (!isLocalKickMessage(message, localMeetingParticipantId) && message.targetName) {
-            toast(`${message.targetName} was removed from the meeting.`);
-          }
           return;
         }
 
@@ -201,11 +194,6 @@ export function useRoomSocketEvents({
 
         if (action === "USER_KICKED" && isLocalKickMessage(message, localMeetingParticipantId)) {
           const isBanned = message.isBan === true;
-          toast.error(isBanned ? "Banned from meeting" : "Removed from meeting", {
-            description: isBanned
-              ? "You have been banned from this meeting by the host."
-              : "You have been removed from the meeting by the host.",
-          });
           exitMeeting(isBanned ? "banned" : "kicked");
           return;
         }

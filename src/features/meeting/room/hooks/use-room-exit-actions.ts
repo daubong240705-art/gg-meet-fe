@@ -74,9 +74,6 @@ export function useRoomExitActions({
 
     void meetingApi.endMeeting(meetingCode).then((response) => {
       assertApiSuccess(response);
-      toast.success("Meeting ended", {
-        description: "Everyone has been removed from the room.",
-      });
       exitMeeting("ended");
     }).catch((error) => {
       const errorMessage =

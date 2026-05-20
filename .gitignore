@@ -47,3 +47,4 @@ pnpm-workspace.yaml
 /docs/*
 !/docs/meeting-room-hooks-refactor-plan.md
 !/docs/refactor-file-audit.md
+!/docs/toast-notification-audit.md

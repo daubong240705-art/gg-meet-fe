@@ -44,14 +44,6 @@ export function useScreenShareRequests({
       }
       return [...current, { requesterId, requesterName, requestedAt: Date.now() }];
     });
-
-    toast(`${requesterName} wants to present`, {
-      description: "Approve or reject their screen share request.",
-      action: {
-        label: "View",
-        onClick: () => {},
-      },
-    });
   }, [canManageWaitingRoom]);
 
   const approveRequest = useCallback(async (requesterId: number) => {

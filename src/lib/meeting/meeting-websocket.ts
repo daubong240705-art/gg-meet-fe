@@ -36,6 +36,12 @@ type DecodedMeetingToken = {
     meeting_participant_id?: number | string;
     sub?: number | string;
     role?: string;
+    participantRole?: string;
+    participant_role?: string;
+    meetingRole?: string;
+    meeting_role?: string;
+    userRole?: string;
+    user_role?: string;
     meetingCode?: string;
     exp?: number;
     iat?: number;
@@ -68,6 +74,25 @@ export type MeetingSocketConnection = {
 function normalizeRole(role?: string | null) {
     const normalizedRole = role?.trim().toUpperCase();
     return normalizedRole || null;
+}
+
+function getFirstStringField(
+    data: Record<string, unknown> | null | undefined,
+    fieldNames: string[],
+) {
+    if (!data) {
+        return null;
+    }
+
+    for (const fieldName of fieldNames) {
+        const value = data[fieldName];
+
+        if (typeof value === "string" && value.trim()) {
+            return value.trim();
+        }
+    }
+
+    return null;
 }
 
 function parseFiniteNumber(value: unknown) {
@@ -225,7 +250,15 @@ export function decodeMeetingToken(meetingToken?: string | null) {
 
     return {
         participantId: nextParticipantId,
-        role: normalizeRole(payload?.role),
+        role: normalizeRole(getFirstStringField(payload, [
+            "role",
+            "participantRole",
+            "participant_role",
+            "meetingRole",
+            "meeting_role",
+            "userRole",
+            "user_role",
+        ])),
         meetingCode: payload?.meetingCode?.trim() || null,
         payload,
     };
