@@ -1,0 +1,21 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+concurrency:
+  group: kallio-fe-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, kallio-local-fe]
+
+    steps:
+      - name: Deploy frontend on local machine
+        run: |
+          /home/lazy/kallio/deploy-fe.sh
