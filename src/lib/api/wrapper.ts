@@ -43,11 +43,13 @@ const getFreshToken = async (props?: RefreshProps) => {
     return refreshPromise;
 };
 
-const getJsonResponse = async (res: Response) => {
+const getJsonResponse = async (res: Response): Promise<any> => {
+    const text = await res.text().catch(() => null);
+    if (!text) return null;
     try {
-        return await res.json();
+        return JSON.parse(text);
     } catch {
-        return {};
+        return null;
     }
 };
 
@@ -104,50 +106,85 @@ export const sendRequest = async <T>(props: IRequest): Promise<T> => {
         options.credentials = "include";
     }
 
-    let res = await fetch(url, options);
+    // Guard: keepalive requests have a 64 KB body limit — remove keepalive if exceeded
+    if (options.keepalive && typeof options.body === "string" && new TextEncoder().encode(options.body).length > 60 * 1024) {
+        delete (options as any).keepalive;
+    }
+
+    let res: Response;
+    try {
+        res = await fetch(url, options);
+    } catch (networkError) {
+        return {
+            status: 0,
+            statusCode: 0,
+            message: networkError instanceof Error ? networkError.message : "Network request failed",
+            error: "NetworkError",
+        } as T;
+    }
 
     if (res.ok) {
-        return getJsonResponse(res);
+        return (await getJsonResponse(res)) ?? ({} as T);
     }
 
     if (res.status === 401 && auth) {
+        let newToken: string | null = null;
+
         try {
-            const newToken = await getFreshToken({ cookieHeader });
+            newToken = await getFreshToken({ cookieHeader });
+        } catch {
+            // refresh request itself failed (network or server error)
+        }
 
-            if (!newToken) {
-                throw new Error("Refresh failed");
-            }
-
-            finalHeaders.Authorization = `Bearer ${newToken}`;
-
-            if (isBrowser) {
-                persistAccessToken(newToken);
-            }
-
-            const retryOptions: RequestInit = {
-                ...options,
-                headers: new Headers(finalHeaders),
-            };
-
-            res = await fetch(url, retryOptions);
-
-            if (res.ok) {
-                return getJsonResponse(res);
-            }
-        } catch (error) {
-            if (isBrowser) {
-                clearStoredAccessToken();
-            }
-
+        if (!newToken) {
+            if (isBrowser) clearStoredAccessToken();
             if (isBrowser && redirectOnAuthFail) {
                 window.location.href = redirectOnAuthFail;
             }
-
-            throw error;
+            return {
+                status: 401,
+                statusCode: 401,
+                message: "Session expired",
+                error: "Unauthorized",
+            } as T;
         }
+
+        finalHeaders.Authorization = `Bearer ${newToken}`;
+        if (isBrowser) persistAccessToken(newToken);
+
+        const retryOptions: RequestInit = {
+            ...options,
+            headers: new Headers(finalHeaders),
+        };
+
+        let retryRes: Response;
+        try {
+            retryRes = await fetch(url, retryOptions);
+        } catch (networkError) {
+            return {
+                status: 0,
+                statusCode: 0,
+                message: networkError instanceof Error ? networkError.message : "Network request failed",
+                error: "NetworkError",
+            } as T;
+        }
+
+        if (retryRes.ok) {
+            return (await getJsonResponse(retryRes)) ?? ({} as T);
+        }
+
+        const retryJson: any = (await getJsonResponse(retryRes)) ?? {};
+        return {
+            ...retryJson,
+            status: retryJson?.status ?? retryRes.status,
+            statusCode: retryJson?.statusCode ?? retryRes.status,
+            message: retryJson?.message ?? "Request failed",
+            error: retryJson?.error ?? null,
+            errors: retryJson?.errors,
+        } as T;
     }
 
-    const json: any = await getJsonResponse(res);
+    const json: any = (await getJsonResponse(res)) ?? {};
 
     return {
         ...json,

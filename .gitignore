@@ -44,7 +44,3 @@ pnpm-lock.yaml
 pnpm-workspace.yaml
 
 # docs
-/docs/*
-!/docs/meeting-room-hooks-refactor-plan.md
-!/docs/refactor-file-audit.md
-!/docs/toast-notification-audit.md
