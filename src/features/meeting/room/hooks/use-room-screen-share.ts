@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Room as LiveKitRoom } from "livekit-client";
+import { Room as LiveKitRoom, Track } from "livekit-client";
 import { toast } from "sonner";
 
 import type { Participant } from "@/components/meeting/room/types";
@@ -57,14 +57,20 @@ export function useRoomScreenShare({
   useEffect(() => {
     const room = roomRef.current;
 
-    if (!room || !isLiveKitEnabled || canUseScreenShare || !isScreenSharing) {
+    if (!room || !isLiveKitEnabled || canUseScreenShare) {
+      return;
+    }
+
+    // Check the actual publication (may be muted server-side but browser capture still running).
+    const screenSharePub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
+    if (!screenSharePub) {
       return;
     }
 
     void room.localParticipant.setScreenShareEnabled(false).catch((error) => {
       onError(error instanceof Error ? error.message : "Unable to stop screen sharing.");
     });
-  }, [canUseScreenShare, isLiveKitEnabled, isScreenSharing, onError, roomRef]);
+  }, [canUseScreenShare, isLiveKitEnabled, onError, roomRef]);
 
   const startLiveKitScreenShare = useCallback((room: LiveKitRoom) => {
     void room.localParticipant.setScreenShareEnabled(true).catch((error) => {
