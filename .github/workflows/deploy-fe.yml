@@ -15,6 +15,9 @@ jobs:
   deploy:
     runs-on: [self-hosted, kallio-local-fe]
 
+    env:
+      BASH_ENV: ""
+
     steps:
       - name: Deploy frontend on local machine
         run: |
