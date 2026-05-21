@@ -5,6 +5,10 @@ import { Room as LiveKitRoom, Track } from "livekit-client";
 import { toast } from "sonner";
 
 import type { Participant } from "@/components/meeting/room/types";
+import {
+  MEETING_SCREEN_SHARE_CAPTURE_OPTIONS,
+  MEETING_SCREEN_SHARE_PUBLISH_OPTIONS,
+} from "@/lib/meeting/screen-share-options";
 import { meetingApi } from "@/shared/services/meeting.service";
 
 type UseRoomScreenShareParams = {
@@ -73,7 +77,11 @@ export function useRoomScreenShare({
   }, [canUseScreenShare, isLiveKitEnabled, onError, roomRef]);
 
   const startLiveKitScreenShare = useCallback((room: LiveKitRoom) => {
-    void room.localParticipant.setScreenShareEnabled(true).catch((error) => {
+    void room.localParticipant.setScreenShareEnabled(
+      true,
+      MEETING_SCREEN_SHARE_CAPTURE_OPTIONS,
+      MEETING_SCREEN_SHARE_PUBLISH_OPTIONS,
+    ).catch((error) => {
       const errorMessage =
         error instanceof Error ? error.message : "Unable to start screen sharing.";
       onError(errorMessage);
@@ -136,7 +144,11 @@ export function useRoomScreenShare({
       if (isScreenSharing) {
         await room.localParticipant.setScreenShareEnabled(false);
       }
-      await room.localParticipant.setScreenShareEnabled(true);
+      await room.localParticipant.setScreenShareEnabled(
+        true,
+        MEETING_SCREEN_SHARE_CAPTURE_OPTIONS,
+        MEETING_SCREEN_SHARE_PUBLISH_OPTIONS,
+      );
     })().catch((error) => {
       onError(error instanceof Error ? error.message : "Unable to present different content.");
     });
