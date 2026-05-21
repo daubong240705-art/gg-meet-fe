@@ -15,7 +15,7 @@ export const MEETING_SCREEN_SHARE_CAPTURE_OPTIONS = {
 export const MEETING_SCREEN_SHARE_PUBLISH_OPTIONS = {
   screenShareEncoding: SCREEN_SHARE_QUALITY.encoding,
   screenShareSimulcastLayers: [
-    ScreenSharePresets.h360fps15,
-    ScreenSharePresets.h720fps15,
+    // ScreenSharePresets.h360fps15,
+    // ScreenSharePresets.h720fps15,
   ],
 } satisfies TrackPublishOptions;
