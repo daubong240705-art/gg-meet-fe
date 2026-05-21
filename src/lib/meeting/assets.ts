@@ -1,7 +1,7 @@
 export const MEETING_IMAGES = {
   waitingApproval: "/images/waitting.png",
   loading: "/images/frog.png",
-  bye: "/images/bye1.png",
+  bye: "/images/bye1-520.webp",
   screenShareAccent: "/images/tom.png",
 } as const;
 

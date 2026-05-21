@@ -36,6 +36,8 @@ export function MeetingStatusView({
             width={520}
             height={390}
             priority
+            unoptimized
+            sizes="(min-width: 640px) 448px, calc(100vw - 48px)"
             className="mx-auto mb-8 block h-auto w-full max-w-sm object-contain sm:max-w-md"
           />
 

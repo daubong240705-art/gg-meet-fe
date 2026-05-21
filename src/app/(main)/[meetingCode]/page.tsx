@@ -1,11 +1,13 @@
 "use client";
 
+import { useEffect } from "react";
 import { useParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 import Lobby from "@/components/meeting/lobby";
 import MeetingRoom from "@/components/meeting/room/room";
 import { Button } from "@/components/ui/button";
+import { MEETING_IMAGES } from "@/lib/meeting/assets";
 import {
   getMeetingApiErrorDescription,
   isMeetingNotFoundError,
@@ -48,6 +50,16 @@ function MeetingPageContent({ meetingCode }: MeetingPageContentProps) {
     isPending: verifyMeetingQuery.isPending,
     isSuccess: verifyMeetingQuery.isSuccess,
   });
+
+  useEffect(() => {
+    if (!joinState || typeof window === "undefined") {
+      return;
+    }
+
+    const image = new window.Image();
+    image.decoding = "async";
+    image.src = MEETING_IMAGES.bye;
+  }, [joinState]);
 
   if (leftMeetingState) {
     return (
