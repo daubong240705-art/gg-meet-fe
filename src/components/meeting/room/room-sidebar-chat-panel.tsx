@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { cn } from "@/lib/utils";
 
+import { ChatLinkifiedText } from "./chat-linkified-text";
 import { getStickerUrl } from "./chat-stickers";
 import { RoomSidebarStickerPicker } from "./room-sidebar-sticker-picker";
 import type { ChatMessage, OutboundChatMessage, SidebarTab } from "./types";
@@ -171,6 +172,8 @@ export function RoomSidebarChatPanel({
                               alt={`${message.name} sticker`}
                               width={108}
                               height={108}
+                              unoptimized
+                              sizes="96px"
                               className="h-24 w-24 object-contain"
                             />
                           </div>
@@ -179,7 +182,7 @@ export function RoomSidebarChatPanel({
                         );
                       })()
                     ) : (
-                      <p className="wrap-break-word whitespace-pre-wrap">{message.content}</p>
+                      <ChatLinkifiedText text={message.content} isLocal={message.isLocal} />
                     )}
                   </div>
                 </div>

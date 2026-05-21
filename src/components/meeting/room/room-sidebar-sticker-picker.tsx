@@ -27,6 +27,8 @@ export function RoomSidebarStickerPicker({ onSelect }: RoomSidebarStickerPickerP
               alt={sticker.key}
               width={40}
               height={40}
+              unoptimized
+              sizes="36px"
               className="h-9 w-9 object-contain"
             />
           </button>
