@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAuthSession } from "@/lib/auth/auth-session";
@@ -71,8 +71,11 @@ function LobbyContent({
     isSocketConnected,
     sendCancel,
   } = useMeetingSocket();
-  const initialMeetingSession = readInstantMeetingSession(meetingCode);
-  const initialDevicePreferences = getMeetingDevicePreferences();
+  const initialMeetingSession = useMemo(
+    () => readInstantMeetingSession(meetingCode),
+    [meetingCode],
+  );
+  const initialDevicePreferences = useMemo(() => getMeetingDevicePreferences(), []);
   const initialParticipantStatus = normalizeMeetingParticipantStatus(
     initialMeetingSession?.participantStatus,
   );
@@ -302,6 +305,7 @@ function LobbyContent({
         joinMeetingMutation.mutate({
           userName,
           guestId: isSignedIn ? null : guestId,
+          guestSecret: isSignedIn ? null : initialMeetingSession?.guestSecret ?? null,
           isMicOn,
           isCameraOn,
           selectedMic,

@@ -24,11 +24,6 @@ export type UpdateAccountRequestData = {
     avatarUrl?: string | null;
 };
 
-const getResponseStatus = (response: IBackendRes<unknown>) => {
-    const status = Number(response.statusCode ?? response.status);
-    return Number.isFinite(status) ? status : null;
-};
-
 export const authApi = {
     login(data: LoginForm) {
         return sendRequest<IBackendRes<LoginResponseData>>({
@@ -39,24 +34,13 @@ export const authApi = {
         });
     },
 
-    async signup(data: SignupPayload) {
-        const response = await sendRequest<IBackendRes<unknown>>({
+    signup(data: SignupPayload) {
+        return sendRequest<IBackendRes<unknown>>({
             url: `${API_URL}/auth/register`,
             method: "POST",
             body: data,
             useCredentials: true,
         });
-
-        if (getResponseStatus(response) === 404) {
-            return sendRequest<IBackendRes<unknown>>({
-                url: `${API_URL}/register`,
-                method: "POST",
-                body: data,
-                useCredentials: true,
-            });
-        }
-
-        return response;
     },
 
     sendVerifyCode(email: string) {

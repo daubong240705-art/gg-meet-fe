@@ -94,6 +94,7 @@ export const meetingApi = {
         : guestRequest && guestRequest.guestId.trim() && guestRequest.guestName.trim()
           ? {
             guestId: guestRequest.guestId.trim(),
+            guestSecret: guestRequest.guestSecret?.trim() || null,
             guestName: guestRequest.guestName.trim(),
           }
           : undefined,

@@ -79,6 +79,7 @@ export function useLobbyJoinFlow({
     );
     const livekitToken = responseData?.livekitToken?.trim() || null;
     const meetingToken = responseData?.meetingToken?.trim() || baseState.meetingToken || null;
+    const guestSecret = responseData?.guestSecret?.trim() || baseState.guestSecret || null;
     const resolvedMeetingCode = responseData?.meetingCode?.trim() || meetingCode;
 
     return {
@@ -93,6 +94,7 @@ export function useLobbyJoinFlow({
         selectedCamera,
         livekitToken,
         meetingToken,
+        guestSecret,
         participantStatus,
         hostId: responseData?.host?.id?.toString() ?? baseState.hostId ?? null,
         hostName: responseData?.host?.fullName?.trim() || baseState.hostName || null,

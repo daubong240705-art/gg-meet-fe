@@ -22,6 +22,7 @@ export type CreateMeetingResponseData = {
   endTime?: string | null;
   livekitToken?: string | null;
   meetingToken?: string | null;
+  guestSecret?: string | null;
   participantStatus?: string | null;
 };
 
@@ -52,6 +53,7 @@ export type ScheduleMeetingRequest = {
   isScheduled: true;
   meetingDate: string;
   meetingTime: string;
+  timeZone: string;
   description: string;
   emailList: string[];
 };
@@ -107,6 +109,7 @@ export type MeetingApiFieldError = {
 
 export type GuestJoinRequest = {
   guestId: string;
+  guestSecret?: string | null;
   guestName: string;
 };
 
