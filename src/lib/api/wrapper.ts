@@ -18,7 +18,7 @@ const refreshToken = async (props?: RefreshProps): Promise<string | null> => {
     const backendBaseUrl = getBackendBaseUrl();
 
     const res = await fetch(`${backendBaseUrl}/auth/refresh`, {
-        method: "GET",
+        method: "POST",
         headers: props?.cookieHeader ? { cookie: props.cookieHeader } : undefined,
         credentials: "include",
         cache: "no-store",

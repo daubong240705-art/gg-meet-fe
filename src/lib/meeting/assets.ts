@@ -1,8 +1,8 @@
 export const MEETING_IMAGES = {
-  waitingApproval: "/images/waitting.png",
-  loading: "/images/frog.png",
-  bye: "/images/bye1.png",
-  screenShareAccent: "/images/tom.png",
+  waitingApproval: "/images/waitting-500.webp",
+  loading: "/images/frog-520.webp",
+  bye: "/images/bye1-520.webp",
+  screenShareAccent: "/images/tom-612.webp",
 } as const;
 
 export const MEETING_AUDIO = {
@@ -11,9 +11,9 @@ export const MEETING_AUDIO = {
 } as const;
 
 export const MEETING_STICKERS = {
-  dogshit: "/stickers/waitting.png",
-  dog: "/stickers/dog.png",
-  cat: "/stickers/cat.png",
-  daragon: "/stickers/daragon.png",
-  gianggay: "/stickers/gianggay.png",
+  dogshit: "/stickers/waitting-160.webp",
+  dog: "/stickers/dog-160.webp",
+  cat: "/stickers/cat-160.webp",
+  daragon: "/stickers/daragon-160.webp",
+  gianggay: "/stickers/gianggay-160.webp",
 } as const;

@@ -25,6 +25,7 @@ export function getGuestJoinRequest(payload?: LobbyJoinPayload | null) {
 
   return {
     guestId: payload.guestId.trim(),
+    guestSecret: payload.guestSecret?.trim() || null,
     guestName: payload.userName.trim(),
   };
 }
@@ -40,6 +41,7 @@ export function areLobbyJoinStatesEqual(
   return currentState.title === nextState.title
     && currentState.userName === nextState.userName
     && currentState.guestId === nextState.guestId
+    && currentState.guestSecret === nextState.guestSecret
     && currentState.isMicOn === nextState.isMicOn
     && currentState.isCameraOn === nextState.isCameraOn
     && currentState.livekitToken === nextState.livekitToken
@@ -61,6 +63,7 @@ export function getInitialPendingJoinState(
     title: initialMeetingSession.title ?? null,
     userName: initialMeetingSession.userName,
     guestId: initialMeetingSession.guestId ?? null,
+    guestSecret: initialMeetingSession.guestSecret ?? null,
     isMicOn: initialMeetingSession.isMicOn,
     isCameraOn: initialMeetingSession.isCameraOn,
     selectedMic: initialMeetingSession.selectedMic ?? null,

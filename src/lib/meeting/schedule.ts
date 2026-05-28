@@ -200,6 +200,7 @@ export const buildScheduleMeetingPayload = (
     isScheduled: true,
     meetingDate: convertDateToApiDate(values.date) ?? "",
     meetingTime: convertTimeToApiTime(values.time) ?? "",
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     description: values.description.trim(),
     emailList: mergeParticipantEmails(values.emailList, values.participantEmail),
 });

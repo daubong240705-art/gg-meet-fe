@@ -45,6 +45,7 @@ export function useLobbyJoinSession({
       title: payload.title ?? null,
       userName: payload.userName,
       guestId: payload.guestId ?? null,
+      guestSecret: payload.guestSecret ?? null,
       isMicOn: payload.isMicOn,
       isCameraOn: payload.isCameraOn,
       selectedMic: payload.selectedMic ?? null,

@@ -27,6 +27,8 @@ export function LobbyWaitingApproval({
             width={640}
             height={480}
             priority
+            unoptimized
+            sizes="(min-width: 768px) 448px, calc(100vw - 48px)"
             className="h-auto w-full max-w-md object-contain"
           />
         ) : (
