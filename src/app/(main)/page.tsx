@@ -1,11 +1,29 @@
-"use client";
+import type { Metadata } from "next";
 
-import AuthenticatedHome from "@/components/home/authenticated-home";
-import GuestHome from "@/components/home/guest-home";
-import { useAuthSession } from "@/lib/auth/auth-session";
+import HomePageClient from "@/components/home/home-page-client";
+import JsonLd from "@/components/seo/JsonLd";
+import {
+  buildOrganizationSchema,
+  buildSoftwareApplicationSchema,
+  buildWebSiteSchema,
+} from "@/lib/seo/jsonld";
+
+export const metadata: Metadata = {
+  title: {
+    absolute: "Kallio",
+  },
+  alternates: {
+    canonical: "/",
+  },
+};
 
 export default function HomePage() {
-  const { isAuthenticated } = useAuthSession();
-
-  return isAuthenticated ? <AuthenticatedHome /> : <GuestHome />;
+  return (
+    <>
+      <JsonLd schema={buildWebSiteSchema()} />
+      <JsonLd schema={buildOrganizationSchema()} />
+      <JsonLd schema={buildSoftwareApplicationSchema()} />
+      <HomePageClient />
+    </>
+  );
 }
