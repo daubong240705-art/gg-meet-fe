@@ -2,11 +2,13 @@ import "./globals.css";
 
 import { AppProvider } from "@/components/layout/app-provider";
 import { SiteShell } from "@/components/layout/site-shell";
+import { getGoogleAnalyticsId } from "@/lib/seo/analytics";
 import {
   getOpenGraphImage,
   getSiteUrl,
   SITE_NAME,
 } from "@/lib/seo/site";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import type { Metadata } from "next";
 
 const siteUrl = getSiteUrl();
@@ -72,6 +74,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const gaId = getGoogleAnalyticsId();
+
   return (
     <html
       lang="en"
@@ -83,6 +87,7 @@ export default function RootLayout({
         <AppProvider>
           <SiteShell>{children}</SiteShell>
         </AppProvider>
+        {gaId ? <GoogleAnalytics gaId={gaId} /> : null}
       </body>
     </html>
   );

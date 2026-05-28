@@ -37,6 +37,7 @@
 | 2026-05-28 | TASK-D1 | Done | Đã chuẩn hóa [`public/og-image.png`](../public/og-image.png) từ 1731×909 về 1200×630, dung lượng còn khoảng 652KB. Metadata khai báo đúng `width: 1200`, `height: 630`, `type: image/png`, `alt`, `og:image:secure_url` và `twitter:image`; URL ảnh có version query `?v=20260528` để bust cache preview. `npm run build` + `npm run lint` pass. |
 | 2026-05-28 | TASK-D2 | Done | Đã tạo [`src/lib/seo/jsonld.ts`](../src/lib/seo/jsonld.ts) và [`src/components/seo/JsonLd.tsx`](../src/components/seo/JsonLd.tsx), render WebSite + Organization + SoftwareApplication JSON-LD trong trang chủ. `npm run build` pass; view-source build có `<script type="application/ld+json">`. `npm run lint` pass. |
 | 2026-05-28 | TASK-D3 | Done | Đã tạo [`src/lib/seo/site.ts`](../src/lib/seo/site.ts) để dùng chung `getSiteUrl`, `getAbsoluteUrl`, thông số OG image và helper `getOpenGraphImage()` cho root layout, meeting metadata và JSON-LD. |
+| 2026-05-28 | TASK-012 (GA4) | Done | Đã tích hợp Google Analytics 4 (Measurement ID `G-R41R9TEM71`) bằng `@next/third-parties/google`. Tạo helper [`src/lib/seo/analytics.ts`](../src/lib/seo/analytics.ts) đọc `NEXT_PUBLIC_GA_ID`. Render `<GoogleAnalytics gaId={…} />` trong [`src/app/layout.tsx`](../src/app/layout.tsx) chỉ khi env có giá trị. Thêm `ARG/ENV NEXT_PUBLIC_GA_ID` vào [`Dockerfile`](../Dockerfile), thêm vào `build.args` + `environment` của [`docker-compose.yml`](../docker-compose.yml), thêm khóa rỗng vào [`.env.example`](../.env.example). Build pass với `NEXT_PUBLIC_GA_ID=G-R41R9TEM71`; HTML build có script `googletagmanager.com/gtag/js?id=G-R41R9TEM71`. **Cần làm trên server production:** thêm `NEXT_PUBLIC_GA_ID=G-R41R9TEM71` vào file `.env` và thêm `NEXT_PUBLIC_GA_ID: ${NEXT_PUBLIC_GA_ID:-}` vào `frontend.build.args` của compose root rồi rebuild image. |
 
 ---
 
@@ -320,7 +321,7 @@ Các task sau **không thể triển khai ngay** vì phụ thuộc bên ngoài. 
 
 | Task | Lý do block | Điều kiện mở khóa |
 |------|------------|-------------------|
-| Google Analytics 4 | Cần GA4 Measurement ID từ user/team | User cung cấp ID |
+| ~~Google Analytics 4~~ | ~~Cần GA4 Measurement ID từ user/team~~ | **Done 2026-05-28** — Measurement ID `G-R41R9TEM71`, xem dòng TASK-012 trong bảng tiến độ |
 | Google Search Console | Cần deploy production + verify domain ownership | Sau khi deploy production và có quyền DNS/meta tag verify |
 
 ---
