@@ -203,6 +203,7 @@ export function useWaitingRoomStatus({
       return;
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void checkStatus(true);
 
     const intervalId = window.setInterval(() => {
