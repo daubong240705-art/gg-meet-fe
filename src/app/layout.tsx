@@ -2,13 +2,18 @@ import "./globals.css";
 
 import { AppProvider } from "@/components/layout/app-provider";
 import { SiteShell } from "@/components/layout/site-shell";
+import {
+  getOpenGraphImage,
+  getSiteUrl,
+  SITE_NAME,
+} from "@/lib/seo/site";
 import type { Metadata } from "next";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "http://localhost:3000";
-const siteName = "Kallio";
+const siteUrl = getSiteUrl();
+const siteName = SITE_NAME;
 const siteDescription =
   "Professional video meetings made simple. Connect, collaborate, and meet anywhere with HD video, screen sharing, and secure meeting rooms.";
-const ogImage = "/og-image.png";
+const ogImage = getOpenGraphImage();
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -38,20 +43,13 @@ export const metadata: Metadata = {
     siteName,
     title: `${siteName} | Professional Video Meetings`,
     description: siteDescription,
-    images: [
-      {
-        url: ogImage,
-        width: 1200,
-        height: 630,
-        alt: `${siteName} video meeting platform`,
-      },
-    ],
+    images: [ogImage],
   },
   twitter: {
     card: "summary_large_image",
     title: `${siteName} | Professional Video Meetings`,
     description: siteDescription,
-    images: [ogImage],
+    images: [ogImage.url],
   },
   robots: {
     index: true,

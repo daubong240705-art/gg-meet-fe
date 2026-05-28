@@ -34,7 +34,9 @@
 | 2026-05-28 | TASK-C1 | Done | Đã tách logic client trang chủ sang [`src/components/home/home-page-client.tsx`](../src/components/home/home-page-client.tsx), biến [`src/app/(main)/page.tsx`](../src/app/(main)/page.tsx) thành server component và export metadata trang chủ. `npm run build` pass; HTML trang chủ vẫn có OG/canonical và title `Kallio`. `npm run lint` pass. |
 | 2026-05-28 | TASK-C2 | Done | Đã tạo nested layout cho `profile` và `schedule` để đặt metadata noindex mà không refactor client pages. `npm run build` pass; build artifact có title `Profile \| Kallio`, `Schedule Meeting \| Kallio` và robots `noindex, nofollow`. `npm run lint` pass. |
 | 2026-05-28 | TASK-C3 | Done | Đã tách meeting page client sang [`src/components/meeting/meeting-page-client.tsx`](../src/components/meeting/meeting-page-client.tsx) và thêm `generateMetadata` trong [`src/app/(main)/[meetingCode]/page.tsx`](../src/app/(main)/[meetingCode]/page.tsx). Endpoint thực tế là `POST /meetings/verify?meetingCode=...`; BE đã xác nhận không cần auth token. Metadata có timeout 2s, fallback `Join Meeting on Kallio`, robots `noindex, nofollow`, OG/Twitter. `npm run build` + `npm run lint` pass. |
+| 2026-05-28 | TASK-D1 | Done | Đã chuẩn hóa [`public/og-image.png`](../public/og-image.png) từ 1731×909 về 1200×630, dung lượng còn khoảng 652KB. Metadata khai báo đúng `width: 1200`, `height: 630`, `type: image/png`, `alt`, `og:image:secure_url` và `twitter:image`; URL ảnh có version query `?v=20260528` để bust cache preview. `npm run build` + `npm run lint` pass. |
 | 2026-05-28 | TASK-D2 | Done | Đã tạo [`src/lib/seo/jsonld.ts`](../src/lib/seo/jsonld.ts) và [`src/components/seo/JsonLd.tsx`](../src/components/seo/JsonLd.tsx), render WebSite + Organization + SoftwareApplication JSON-LD trong trang chủ. `npm run build` pass; view-source build có `<script type="application/ld+json">`. `npm run lint` pass. |
+| 2026-05-28 | TASK-D3 | Done | Đã tạo [`src/lib/seo/site.ts`](../src/lib/seo/site.ts) để dùng chung `getSiteUrl`, `getAbsoluteUrl`, thông số OG image và helper `getOpenGraphImage()` cho root layout, meeting metadata và JSON-LD. |
 
 ---
 
@@ -46,7 +48,7 @@ Khi rà soát source code, phát hiện một số điểm khác so với mô t�
 |----------|-------------|--------------------|
 | Cấu trúc route | Phẳng dưới `src/app/` | Các trang public nằm trong route group `(main)/` — đường dẫn thực: `src/app/(main)/page.tsx`, `src/app/(main)/sign-in/page.tsx`, v.v. |
 | `NEXT_PUBLIC_SITE_URL` | Chưa có, cần thêm | **Đã có** trong [`.env`](../.env) (dòng 16) và [`.env.example`](../.env.example) (dòng 14) |
-| OG image | Cần tạo `og-default.png` 1200×630 | **Đã có** [`public/og-image.png`](../public/og-image.png) **nhưng kích thước 1731×909 — sai chuẩn OG** |
+| OG image | Cần tạo `og-default.png` 1200×630 | **Đã có** [`public/og-image.png`](../public/og-image.png), đã chuẩn hóa về **1200×630** |
 | `/admin` route | Không nhắc tới | Tồn tại (`src/app/admin/`), là **server component** — dễ thêm noindex |
 | Dockerfile env vars | Plan giả định cần config | [`Dockerfile`](../Dockerfile) hiện chỉ truyền 3 biến (`NEXT_PUBLIC_BACKEND_URL`, `WEBSOCKET_URL`, `MEETING_SOCKET_URL`), **chưa truyền `NEXT_PUBLIC_SITE_URL`** |
 | Page client | Chỉ nhắc `page.tsx` cần refactor | **3 file** đều có `"use client"`: `(main)/page.tsx`, `(main)/[meetingCode]/page.tsx`, `(main)/profile/page.tsx`, `(main)/schedule/page.tsx` — cùng bài toán |
@@ -77,7 +79,7 @@ Khi rà soát source code, phát hiện một số điểm khác so với mô t�
 | **Trạng thái** | Done — hoàn tất ngày 2026-05-28 |
 | **Đã làm** | Root layout hiện có `metadataBase` từ `NEXT_PUBLIC_SITE_URL` fallback `http://localhost:3000`; `title.default/template` (`%s \| Kallio`); description; `applicationName`; authors; creator; keywords; canonical `/`; Open Graph; Twitter card; robots index/follow; googleBot directives; icon `/favicon.ico`. |
 | **Kiểm tra** | `npm run build` pass, HTML build có `og:title`, `twitter:card`, canonical và robots. `npm run lint` chưa pass do lỗi cũ không liên quan ở `use-waiting-room-status.ts:206`. |
-| **Ghi chú** | OG image hiện tên `og-image.png` (không phải `og-default.png` như plan gốc) → giữ tên hiện tại. Kích thước 1731×909 vẫn khai báo `width:1200, height:630` để platform crop tự động; thay ảnh chuẩn ở TASK-D1 |
+| **Ghi chú** | OG image hiện tên `og-image.png` (không phải `og-default.png` như plan gốc) → giữ tên hiện tại. Sau TASK-D1, ảnh thật đã đúng 1200×630 và metadata dùng URL tuyệt đối kèm `secureUrl`, `type`, `width`, `height`, `alt`; URL metadata có query `?v=20260528` để bust cache Zalo/social preview. |
 | **Acceptance** | View source `/` thấy đủ `<meta property="og:*">`, `<meta name="twitter:*">`, `<link rel="canonical">`, title template hoạt động (trang con dùng `title: "X"` ra `"X \| Kallio"`) |
 
 ---
@@ -252,7 +254,7 @@ Khi rà soát source code, phát hiện một số điểm khác so với mô t�
 | **Ưu tiên** | High (theo plan gốc, social sharing là mục tiêu chính cùng với landing) |
 | **Độ khó** | Trung bình–khó (~2-3 giờ) |
 | **Trạng thái** | Done — hoàn tất ngày 2026-05-28 |
-| **Đã làm** | Move toàn bộ logic client cũ từ route page sang `src/components/meeting/meeting-page-client.tsx`; `src/app/(main)/[meetingCode]/page.tsx` trở thành server component, resolve params, render `<MeetingPageClient />`, và export `generateMetadata`. Metadata fetch dùng endpoint verify public, không gửi auth token, timeout 2s, fallback tĩnh, robots noindex/nofollow, canonical theo meeting code, OG/Twitter image `/og-image.png`. |
+| **Đã làm** | Move toàn bộ logic client cũ từ route page sang `src/components/meeting/meeting-page-client.tsx`; `src/app/(main)/[meetingCode]/page.tsx` trở thành server component, resolve params, render `<MeetingPageClient />`, và export `generateMetadata`. Metadata fetch dùng endpoint verify public, không gửi auth token, timeout 2s, fallback tĩnh, robots noindex/nofollow, canonical theo meeting code, OG/Twitter image absolute từ `NEXT_PUBLIC_SITE_URL`. |
 | **Kiểm tra** | `npm run build` pass. `npm run lint` pass. Test production local `/seo-test-code`: HTML có `<title>Join Meeting on Kallio</title>`, description fallback, `<meta name="robots" content="noindex, nofollow">`, OG/Twitter title và OG URL. Khi backend trả title thật, metadata sẽ dùng title đó. |
 | **Acceptance** | Paste link meeting vào Discord → preview hiện tên cuộc họp (nếu API public) hoặc fallback "Join Meeting on Kallio"; view source có meta noindex |
 
@@ -268,11 +270,14 @@ Khi rà soát source code, phát hiện một số điểm khác so với mô t�
 |--------|---------|
 | **Mục tiêu** | Preview chuẩn kích thước, không bị crop kỳ lạ trên Facebook/Zalo/Twitter |
 | **File cần thay** | [`public/og-image.png`](../public/og-image.png) |
-| **Hiện trạng** | 1731×909 (tỉ lệ ~1.9:1, gần đúng nhưng không chuẩn) |
+| **Hiện trạng** | Done — ảnh hiện là 1200×630, PNG RGB, khoảng 652KB |
 | **Hai lựa chọn** | (a) Designer làm lại đúng 1200×630 với logo + tagline; (b) Tự resize bằng ImageMagick `convert -resize 1200x630^ -gravity center -extent 1200x630` (chấp nhận có thể bị crop) |
 | **Phụ thuộc** | Không block các task khác (đã có ảnh tạm) |
 | **Ưu tiên** | Medium (chất lượng visual) |
 | **Độ khó** | Designer task hoặc 15 phút nếu tự xử lý |
+| **Trạng thái** | Done — hoàn tất ngày 2026-05-28 |
+| **Đã làm** | Resize bằng ImageMagick về 1200×630; thêm helper metadata dùng URL tuyệt đối, `secureUrl`, `type: image/png`, `width`, `height`, `alt`; root layout và meeting metadata đều dùng helper này. OG image URL có version query `?v=20260528` để crawler lấy ảnh mới sau deploy. |
+| **Kiểm tra** | `file public/og-image.png` trả `1200 x 630`; `npm run build` pass; HTML build có `og:image`, `og:image:secure_url`, `og:image:type`, `og:image:width`, `og:image:height`, `og:image:alt`, `twitter:image`. `npm run lint` pass. |
 | **Acceptance** | Facebook Sharing Debugger hiện ảnh full, không crop logo/text |
 
 ---
@@ -299,11 +304,13 @@ Khi rà soát source code, phát hiện một số điểm khác so với mô t�
 | Trường | Chi tiết |
 |--------|---------|
 | **Mục tiêu** | Helper tái sử dụng cho canonical/absolute URL trong metadata các trang tương lai |
-| **File cần tạo** | `src/lib/seo/metadata.ts` |
+| **File cần tạo** | `src/lib/seo/site.ts` |
 | **Phụ thuộc** | Không |
 | **Ưu tiên** | **Low** (hiện chỉ 1 trang public → giá trị thấp, có thể skip hoặc làm khi cần) |
 | **Độ khó** | Dễ (~10 phút) |
-| **Acceptance** | Hàm `getCanonicalUrl(path)` trả URL tuyệt đối đúng |
+| **Trạng thái** | Done — hoàn tất ngày 2026-05-28 |
+| **Đã làm** | Tạo `src/lib/seo/site.ts` với `getSiteUrl`, `getAbsoluteUrl`, constants site/OG image và `getOpenGraphImage()`; tái sử dụng trong root layout, meeting metadata và JSON-LD. |
+| **Acceptance** | Hàm `getAbsoluteUrl(path)` trả URL tuyệt đối đúng |
 
 ---
 
@@ -313,7 +320,6 @@ Các task sau **không thể triển khai ngay** vì phụ thuộc bên ngoài. 
 
 | Task | Lý do block | Điều kiện mở khóa |
 |------|------------|-------------------|
-| TASK-D1 (OG image chuẩn) | Cần designer cho ảnh chỉn chu | Có designer task, hoặc accept dùng cách (b) tự resize |
 | Google Analytics 4 | Cần GA4 Measurement ID từ user/team | User cung cấp ID |
 | Google Search Console | Cần deploy production + verify domain ownership | Sau khi deploy production và có quyền DNS/meta tag verify |
 
@@ -326,7 +332,7 @@ Các task sau **không thể triển khai ngay** vì phụ thuộc bên ngoài. 
 | **Sprint 1** | ~2-3h | A1 → A2 → A3 → A4 → B1 → B2 → B3 → C2 | Trang chủ có metadata cơ bản; sitemap + robots OK; sign-in/sign-up/admin/profile/schedule đều noindex; 404 page có |
 | **Sprint 2** | ~2-3h | C1 → D2 | Trang chủ là server component, metadata đầy đủ, JSON-LD pass Rich Results |
 | **Sprint 3** | ~3h | C3 | Meeting page có OG preview hiển thị tên cuộc họp khi share |
-| **Parallel / sau** | — | D1 (OG image), D3 (helper), GA, GSC | Hoàn thiện visual + analytics + index monitoring |
+| **Parallel / sau** | — | GA, GSC | Hoàn thiện analytics + index monitoring |
 
 **Tổng effort thực tế** (không tính design + GA + GSC): **~6-8 giờ dev**.
 
@@ -341,7 +347,7 @@ Các task sau **không thể triển khai ngay** vì phụ thuộc bên ngoài. 
 | TASK-003 (refactor page.tsx) | C1 | Đường dẫn thực: `(main)/page.tsx` |
 | TASK-004 (sitemap) | A2 | Giữ nguyên |
 | TASK-005 (robots) | A3 | Thêm `/admin` |
-| TASK-006 (OG image) | D1 | Đã có ảnh nhưng sai size, ưu tiên thấp hơn |
+| TASK-006 (OG image) | D1 | Đã chuẩn hóa ảnh hiện có về 1200×630 |
 | TASK-007 (meeting metadata) | C3 | Đường dẫn `(main)/[meetingCode]`; cần verify endpoint |
 | TASK-008 (noindex auth) | B1 | Giữ nguyên |
 | TASK-009 (noindex private) | C2 | **Đổi cách làm:** dùng nested layout thay vì refactor page → tiết kiệm thời gian |
