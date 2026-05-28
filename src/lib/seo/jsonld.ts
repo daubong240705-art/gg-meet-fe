@@ -1,10 +1,4 @@
-const DEFAULT_SITE_URL = "http://localhost:3000";
-
-const getSiteUrl = () => {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || DEFAULT_SITE_URL;
-
-  return siteUrl.replace(/\/+$/, "") || DEFAULT_SITE_URL;
-};
+import { getSiteUrl } from "@/lib/seo/site";
 
 export function buildWebSiteSchema() {
   const siteUrl = getSiteUrl();

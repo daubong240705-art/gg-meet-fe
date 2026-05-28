@@ -2,13 +2,17 @@ import type { Metadata } from "next";
 
 import MeetingPageClient from "@/components/meeting/meeting-page-client";
 import { getBackendBaseUrl } from "@/lib/config/api-url";
+import {
+  getAbsoluteUrl,
+  getOpenGraphImage,
+  SITE_NAME,
+} from "@/lib/seo/site";
 import type { VerifyMeetingResponseData } from "@/shared/services/meeting.service";
 
 const METADATA_TIMEOUT_MS = 2_000;
 const FALLBACK_TITLE = "Join Meeting on Kallio";
 const FALLBACK_DESCRIPTION =
   "Join a secure Kallio video meeting from your browser.";
-const OG_IMAGE = "/og-image.png";
 
 type MeetingPageParams = {
   meetingCode?: string | string[];
@@ -43,7 +47,9 @@ async function getMeetingTitle(meetingCode: string) {
   const timeoutId = setTimeout(() => controller.abort(), METADATA_TIMEOUT_MS);
 
   try {
-    const verifyUrl = new URL(`${getBackendBaseUrl().replace(/\/+$/, "")}/meetings/verify`);
+    const verifyUrl = new URL(
+      `${getBackendBaseUrl().replace(/\/+$/, "")}/meetings/verify`,
+    );
     verifyUrl.searchParams.set("meetingCode", meetingCode);
 
     const response = await fetch(verifyUrl, {
@@ -61,7 +67,9 @@ async function getMeetingTitle(meetingCode: string) {
       return null;
     }
 
-    const payload = await response.json() as IBackendRes<VerifyMeetingResponseData | null>;
+    const payload = await response.json() as IBackendRes<
+      VerifyMeetingResponseData | null
+    >;
     const title = payload.data?.title?.trim();
 
     return title || null;
@@ -78,6 +86,7 @@ export async function generateMetadata({ params }: MeetingPageProps): Promise<Me
   const title = meetingTitle || FALLBACK_TITLE;
   const description = getMeetingDescription(meetingTitle);
   const canonicalPath = getMeetingPath(meetingCode);
+  const ogImage = getOpenGraphImage();
 
   return {
     title: {
@@ -93,24 +102,17 @@ export async function generateMetadata({ params }: MeetingPageProps): Promise<Me
     },
     openGraph: {
       type: "website",
-      url: canonicalPath,
-      siteName: "Kallio",
+      url: getAbsoluteUrl(canonicalPath),
+      siteName: SITE_NAME,
       title,
       description,
-      images: [
-        {
-          url: OG_IMAGE,
-          width: 1200,
-          height: 630,
-          alt: "Kallio video meeting platform",
-        },
-      ],
+      images: [ogImage],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: [OG_IMAGE],
+      images: [ogImage.url],
     },
   };
 }
