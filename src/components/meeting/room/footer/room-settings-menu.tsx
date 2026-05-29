@@ -4,7 +4,7 @@ import { Mic, MonitorUp } from "lucide-react";
 
 import type { RoomSettings, UpdateRoomSettingsRequest } from "@/shared/services/meeting/types";
 
-import { FloatingMenuPanel } from "./floating-menu-panel";
+import { FloatingMenuPanel } from "../shared/floating-menu-panel";
 
 type RoomSettingsMenuProps = {
   settings: RoomSettings;

@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
-import type { AudioTrackReference, VideoTrackReference } from "./types";
+import type { AudioTrackReference, VideoTrackReference } from "../types";
 
 type VideoTrackViewProps = {
   track: VideoTrackReference | null;

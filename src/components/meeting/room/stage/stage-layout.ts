@@ -1,4 +1,4 @@
-import type { Participant } from "./types";
+import type { Participant } from "../types";
 
 const MAX_GRID_VISIBLE_VIDEO_TILES = 12;
 const MAX_SCREEN_SHARE_RAIL_VIDEO_TILES = 6;

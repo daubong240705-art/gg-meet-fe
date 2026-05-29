@@ -7,7 +7,7 @@ import {
   Room as LiveKitRoom,
 } from "livekit-client";
 
-import { isStickerKey } from "@/components/meeting/room/chat-stickers";
+import { isStickerKey } from "@/components/meeting/room/chat/chat-stickers";
 import type {
   ChatMessage,
   OutboundChatMessage,

@@ -4,7 +4,7 @@ import { Check } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-import { FloatingMenuPanel } from "./floating-menu-panel";
+import { FloatingMenuPanel } from "../shared/floating-menu-panel";
 
 type RoomFooterDeviceMenuProps = {
   title: string;

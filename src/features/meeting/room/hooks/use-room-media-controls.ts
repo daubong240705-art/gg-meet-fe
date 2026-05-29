@@ -10,6 +10,7 @@ type UseRoomMediaControlsParams = {
   initialMicrophoneEnabled: boolean;
   initialCameraEnabled: boolean;
   canUnmuteMicrophone: boolean;
+  shouldNotifyHostMediaActions?: boolean;
   onError: (message: string) => void;
 };
 
@@ -19,6 +20,7 @@ export function useRoomMediaControls({
   initialMicrophoneEnabled,
   initialCameraEnabled,
   canUnmuteMicrophone,
+  shouldNotifyHostMediaActions = true,
   onError,
 }: UseRoomMediaControlsParams) {
   const [isMicEnabled, setIsMicEnabled] = useState(initialMicrophoneEnabled);
@@ -61,7 +63,8 @@ export function useRoomMediaControls({
     const nextMicEnabled = Boolean(microphonePublication && !microphonePublication.isMuted);
     const nextCameraEnabled = Boolean(cameraPublication && !cameraPublication.isMuted);
     const shouldShowRemoteMediaChangeToast =
-      !shouldSuppressLocalMediaNotificationsRef.current;
+      shouldNotifyHostMediaActions
+      && !shouldSuppressLocalMediaNotificationsRef.current;
 
     if (!hasSyncedLocalMediaRef.current) {
       hasSyncedLocalMediaRef.current = true;
@@ -101,7 +104,13 @@ export function useRoomMediaControls({
     }
 
     updateCameraEnabled(nextCameraEnabled);
-  }, [isLiveKitEnabled, roomRef, updateCameraEnabled, updateMicEnabled]);
+  }, [
+    isLiveKitEnabled,
+    roomRef,
+    shouldNotifyHostMediaActions,
+    updateCameraEnabled,
+    updateMicEnabled,
+  ]);
 
   const handleToggleMic = useCallback(() => {
     const nextValue = !isMicEnabled;

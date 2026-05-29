@@ -1,6 +1,6 @@
 import { Monitor } from "lucide-react";
 
-import type { Participant } from "./types";
+import type { Participant } from "../types";
 
 type RoomHeaderPresentingTabsProps = {
   screenShareParticipants: Participant[];

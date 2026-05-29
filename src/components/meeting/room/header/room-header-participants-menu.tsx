@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { useHoverDisclosure } from "@/features/meeting/room/hooks";
 
-import type { Participant, SidebarPanel } from "./types";
+import type { Participant, SidebarPanel } from "../types";
 
 type RoomHeaderParticipantsMenuProps = {
   participants: Participant[];

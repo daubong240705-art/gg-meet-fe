@@ -2,7 +2,7 @@
 
 import type { MeetingTrackType } from "@/shared/services/meeting.service";
 
-import { RoomSidebarChatPanel } from "./room-sidebar-chat-panel";
+import { RoomSidebarChatPanel } from "../chat/room-sidebar-chat-panel";
 import { RoomSidebarParticipantsPanel } from "./room-sidebar-participants-panel";
 import { RoomSidebarShell } from "./room-sidebar-shell";
 import type {
@@ -12,7 +12,7 @@ import type {
   SidebarPanel,
   SidebarTab,
   WaitingParticipant,
-} from "./types";
+} from "../types";
 
 type MutingParticipantTrack = {
   participantId: number;

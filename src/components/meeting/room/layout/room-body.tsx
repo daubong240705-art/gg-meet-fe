@@ -5,15 +5,15 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { MeetingTrackType } from "@/shared/services/meeting.service";
 
-import RoomSidebar from "./room-sidebar";
-import RoomStage from "./room-stage";
+import RoomSidebar from "../sidebar/room-sidebar";
+import RoomStage from "../stage/room-stage";
 import type {
   ChatMessage,
   OutboundChatMessage,
   Participant,
   SidebarPanel,
   WaitingParticipant,
-} from "./types";
+} from "../types";
 
 type MutingParticipantTrack = {
   participantId: number;

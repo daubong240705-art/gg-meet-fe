@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useHoverDisclosure } from "@/features/meeting/room/hooks";
 
-import type { SidebarPanel, WaitingParticipant } from "./types";
-import { getInitials } from "./utils";
+import type { SidebarPanel, WaitingParticipant } from "../types";
+import { getInitials } from "../utils";
 
 type RoomHeaderWaitingMenuProps = {
   canManageWaitingRoom: boolean;

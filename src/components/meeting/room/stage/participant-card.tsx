@@ -11,7 +11,7 @@ import type { MeetingTrackType } from "@/shared/services/meeting.service";
 import { MonitorOff } from "lucide-react";
 
 import { AudioTrackView, VideoTrackView } from "./track-view";
-import type { Participant } from "./types";
+import type { Participant } from "../types";
 
 type MutingParticipantTrack = {
   participantId: number;
