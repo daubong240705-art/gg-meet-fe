@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, LogOut, UserRound, Video } from "lucide-react";
+import { Loader2, LogOut, Shield, UserRound, Video } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -169,6 +169,23 @@ export default function Homeheader() {
                                             </p>
                                         </div>
                                     </Link>
+
+                                    {user.role === "ADMIN" && (
+                                        <Link
+                                            href="/admin"
+                                            role="menuitem"
+                                            onClick={() => setMenuOpen(false)}
+                                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground transition hover:bg-muted"
+                                        >
+                                            <Shield className="size-4 text-muted-foreground" />
+                                            <div className="min-w-0 text-left">
+                                                <p className="font-medium">Admin Panel</p>
+                                                <p className="truncate text-xs text-muted-foreground">
+                                                    Manage users & meetings
+                                                </p>
+                                            </div>
+                                        </Link>
+                                    )}
 
                                     <button
                                         type="button"

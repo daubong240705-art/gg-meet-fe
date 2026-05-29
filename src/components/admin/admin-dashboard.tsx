@@ -1,16 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
+  AlertTriangle,
   Calendar,
-  Download,
   Filter,
   MoreVertical,
+  RefreshCw,
   Search,
+  ShieldAlert,
   UsersRound,
   Video,
 } from "lucide-react";
 
+import { AdminPagination } from "@/components/admin/admin-pagination";
 import { AdminRoleBadge } from "@/components/admin/admin-role-badge";
 import { AdminStatCard } from "@/components/admin/admin-stat-card";
 import { AdminStatusBadge } from "@/components/admin/admin-status-badge";
@@ -23,169 +28,245 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-
-const stats = [
-  {
-    label: "Total Users",
-    value: "2,543",
-    change: "+12.5%",
-    trend: "up" as const,
-    icon: UsersRound,
-    tone: "blue" as const,
-  },
-  {
-    label: "Active Meetings",
-    value: "128",
-    change: "+23.1%",
-    trend: "up" as const,
-    icon: Video,
-    tone: "green" as const,
-  },
-  {
-    label: "Total Meetings Today",
-    value: "847",
-    change: "-5.2%",
-    trend: "down" as const,
-    icon: Calendar,
-    tone: "violet" as const,
-  },
-];
-
-const users = [
-  {
-    id: 1,
-    name: "John Doe",
-    email: "john.doe@example.com",
-    avatar: "JD",
-    role: "Admin",
-    status: "active",
-    joinDate: "Jan 15, 2026",
-    meetings: 145,
-  },
-  {
-    id: 2,
-    name: "Sarah Chen",
-    email: "sarah.chen@example.com",
-    avatar: "SC",
-    role: "User",
-    status: "active",
-    joinDate: "Feb 3, 2026",
-    meetings: 89,
-  },
-  {
-    id: 3,
-    name: "Michael Kim",
-    email: "michael.kim@example.com",
-    avatar: "MK",
-    role: "User",
-    status: "inactive",
-    joinDate: "Dec 20, 2025",
-    meetings: 234,
-  },
-  {
-    id: 4,
-    name: "Emily Rodriguez",
-    email: "emily.r@example.com",
-    avatar: "ER",
-    role: "Moderator",
-    status: "active",
-    joinDate: "Mar 8, 2026",
-    meetings: 67,
-  },
-  {
-    id: 5,
-    name: "David Park",
-    email: "david.park@example.com",
-    avatar: "DP",
-    role: "User",
-    status: "blocked",
-    joinDate: "Nov 12, 2025",
-    meetings: 23,
-  },
-];
-
-type AdminUser = (typeof users)[number];
-
-const meetings = [
-  {
-    id: 1,
-    title: "Team Standup - Engineering",
-    host: "John Doe",
-    code: "abc-defg-hij",
-    status: "ongoing",
-    participants: 12,
-    startTime: "9:00 AM",
-  },
-  {
-    id: 2,
-    title: "Product Review Meeting",
-    host: "Sarah Chen",
-    code: "xyz-1234-567",
-    status: "scheduled",
-    participants: 8,
-    startTime: "2:30 PM",
-  },
-  {
-    id: 3,
-    title: "Client Presentation",
-    host: "Michael Kim",
-    code: "cli-ent-789",
-    status: "completed",
-    participants: 15,
-    startTime: "11:00 AM",
-  },
-  {
-    id: 4,
-    title: "Design Sprint Workshop",
-    host: "Emily Rodriguez",
-    code: "des-ign-456",
-    status: "ongoing",
-    participants: 6,
-    startTime: "10:15 AM",
-  },
-  {
-    id: 5,
-    title: "Weekly All Hands",
-    host: "David Park",
-    code: "all-hand-123",
-    status: "cancelled",
-    participants: 0,
-    startTime: "3:00 PM",
-  },
-];
-
-type AdminMeeting = (typeof meetings)[number];
+import {
+  useAdminMeetings,
+  useAdminOverview,
+  useAdminUsers,
+} from "@/features/admin/hooks";
+import { useAuthSession } from "@/lib/auth/auth-session";
+import { getAvatarInitials } from "@/lib/user/avatar";
+import type {
+  AdminMeeting,
+  AdminMeetingStatus,
+  AdminMetric,
+  AdminPaged,
+  AdminUser,
+  AdminUserRole,
+  AdminUserStatus,
+} from "@/shared/services/admin.service";
 
 type AdminTab = "users" | "meetings";
 
+const PAGE_SIZE = 10;
+const SEARCH_DEBOUNCE_MS = 350;
+const subscribeToHydration = () => () => undefined;
+
+const selectClassName =
+  "h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50";
+
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+const timeFormatter = new Intl.DateTimeFormat("en-US", {
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+function useDebouncedValue<T>(value: T, delayMs: number) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setDebouncedValue(value), delayMs);
+    return () => window.clearTimeout(timeoutId);
+  }, [delayMs, value]);
+
+  return debouncedValue;
+}
+
+function useHasHydrated() {
+  return useSyncExternalStore(subscribeToHydration, () => true, () => false);
+}
+
+const formatNumber = (value?: number | null) =>
+  typeof value === "number" && Number.isFinite(value) ? value.toLocaleString() : "—";
+
+const formatDate = (value?: string | null) => {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : dateFormatter.format(date);
+};
+
+const formatTime = (value?: string | null) => {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : timeFormatter.format(date);
+};
+
+const toStartOfDay = (date: string) => (date ? `${date}T00:00:00` : undefined);
+const toEndOfDay = (date: string) => (date ? `${date}T23:59:59` : undefined);
+
+const getMetricChange = (metric?: AdminMetric | null) => metric?.change?.trim() || "+0.0%";
+const getMetricTrend = (metric?: AdminMetric | null): "up" | "down" =>
+  metric?.trend === "down" ? "down" : "up";
+
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  const apiError = error as Partial<IBackendRes<unknown>>;
+
+  if (typeof apiError.message === "string" && apiError.message.trim()) {
+    return apiError.message;
+  }
+
+  if (typeof apiError.error === "string" && apiError.error.trim()) {
+    return apiError.error;
+  }
+
+  if (typeof apiError.errors === "string" && apiError.errors.trim()) {
+    return apiError.errors;
+  }
+
+  return "Please try again in a moment.";
+};
+
 export function AdminDashboard() {
+  const router = useRouter();
+  const { user, isAuthenticated } = useAuthSession();
+  const hasMounted = useHasHydrated();
   const [activeTab, setActiveTab] = useState<AdminTab>("users");
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearch = useDebouncedValue(searchQuery.trim(), SEARCH_DEBOUNCE_MS);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
-  const normalizedQuery = searchQuery.trim().toLowerCase();
-  const filteredUsers = useMemo(() => {
-    if (!normalizedQuery) {
-      return users;
+  const [usersPage, setUsersPage] = useState(0);
+  const [meetingsPage, setMeetingsPage] = useState(0);
+  const [userRole, setUserRole] = useState<AdminUserRole | "">("");
+  const [userStatus, setUserStatus] = useState<AdminUserStatus | "">("");
+  const [meetingStatus, setMeetingStatus] = useState<AdminMeetingStatus | "">("");
+  const [meetingFromDate, setMeetingFromDate] = useState("");
+  const [meetingToDate, setMeetingToDate] = useState("");
+
+  useEffect(() => {
+    if (!hasMounted) return;
+
+    if (!isAuthenticated) {
+      router.replace("/sign-in");
+      return;
     }
 
-    return users.filter((user) =>
-      [user.name, user.email, user.role, user.status].some((value) =>
-        value.toLowerCase().includes(normalizedQuery)
-      )
-    );
-  }, [normalizedQuery]);
+    if (user?.role !== "ADMIN") {
+      router.replace("/");
+    }
+  }, [hasMounted, isAuthenticated, router, user?.role]);
 
-  const filteredMeetings = useMemo(() => {
-    if (!normalizedQuery) {
-      return meetings;
+  const canLoadAdminData = hasMounted && isAuthenticated && user?.role === "ADMIN";
+  const meetingFrom = useMemo(() => toStartOfDay(meetingFromDate), [meetingFromDate]);
+  const meetingTo = useMemo(() => toEndOfDay(meetingToDate), [meetingToDate]);
+
+  const overviewQuery = useAdminOverview({ enabled: canLoadAdminData });
+  const usersQuery = useAdminUsers(
+    {
+      page: usersPage,
+      size: PAGE_SIZE,
+      search: debouncedSearch,
+      role: userRole,
+      status: userStatus,
+    },
+    { enabled: canLoadAdminData },
+  );
+  const meetingsQuery = useAdminMeetings(
+    {
+      page: meetingsPage,
+      size: PAGE_SIZE,
+      search: debouncedSearch,
+      status: meetingStatus,
+      from: meetingFrom,
+      to: meetingTo,
+    },
+    { enabled: canLoadAdminData },
+  );
+
+  const stats = useMemo(
+    () => [
+      {
+        label: "Total Users",
+        value: formatNumber(overviewQuery.data?.totalUsers?.value),
+        change: getMetricChange(overviewQuery.data?.totalUsers),
+        trend: getMetricTrend(overviewQuery.data?.totalUsers),
+        icon: UsersRound,
+        tone: "blue" as const,
+      },
+      {
+        label: "Active Meetings",
+        value: formatNumber(overviewQuery.data?.activeMeetings?.value),
+        change: getMetricChange(overviewQuery.data?.activeMeetings),
+        trend: getMetricTrend(overviewQuery.data?.activeMeetings),
+        icon: Video,
+        tone: "green" as const,
+      },
+      {
+        label: "Total Meetings Today",
+        value: formatNumber(overviewQuery.data?.totalMeetingsToday?.value),
+        change: getMetricChange(overviewQuery.data?.totalMeetingsToday),
+        trend: getMetricTrend(overviewQuery.data?.totalMeetingsToday),
+        icon: Calendar,
+        tone: "violet" as const,
+      },
+    ],
+    [overviewQuery.data],
+  );
+
+  if (!hasMounted) {
+    return <AdminAccessState title="Checking access" description="Preparing admin workspace." />;
+  }
+
+  if (!isAuthenticated) {
+    return <AdminAccessState title="Redirecting" description="Sign in with an admin account to continue." />;
+  }
+
+  if (user?.role !== "ADMIN") {
+    return <AdminAccessState title="Forbidden" description="Your account does not have access to this workspace." />;
+  }
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setUsersPage(0);
+    setMeetingsPage(0);
+  };
+
+  const handleUserRoleChange = (value: AdminUserRole | "") => {
+    setUserRole(value);
+    setUsersPage(0);
+  };
+
+  const handleUserStatusChange = (value: AdminUserStatus | "") => {
+    setUserStatus(value);
+    setUsersPage(0);
+  };
+
+  const handleMeetingStatusChange = (value: AdminMeetingStatus | "") => {
+    setMeetingStatus(value);
+    setMeetingsPage(0);
+  };
+
+  const handleMeetingFromDateChange = (value: string) => {
+    setMeetingFromDate(value);
+    setMeetingsPage(0);
+  };
+
+  const handleMeetingToDateChange = (value: string) => {
+    setMeetingToDate(value);
+    setMeetingsPage(0);
+  };
+
+  const clearActiveFilters = () => {
+    if (activeTab === "users") {
+      setUserRole("");
+      setUserStatus("");
+      setUsersPage(0);
+      return;
     }
 
-    return meetings.filter((meeting) =>
-      [meeting.title, meeting.host, meeting.code, meeting.status].some((value) =>
-        value.toLowerCase().includes(normalizedQuery)
-      )
-    );
-  }, [normalizedQuery]);
+    setMeetingStatus("");
+    setMeetingFromDate("");
+    setMeetingToDate("");
+    setMeetingsPage(0);
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-8">
@@ -199,10 +280,24 @@ export function AdminDashboard() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-3">
-        {stats.map((stat) => (
-          <AdminStatCard key={stat.label} {...stat} />
-        ))}
+        {overviewQuery.isPending ? (
+          <>
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+          </>
+        ) : (
+          stats.map((stat) => <AdminStatCard key={stat.label} {...stat} />)
+        )}
       </section>
+
+      {overviewQuery.isError ? (
+        <InlineError
+          title="Unable to load overview"
+          description={getErrorMessage(overviewQuery.error)}
+          onRetry={() => overviewQuery.refetch()}
+        />
+      ) : null}
 
       <section className="flex flex-col gap-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -232,33 +327,248 @@ export function AdminDashboard() {
               <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search..."
+                onChange={(event) => handleSearchChange(event.target.value)}
+                placeholder={activeTab === "users" ? "Search users..." : "Search meetings..."}
                 className="pl-8"
               />
             </div>
-            <Button type="button" variant="outline" size="sm">
+            <Button
+              type="button"
+              variant={isFilterOpen ? "secondary" : "outline"}
+              size="sm"
+              aria-expanded={isFilterOpen}
+              onClick={() => setIsFilterOpen((isOpen) => !isOpen)}
+            >
               <Filter className="h-4 w-4" />
               Filter
-            </Button>
-            <Button type="button" variant="outline" size="sm">
-              <Download className="h-4 w-4" />
-              Export
             </Button>
           </div>
         </div>
 
+        {isFilterOpen ? (
+          <AdminFilterPanel
+            activeTab={activeTab}
+            userRole={userRole}
+            userStatus={userStatus}
+            meetingStatus={meetingStatus}
+            meetingFromDate={meetingFromDate}
+            meetingToDate={meetingToDate}
+            onUserRoleChange={handleUserRoleChange}
+            onUserStatusChange={handleUserStatusChange}
+            onMeetingStatusChange={handleMeetingStatusChange}
+            onMeetingFromDateChange={handleMeetingFromDateChange}
+            onMeetingToDateChange={handleMeetingToDateChange}
+            onClear={clearActiveFilters}
+          />
+        ) : null}
+
         {activeTab === "users" ? (
-          <UsersTable users={filteredUsers} />
+          <UsersTable
+            data={usersQuery.data}
+            isLoading={usersQuery.isPending}
+            isFetching={usersQuery.isFetching}
+            isError={usersQuery.isError}
+            error={usersQuery.error}
+            page={usersPage}
+            onPageChange={setUsersPage}
+            onRetry={() => usersQuery.refetch()}
+          />
         ) : (
-          <MeetingsTable meetings={filteredMeetings} />
+          <MeetingsTable
+            data={meetingsQuery.data}
+            isLoading={meetingsQuery.isPending}
+            isFetching={meetingsQuery.isFetching}
+            isError={meetingsQuery.isError}
+            error={meetingsQuery.error}
+            page={meetingsPage}
+            onPageChange={setMeetingsPage}
+            onRetry={() => meetingsQuery.refetch()}
+          />
         )}
       </section>
     </div>
   );
 }
 
-function UsersTable({ users }: { users: AdminUser[] }) {
+function AdminAccessState({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="mx-auto flex min-h-[50vh] w-full max-w-xl items-center justify-center">
+      <div className="flex w-full flex-col items-center gap-4 rounded-xl border border-border bg-card p-6 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+          <ShieldAlert className="h-6 w-6" />
+        </div>
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+        </div>
+        <Button asChild variant="outline">
+          <Link href="/">Go home</Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function StatCardSkeleton() {
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="h-11 w-11 animate-pulse rounded-lg bg-muted" />
+          <div className="h-4 w-14 animate-pulse rounded bg-muted" />
+        </div>
+        <div className="mt-5 space-y-2">
+          <div className="h-8 w-24 animate-pulse rounded bg-muted" />
+          <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function InlineError({
+  title,
+  description,
+  onRetry,
+}: {
+  title: string;
+  description: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive sm:flex-row sm:items-center sm:justify-between">
+      <span className="inline-flex items-start gap-2">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+        <span>
+          <span className="font-medium">{title}</span>
+          <span className="block text-destructive/80">{description}</span>
+        </span>
+      </span>
+      <Button type="button" variant="destructive" size="sm" onClick={onRetry}>
+        <RefreshCw className="h-4 w-4" />
+        Retry
+      </Button>
+    </div>
+  );
+}
+
+function AdminFilterPanel({
+  activeTab,
+  userRole,
+  userStatus,
+  meetingStatus,
+  meetingFromDate,
+  meetingToDate,
+  onUserRoleChange,
+  onUserStatusChange,
+  onMeetingStatusChange,
+  onMeetingFromDateChange,
+  onMeetingToDateChange,
+  onClear,
+}: {
+  activeTab: AdminTab;
+  userRole: AdminUserRole | "";
+  userStatus: AdminUserStatus | "";
+  meetingStatus: AdminMeetingStatus | "";
+  meetingFromDate: string;
+  meetingToDate: string;
+  onUserRoleChange: (value: AdminUserRole | "") => void;
+  onUserStatusChange: (value: AdminUserStatus | "") => void;
+  onMeetingStatusChange: (value: AdminMeetingStatus | "") => void;
+  onMeetingFromDateChange: (value: string) => void;
+  onMeetingToDateChange: (value: string) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="grid gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto] lg:items-end">
+      {activeTab === "users" ? (
+        <>
+          <label className="grid gap-1.5 text-sm">
+            <span className="text-xs font-medium text-muted-foreground">Role</span>
+            <select
+              value={userRole}
+              onChange={(event) => onUserRoleChange(event.target.value as AdminUserRole | "")}
+              className={selectClassName}
+            >
+              <option value="">All roles</option>
+              <option value="ADMIN">Admin</option>
+              <option value="USER">User</option>
+            </select>
+          </label>
+          <label className="grid gap-1.5 text-sm">
+            <span className="text-xs font-medium text-muted-foreground">Status</span>
+            <select
+              value={userStatus}
+              onChange={(event) => onUserStatusChange(event.target.value as AdminUserStatus | "")}
+              className={selectClassName}
+            >
+              <option value="">All statuses</option>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+            </select>
+          </label>
+        </>
+      ) : (
+        <>
+          <label className="grid gap-1.5 text-sm">
+            <span className="text-xs font-medium text-muted-foreground">Status</span>
+            <select
+              value={meetingStatus}
+              onChange={(event) => onMeetingStatusChange(event.target.value as AdminMeetingStatus | "")}
+              className={selectClassName}
+            >
+              <option value="">All statuses</option>
+              <option value="ACTIVE">Ongoing</option>
+              <option value="SCHEDULED">Scheduled</option>
+              <option value="ENDED">Completed</option>
+            </select>
+          </label>
+          <label className="grid gap-1.5 text-sm">
+            <span className="text-xs font-medium text-muted-foreground">From</span>
+            <Input
+              type="date"
+              value={meetingFromDate}
+              onChange={(event) => onMeetingFromDateChange(event.target.value)}
+            />
+          </label>
+          <label className="grid gap-1.5 text-sm">
+            <span className="text-xs font-medium text-muted-foreground">To</span>
+            <Input
+              type="date"
+              value={meetingToDate}
+              onChange={(event) => onMeetingToDateChange(event.target.value)}
+            />
+          </label>
+        </>
+      )}
+      <Button type="button" variant="outline" size="sm" onClick={onClear}>
+        Clear filters
+      </Button>
+    </div>
+  );
+}
+
+function UsersTable({
+  data,
+  isLoading,
+  isFetching,
+  isError,
+  error,
+  page,
+  onPageChange,
+  onRetry,
+}: {
+  data?: AdminPaged<AdminUser>;
+  isLoading: boolean;
+  isFetching: boolean;
+  isError: boolean;
+  error: unknown;
+  page: number;
+  onPageChange: (page: number) => void;
+  onRetry: () => void;
+}) {
+  const users = data?.content ?? [];
+
   return (
     <Card id="users">
       <CardHeader>
@@ -267,8 +577,8 @@ function UsersTable({ users }: { users: AdminUser[] }) {
           View and manage all registered users on the platform.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
+      <CardContent className="space-y-4">
+        <div className={`overflow-x-auto transition-opacity ${isFetching && !isLoading ? "opacity-70" : ""}`}>
           <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-muted-foreground">
@@ -281,48 +591,120 @@ function UsersTable({ users }: { users: AdminUser[] }) {
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => (
-                <tr key={user.id} className="border-b border-border/60 last:border-0">
-                  <td className="py-4 pr-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
-                        {user.avatar}
-                      </div>
-                      <div>
-                        <p className="font-medium">{user.name}</p>
-                        <p className="text-muted-foreground">{user.email}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4">
-                    <AdminRoleBadge role={user.role} />
-                  </td>
-                  <td className="px-4 py-4">
-                    <AdminStatusBadge status={user.status} />
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className="inline-flex items-center gap-2">
-                      <Video className="h-4 w-4 text-muted-foreground" />
-                      {user.meetings}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-muted-foreground">{user.joinDate}</td>
-                  <td className="py-4 pl-4 text-right">
-                    <Button type="button" variant="ghost" size="icon-sm" aria-label="User actions">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
+              {isLoading ? (
+                <TableSkeletonRows columns={6} />
+              ) : isError ? (
+                <TableStateRow columns={6} title="Unable to load users" description={getErrorMessage(error)} onRetry={onRetry} />
+              ) : users.length === 0 ? (
+                <TableStateRow columns={6} title="No users found" description="Try changing search or filters." />
+              ) : (
+                users.map((user) => <UserRow key={user.id} user={user} />)
+              )}
             </tbody>
           </table>
         </div>
+        {data ? (
+          <AdminPagination
+            page={page}
+            totalPages={data.totalPages}
+            totalElements={data.totalElements}
+            isFetching={isFetching}
+            onPageChange={onPageChange}
+          />
+        ) : null}
       </CardContent>
     </Card>
   );
 }
 
-function MeetingsTable({ meetings }: { meetings: AdminMeeting[] }) {
+function UserRow({ user }: { user: AdminUser }) {
+  const fullName = user.fullName?.trim() || user.email?.trim() || "Unknown user";
+  const email = user.email?.trim() || "—";
+
+  return (
+    <tr className="border-b border-border/60 last:border-0">
+      <td className="py-4 pr-4">
+        <div className="flex items-center gap-3">
+          <UserAvatar name={fullName} email={email} avatar={user.avatar} />
+          <div>
+            <p className="font-medium">{fullName}</p>
+            <p className="text-muted-foreground">{email}</p>
+          </div>
+        </div>
+      </td>
+      <td className="px-4 py-4">
+        <AdminRoleBadge role={user.role || "USER"} />
+      </td>
+      <td className="px-4 py-4">
+        <AdminStatusBadge kind="user" status={user.status || "INACTIVE"} />
+      </td>
+      <td className="px-4 py-4">
+        <span className="inline-flex items-center gap-2">
+          <Video className="h-4 w-4 text-muted-foreground" />
+          {(user.meetingCount ?? 0).toLocaleString()}
+        </span>
+      </td>
+      <td className="px-4 py-4 text-muted-foreground">{formatDate(user.createdAt)}</td>
+      <td className="py-4 pl-4 text-right">
+        <Button type="button" variant="ghost" size="icon-sm" aria-label="User actions">
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </td>
+    </tr>
+  );
+}
+
+function UserAvatar({
+  name,
+  email,
+  avatar,
+}: {
+  name: string;
+  email: string;
+  avatar?: string | null;
+}) {
+  const [hasImageError, setHasImageError] = useState(false);
+  const avatarUrl = avatar?.trim();
+  const initials = getAvatarInitials(name || email, "U");
+
+  return (
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-sm font-medium text-primary">
+      {avatarUrl && !hasImageError ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={avatarUrl}
+          alt=""
+          className="h-full w-full object-cover"
+          onError={() => setHasImageError(true)}
+        />
+      ) : (
+        initials
+      )}
+    </div>
+  );
+}
+
+function MeetingsTable({
+  data,
+  isLoading,
+  isFetching,
+  isError,
+  error,
+  page,
+  onPageChange,
+  onRetry,
+}: {
+  data?: AdminPaged<AdminMeeting>;
+  isLoading: boolean;
+  isFetching: boolean;
+  isError: boolean;
+  error: unknown;
+  page: number;
+  onPageChange: (page: number) => void;
+  onRetry: () => void;
+}) {
+  const meetings = data?.content ?? [];
+
   return (
     <Card id="meetings">
       <CardHeader>
@@ -331,8 +713,8 @@ function MeetingsTable({ meetings }: { meetings: AdminMeeting[] }) {
           Monitor and manage all meetings across the platform.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
+      <CardContent className="space-y-4">
+        <div className={`overflow-x-auto transition-opacity ${isFetching && !isLoading ? "opacity-70" : ""}`}>
           <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-muted-foreground">
@@ -345,38 +727,108 @@ function MeetingsTable({ meetings }: { meetings: AdminMeeting[] }) {
               </tr>
             </thead>
             <tbody>
-              {meetings.map((meeting) => (
-                <tr key={meeting.id} className="border-b border-border/60 last:border-0">
-                  <td className="py-4 pr-4">
-                    <p className="font-medium">{meeting.title}</p>
-                    <p className="text-muted-foreground">{meeting.startTime}</p>
-                  </td>
-                  <td className="px-4 py-4 text-muted-foreground">{meeting.host}</td>
-                  <td className="px-4 py-4">
-                    <AdminStatusBadge status={meeting.status} />
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className="inline-flex items-center gap-2">
-                      <UsersRound className="h-4 w-4 text-muted-foreground" />
-                      {meeting.participants}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4">
-                    <code className="rounded bg-muted px-2 py-1 text-xs">
-                      {meeting.code}
-                    </code>
-                  </td>
-                  <td className="py-4 pl-4 text-right">
-                    <Button type="button" variant="ghost" size="icon-sm" aria-label="Meeting actions">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
+              {isLoading ? (
+                <TableSkeletonRows columns={6} />
+              ) : isError ? (
+                <TableStateRow columns={6} title="Unable to load meetings" description={getErrorMessage(error)} onRetry={onRetry} />
+              ) : meetings.length === 0 ? (
+                <TableStateRow columns={6} title="No meetings found" description="Try changing search or filters." />
+              ) : (
+                meetings.map((meeting) => <MeetingRow key={meeting.id} meeting={meeting} />)
+              )}
             </tbody>
           </table>
         </div>
+        {data ? (
+          <AdminPagination
+            page={page}
+            totalPages={data.totalPages}
+            totalElements={data.totalElements}
+            isFetching={isFetching}
+            onPageChange={onPageChange}
+          />
+        ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+function MeetingRow({ meeting }: { meeting: AdminMeeting }) {
+  const title = meeting.title?.trim() || "Untitled meeting";
+  const hostName = meeting.hostName?.trim() || "Unknown host";
+  const hostEmail = meeting.hostEmail?.trim();
+  const meetingCode = meeting.meetingCode?.trim() || "—";
+
+  return (
+    <tr className="border-b border-border/60 last:border-0">
+      <td className="py-4 pr-4">
+        <p className="font-medium">{title}</p>
+        <p className="text-muted-foreground">{formatTime(meeting.startTime)}</p>
+      </td>
+      <td className="px-4 py-4">
+        <p className="text-foreground">{hostName}</p>
+        {hostEmail ? <p className="text-muted-foreground">{hostEmail}</p> : null}
+      </td>
+      <td className="px-4 py-4">
+        <AdminStatusBadge kind="meeting" status={meeting.status || "SCHEDULED"} />
+      </td>
+      <td className="px-4 py-4">
+        <span className="inline-flex items-center gap-2">
+          <UsersRound className="h-4 w-4 text-muted-foreground" />
+          {(meeting.participantCount ?? 0).toLocaleString()}
+        </span>
+      </td>
+      <td className="px-4 py-4">
+        <code className="rounded bg-muted px-2 py-1 text-xs">
+          {meetingCode}
+        </code>
+      </td>
+      <td className="py-4 pl-4 text-right">
+        <Button type="button" variant="ghost" size="icon-sm" aria-label="Meeting actions">
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </td>
+    </tr>
+  );
+}
+
+function TableSkeletonRows({ columns }: { columns: number }) {
+  return Array.from({ length: 5 }).map((_, rowIndex) => (
+    <tr key={rowIndex} className="border-b border-border/60 last:border-0">
+      {Array.from({ length: columns }).map((__, columnIndex) => (
+        <td key={columnIndex} className="py-4 pr-4">
+          <div className="h-4 w-full max-w-[160px] animate-pulse rounded bg-muted" />
+        </td>
+      ))}
+    </tr>
+  ));
+}
+
+function TableStateRow({
+  columns,
+  title,
+  description,
+  onRetry,
+}: {
+  columns: number;
+  title: string;
+  description: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <tr>
+      <td colSpan={columns} className="py-10 text-center">
+        <div className="mx-auto flex max-w-sm flex-col items-center gap-3">
+          <p className="font-medium">{title}</p>
+          <p className="text-sm text-muted-foreground">{description}</p>
+          {onRetry ? (
+            <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </Button>
+          ) : null}
+        </div>
+      </td>
+    </tr>
   );
 }

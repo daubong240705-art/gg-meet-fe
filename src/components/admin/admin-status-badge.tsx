@@ -3,31 +3,43 @@ import {
   CheckCircle2,
   Clock,
   Video,
-  XCircle,
   type LucideIcon,
 } from "lucide-react";
 
-type StatusTone = "default" | "muted" | "danger" | "outline";
+type StatusTone = "default" | "muted" | "outline";
+type AdminStatusKind = "user" | "meeting";
 
-const statusConfig: Record<string, { tone: StatusTone; icon: LucideIcon }> = {
-  active: { tone: "default", icon: CheckCircle2 },
-  inactive: { tone: "muted", icon: AlertCircle },
-  blocked: { tone: "danger", icon: XCircle },
-  ongoing: { tone: "default", icon: Video },
-  scheduled: { tone: "muted", icon: Clock },
-  completed: { tone: "outline", icon: CheckCircle2 },
-  cancelled: { tone: "danger", icon: XCircle },
+const statusConfig: Record<string, { label: string; tone: StatusTone; icon: LucideIcon }> = {
+  active: { label: "Active", tone: "default", icon: CheckCircle2 },
+  inactive: { label: "Inactive", tone: "muted", icon: AlertCircle },
+  ongoing: { label: "Ongoing", tone: "default", icon: Video },
+  scheduled: { label: "Scheduled", tone: "muted", icon: Clock },
+  completed: { label: "Completed", tone: "outline", icon: CheckCircle2 },
 };
 
 const toneClasses: Record<StatusTone, string> = {
   default: "border-emerald-500/20 bg-emerald-500/10 text-emerald-500",
   muted: "border-border bg-muted text-muted-foreground",
-  danger: "border-destructive/20 bg-destructive/10 text-destructive",
   outline: "border-border bg-background text-foreground",
 };
 
-export function AdminStatusBadge({ status }: { status: string }) {
-  const config = statusConfig[status] ?? statusConfig.active;
+const normalizeStatus = (status: string, kind: AdminStatusKind) => {
+  const normalizedStatus = status.trim().toUpperCase();
+
+  if (kind === "meeting") {
+    if (normalizedStatus === "ACTIVE") return "ongoing";
+    if (normalizedStatus === "SCHEDULED") return "scheduled";
+    if (normalizedStatus === "ENDED") return "completed";
+  }
+
+  if (normalizedStatus === "ACTIVE") return "active";
+  if (normalizedStatus === "INACTIVE") return "inactive";
+
+  return status.trim().toLowerCase();
+};
+
+export function AdminStatusBadge({ status, kind }: { status: string; kind: AdminStatusKind }) {
+  const config = statusConfig[normalizeStatus(status, kind)] ?? statusConfig.active;
   const Icon = config.icon;
 
   return (
@@ -35,7 +47,7 @@ export function AdminStatusBadge({ status }: { status: string }) {
       className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium ${toneClasses[config.tone]}`}
     >
       <Icon className="h-3 w-3" />
-      {status.charAt(0).toUpperCase() + status.slice(1)}
+      {config.label}
     </span>
   );
 }
