@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-import type { SidebarTab } from "./types";
+import type { SidebarTab } from "../types";
 
 type RoomSidebarShellProps = {
   isOpen: boolean;

@@ -26,12 +26,12 @@ import {
   useWaitingRoomActions,
 } from "@/features/meeting/room/hooks";
 import { meetingApi } from "@/shared/services/meeting.service";
-import type { Participant } from "@/components/meeting/room/types";
+import type { Participant } from "./types";
 
-import RoomBody from "./room-body";
-import RoomFooter from "./room-footer";
-import RoomHeader from "./room-header";
-import { ScreenShareRequestDialog } from "./screen-share-request-dialog";
+import { ScreenShareRequestDialog } from "./dialogs/screen-share-request-dialog";
+import RoomFooter from "./footer/room-footer";
+import RoomHeader from "./header/room-header";
+import RoomBody from "./layout/room-body";
 import type { MeetingRoomProps } from "./types";
 
 const LIVEKIT_ROOM_OPTIONS = {

@@ -4,7 +4,7 @@ import { ChevronDown, ChevronUp, MessageSquare, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-import type { SidebarPanel } from "./types";
+import type { SidebarPanel } from "../types";
 
 type RoomFooterPanelButtonsProps = {
   participantsCount: number;

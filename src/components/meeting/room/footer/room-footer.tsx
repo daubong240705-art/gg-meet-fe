@@ -8,8 +8,8 @@ import { RoomFooterControls } from "./room-footer-controls";
 import { RoomFooterMeetingInfo } from "./room-footer-meeting-info";
 import { RoomFooterPanelButtons } from "./room-footer-panel-buttons";
 import type { FooterMenuKey } from "./room-footer-types";
-import { RoomLeaveDialog } from "./room-leave-dialog";
-import type { SidebarPanel } from "./types";
+import { RoomLeaveDialog } from "../dialogs/room-leave-dialog";
+import type { SidebarPanel } from "../types";
 
 type RoomFooterProps = {
   meetingCode: string;

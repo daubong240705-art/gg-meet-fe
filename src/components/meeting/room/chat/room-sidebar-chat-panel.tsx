@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { ChatLinkifiedText } from "./chat-linkified-text";
 import { getStickerUrl } from "./chat-stickers";
 import { RoomSidebarStickerPicker } from "./room-sidebar-sticker-picker";
-import type { ChatMessage, OutboundChatMessage, SidebarTab } from "./types";
+import type { ChatMessage, OutboundChatMessage, SidebarTab } from "../types";
 
 type RoomSidebarChatPanelProps = {
   currentTab: SidebarTab;

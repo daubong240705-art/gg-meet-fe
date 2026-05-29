@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/user/user-avatar";
 import type { MeetingTrackType } from "@/shared/services/meeting.service";
 
-import { RoomKickParticipantDialog } from "./room-kick-participant-dialog";
-import type { Participant, WaitingParticipant } from "./types";
-import { getInitials } from "./utils";
+import { RoomKickParticipantDialog } from "../dialogs/room-kick-participant-dialog";
+import type { Participant, WaitingParticipant } from "../types";
+import { getInitials } from "../utils";
 
 type MutingParticipantTrack = {
   participantId: number;

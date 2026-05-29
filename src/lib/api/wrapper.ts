@@ -39,7 +39,6 @@ const getFreshToken = async (props?: RefreshProps) => {
             refreshPromise = null;
         });
     }
-
     return refreshPromise;
 };
 

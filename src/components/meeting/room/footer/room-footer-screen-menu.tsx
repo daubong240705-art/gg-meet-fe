@@ -2,7 +2,7 @@
 
 import { Monitor } from "lucide-react";
 
-import { FloatingMenuPanel } from "./floating-menu-panel";
+import { FloatingMenuPanel } from "../shared/floating-menu-panel";
 
 type RoomFooterScreenMenuProps = {
   isScreenSharing: boolean;

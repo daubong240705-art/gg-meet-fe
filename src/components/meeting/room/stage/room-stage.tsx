@@ -14,7 +14,7 @@ import {
   prioritizeParticipantsForLayout,
 } from "./stage-layout";
 import { AudioTrackView, VideoTrackView } from "./track-view";
-import type { Participant } from "./types";
+import type { Participant } from "../types";
 
 type MutingParticipantTrack = {
   participantId: number;

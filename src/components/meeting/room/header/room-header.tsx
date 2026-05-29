@@ -1,6 +1,6 @@
 "use client";
 
-import type { Participant, SidebarPanel, WaitingParticipant } from "./types";
+import type { Participant, SidebarPanel, WaitingParticipant } from "../types";
 import { RoomHeaderParticipantsMenu } from "./room-header-participants-menu";
 import { RoomHeaderPresentingTabs } from "./room-header-presenting-tabs";
 import { RoomHeaderWaitingMenu } from "./room-header-waiting-menu";

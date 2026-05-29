@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-import type { Participant } from "./types";
+import type { Participant } from "../types";
 
 type RoomKickParticipantDialogProps = {
   participant: Participant | null;
