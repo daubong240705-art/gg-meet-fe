@@ -177,6 +177,7 @@ function MeetingRoomContent({
     initialMicrophoneEnabled: isMicOn,
     initialCameraEnabled: isCameraOn,
     canUnmuteMicrophone,
+    shouldNotifyHostMediaActions: !localUserCanUseHostMediaControls,
     onError: handleRoomDeviceError,
   });
 

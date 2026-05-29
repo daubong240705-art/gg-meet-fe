@@ -34,7 +34,17 @@ export function useRoomExitActions({
   onError,
 }: UseRoomExitActionsParams) {
   const hasExitedMeetingRef = useRef(false);
+  const hasPreparedExitRef = useRef(false);
   const [isEndingMeeting, setIsEndingMeeting] = useState(false);
+
+  const prepareExit = useCallback(() => {
+    if (hasPreparedExitRef.current) {
+      return;
+    }
+
+    hasPreparedExitRef.current = true;
+    onBeforeExit?.();
+  }, [onBeforeExit]);
 
   const exitMeeting = useCallback((reason: "left" | "ended" | "kicked" | "banned" = "left") => {
     if (hasExitedMeetingRef.current) {
@@ -42,13 +52,13 @@ export function useRoomExitActions({
     }
 
     hasExitedMeetingRef.current = true;
-    onBeforeExit?.();
+    prepareExit();
     resetHandRaise();
     disconnectMeetingSocket(meetingSocketRef.current);
     meetingSocketRef.current = null;
     roomRef.current?.disconnect();
     onLeave(reason);
-  }, [disconnectMeetingSocket, meetingSocketRef, onBeforeExit, onLeave, resetHandRaise, roomRef]);
+  }, [disconnectMeetingSocket, meetingSocketRef, onLeave, prepareExit, resetHandRaise, roomRef]);
 
   const reportLeaveMeeting = useCallback(() => {
     if (localMeetingParticipantId === null) {
@@ -64,9 +74,10 @@ export function useRoomExitActions({
   }, [localMeetingParticipantId, meetingCode, meetingToken]);
 
   const handleLeaveMeeting = useCallback(() => {
+    prepareExit();
     reportLeaveMeeting();
     exitMeeting("left");
-  }, [exitMeeting, reportLeaveMeeting]);
+  }, [exitMeeting, prepareExit, reportLeaveMeeting]);
 
   const handleEndMeeting = useCallback(() => {
     if (isEndingMeeting) {
@@ -74,6 +85,7 @@ export function useRoomExitActions({
     }
 
     setIsEndingMeeting(true);
+    prepareExit();
 
     void meetingApi.endMeeting(meetingCode).then((response) => {
       assertApiSuccess(response);
@@ -91,7 +103,7 @@ export function useRoomExitActions({
     }).finally(() => {
       setIsEndingMeeting(false);
     });
-  }, [exitMeeting, isEndingMeeting, meetingCode, onError]);
+  }, [exitMeeting, isEndingMeeting, meetingCode, onError, prepareExit]);
 
   return {
     isEndingMeeting,
