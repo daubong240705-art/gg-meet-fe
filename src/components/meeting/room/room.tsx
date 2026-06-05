@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Room as LiveKitRoom } from "livekit-client";
 import { toast } from "sonner";
 
+import { MEETING_AUDIO_CAPTURE_DEFAULTS } from "@/lib/meeting/audio-capture";
 import { type MeetingSocketConnection } from "@/lib/meeting/meeting-websocket";
 import { MeetingSocketProvider, useMeetingSocket } from "@/features/meeting/providers";
 import {
@@ -37,6 +38,9 @@ import type { MeetingRoomProps } from "./types";
 const LIVEKIT_ROOM_OPTIONS = {
   adaptiveStream: true,
   dynacast: true,
+  // Applied to every mic track LiveKit creates (initial join + in-room unmute),
+  // since setMicrophoneEnabled() with no args falls back to these defaults.
+  audioCaptureDefaults: MEETING_AUDIO_CAPTURE_DEFAULTS,
 };
 
 export default function MeetingRoom(props: MeetingRoomProps) {

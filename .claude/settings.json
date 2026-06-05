@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"console.log\\(require\\('livekit-client/package.json'\\).version\\)\")",
+      "Bash(xargs -I{} sed -n '/interface AudioCaptureOptions/,/^}/p' {})",
+      "Bash(echo \"=== tsc exit: $? ===\")"
+    ]
+  }
+}
