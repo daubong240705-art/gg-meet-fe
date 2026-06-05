@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { MEETING_AUDIO_CAPTURE_DEFAULTS } from "@/lib/meeting/audio-capture";
 import {
   rememberMeetingCameraDevice,
   rememberMeetingMicrophoneDevice,
@@ -96,7 +97,9 @@ export function useLobbyDevices({
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: isCameraOn ? { deviceId: selectedCamera || undefined } : false,
-          audio: isMicOn ? { deviceId: selectedMic || undefined } : false,
+          audio: isMicOn
+            ? { deviceId: selectedMic || undefined, ...MEETING_AUDIO_CAPTURE_DEFAULTS }
+            : false,
         });
 
         if (cancelled) {

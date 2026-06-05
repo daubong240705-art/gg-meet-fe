@@ -97,7 +97,7 @@ export default function RoomFooter({
       }
 
       setOpenMenu(null);
-    };
+  };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {

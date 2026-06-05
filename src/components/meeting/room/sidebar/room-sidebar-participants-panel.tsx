@@ -1,10 +1,14 @@
 "use client";
 
-import { Clock3, Hand, Mic, MicOff, MoreVertical, UserMinus, Video, VideoOff, X } from "lucide-react";
+import { Clock3, Hand, Mic, MicOff, MoreVertical, UserMinus, Video, VideoOff, Volume2, VolumeX, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/user/user-avatar";
+import {
+  DEFAULT_PARTICIPANT_VOLUME,
+  useRoomLocalVolumeControls,
+} from "@/features/meeting/room/providers";
 import type { MeetingTrackType } from "@/shared/services/meeting.service";
 
 import { RoomKickParticipantDialog } from "../dialogs/room-kick-participant-dialog";
@@ -47,6 +51,13 @@ function ParticipantRow({
   isActionMenuOpen: boolean;
   onActionMenuOpenChange: (isOpen: boolean) => void;
 }) {
+  const {
+    getParticipantVolume,
+    setParticipantVolume,
+    toggleParticipantMute,
+    resetParticipantVolume,
+  } = useRoomLocalVolumeControls();
+
   const isMutingAudio =
     mutingParticipantTrack?.participantId === participant.participantId
     && mutingParticipantTrack.trackType === "AUDIO";
@@ -55,7 +66,14 @@ function ParticipantRow({
     && mutingParticipantTrack.trackType === "VIDEO";
   const canMuteAudio = canManageParticipantMedia && !participant.isMuted;
   const canMuteVideo = canManageParticipantMedia && !participant.isCameraOff;
-  const hasActionMenu = canMuteAudio || canMuteVideo || canKickParticipant;
+  // You can adjust how loudly you hear anyone else — local only, never yourself.
+  const canControlVolume = !participant.isLocal;
+  const hasModerationActions = canMuteAudio || canMuteVideo || canKickParticipant;
+  const hasActionMenu = canControlVolume || hasModerationActions;
+
+  const volumeState = getParticipantVolume(participant.identity);
+  const volumePercent = Math.round(volumeState.volume * 100);
+  const isVolumeDefault = !volumeState.isMuted && volumeState.volume === DEFAULT_PARTICIPANT_VOLUME;
 
   const handleMuteTrack = (trackType: MeetingTrackType) => {
     onActionMenuOpenChange(false);
@@ -123,7 +141,64 @@ function ParticipantRow({
             </Button>
 
             {isActionMenuOpen ? (
-              <div className="absolute right-0 top-9 z-30 w-52 overflow-hidden rounded-lg border border-border/80 bg-popover p-1 text-popover-foreground shadow-xl motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-100 motion-reduce:animate-none">
+              <div className="absolute right-0 top-9 z-30 w-60 overflow-hidden rounded-lg border border-border/80 bg-popover p-1 text-popover-foreground shadow-xl motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-100 motion-reduce:animate-none">
+                {canControlVolume ? (
+                  <div className="px-2.5 py-2">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                        title={volumeState.isMuted ? `Unmute ${participant.name} for you` : `Mute ${participant.name} for you`}
+                        aria-label={volumeState.isMuted ? `Unmute ${participant.name} for you` : `Mute ${participant.name} for you`}
+                        aria-pressed={volumeState.isMuted}
+                        onClick={() => toggleParticipantMute(participant.identity)}
+                      >
+                        {volumeState.isMuted ? (
+                          <VolumeX className="h-4 w-4 text-destructive" />
+                        ) : (
+                          <Volume2 className="h-4 w-4" />
+                        )}
+                      </button>
+                      <span className="text-sm font-medium text-foreground">Volume</span>
+                      <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                        {volumeState.isMuted ? "Muted" : `${volumePercent}%`}
+                      </span>
+                    </div>
+
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={volumePercent}
+                      onChange={(event) =>
+                        setParticipantVolume(participant.identity, Number(event.target.value) / 100)
+                      }
+                      className="mt-2 w-full cursor-pointer accent-primary"
+                      aria-label={`Volume for ${participant.name}`}
+                    />
+
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <p className="text-[11px] leading-tight text-muted-foreground">
+                        Only changes what you hear.
+                      </p>
+                      {!isVolumeDefault ? (
+                        <button
+                          type="button"
+                          className="shrink-0 text-[11px] font-medium text-primary transition hover:underline"
+                          onClick={() => resetParticipantVolume(participant.identity)}
+                        >
+                          Reset
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+
+                {canControlVolume && hasModerationActions ? (
+                  <div className="my-1 h-px bg-border/70" />
+                ) : null}
+
                 {canMuteAudio ? (
                   <button
                     type="button"

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Room as LiveKitRoom } from "livekit-client";
 import { toast } from "sonner";
 
+import { MEETING_AUDIO_CAPTURE_DEFAULTS } from "@/lib/meeting/audio-capture";
 import { type MeetingSocketConnection } from "@/lib/meeting/meeting-websocket";
 import { MeetingSocketProvider, useMeetingSocket } from "@/features/meeting/providers";
 import {
@@ -25,6 +26,7 @@ import {
   useWaitingRoomRequests,
   useWaitingRoomActions,
 } from "@/features/meeting/room/hooks";
+import { RoomLocalVolumeProvider } from "@/features/meeting/room/providers";
 import { meetingApi } from "@/shared/services/meeting.service";
 import type { Participant } from "./types";
 
@@ -37,6 +39,9 @@ import type { MeetingRoomProps } from "./types";
 const LIVEKIT_ROOM_OPTIONS = {
   adaptiveStream: true,
   dynacast: true,
+  // Applied to every mic track LiveKit creates (initial join + in-room unmute),
+  // since setMicrophoneEnabled() with no args falls back to these defaults.
+  audioCaptureDefaults: MEETING_AUDIO_CAPTURE_DEFAULTS,
 };
 
 export default function MeetingRoom(props: MeetingRoomProps) {
@@ -452,7 +457,8 @@ function MeetingRoomContent({
   });
 
   return (
-    <div className="h-screen overflow-hidden bg-background">
+    <RoomLocalVolumeProvider roomRef={roomRef} participants={participants}>
+      <div className="h-screen overflow-hidden bg-background">
       <div className="flex h-screen flex-col overflow-hidden bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.12),transparent_42%),linear-gradient(180deg,rgba(15,23,42,1),rgba(30,41,59,0.9))]">
         <RoomHeader
           meetingTitle={meetingTitle}
@@ -577,6 +583,7 @@ function MeetingRoomContent({
           ))}
         </div>
       ) : null}
-    </div>
+      </div>
+    </RoomLocalVolumeProvider>
   );
 }

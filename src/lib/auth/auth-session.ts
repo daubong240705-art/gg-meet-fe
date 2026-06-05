@@ -224,12 +224,30 @@ export function subscribeToAuthUserChanges(callback: () => void) {
     };
 }
 
+const subscribeToNothing = () => () => undefined;
+
+// Returns false during SSR and the first (hydration) client render, then true
+// once hydrated — without a setState-in-effect. React reconciles the differing
+// server/client snapshots and re-renders after hydration.
+function useHasHydrated() {
+    return useSyncExternalStore(
+        subscribeToNothing,
+        () => true,
+        () => false,
+    );
+}
+
 export function useAuthSession() {
     const user = useSyncExternalStore(subscribeToAuthUserChanges, readStoredAuthUser, () => null);
+    // During SSR and the first client render we can't read localStorage, so the
+    // auth state is not yet known (not "logged out"). `isLoading` distinguishes
+    // the two so callers can show a loading state instead of guest UI.
+    const hasHydrated = useHasHydrated();
 
     return {
         user,
         isAuthenticated: Boolean(user),
+        isLoading: !hasHydrated,
         setUser: persistAuthUser,
         clearUser: clearStoredAuthUser,
     };

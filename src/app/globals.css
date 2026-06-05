@@ -184,3 +184,27 @@
     line-height: 1.5;
   }
 }
+
+/*
+ * Pre-hydration auth loading overlay.
+ * The home page always server-renders the guest landing (good for SEO). For a
+ * returning, logged-in visitor the inline script in the root layout sets
+ * `data-auth-pending` on <html> before first paint, which reveals this overlay
+ * on top of the guest content until React hydrates and swaps in the
+ * authenticated UI — so they see a loader instead of a flash of the guest page.
+ */
+.home-auth-overlay {
+  display: none;
+}
+
+[data-auth-pending] .home-auth-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  background-color: var(--background);
+}
