@@ -26,6 +26,7 @@ import {
   useWaitingRoomRequests,
   useWaitingRoomActions,
 } from "@/features/meeting/room/hooks";
+import { RoomLocalVolumeProvider } from "@/features/meeting/room/providers";
 import { meetingApi } from "@/shared/services/meeting.service";
 import type { Participant } from "./types";
 
@@ -456,7 +457,8 @@ function MeetingRoomContent({
   });
 
   return (
-    <div className="h-screen overflow-hidden bg-background">
+    <RoomLocalVolumeProvider roomRef={roomRef} participants={participants}>
+      <div className="h-screen overflow-hidden bg-background">
       <div className="flex h-screen flex-col overflow-hidden bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.12),transparent_42%),linear-gradient(180deg,rgba(15,23,42,1),rgba(30,41,59,0.9))]">
         <RoomHeader
           meetingTitle={meetingTitle}
@@ -581,6 +583,7 @@ function MeetingRoomContent({
           ))}
         </div>
       ) : null}
-    </div>
+      </div>
+    </RoomLocalVolumeProvider>
   );
 }
