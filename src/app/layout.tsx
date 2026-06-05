@@ -84,6 +84,17 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-screen bg-background text-foreground">
+        {/*
+          Runs before first paint: if a logged-in session exists in localStorage,
+          flag the document so the home page can show a loading overlay instead of
+          flashing the guest UI while React hydrates client-only auth state.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if(localStorage.getItem('auth-user')){document.documentElement.setAttribute('data-auth-pending','')}}catch(e){}",
+          }}
+        />
         <AppProvider>
           <SiteShell>{children}</SiteShell>
         </AppProvider>
