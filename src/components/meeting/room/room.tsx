@@ -13,6 +13,7 @@ import {
   useRoomHandRaise,
   useRoomIdentity,
   useRoomExitActions,
+  useLocalMicLevel,
   useRoomLiveKitSession,
   useRoomMediaControls,
   useRoomParticipants,
@@ -376,6 +377,8 @@ function MeetingRoomContent({
   const {
     canPlaybackAudio,
     isRoomConnected,
+    roomConnectionState,
+    hasRoomConnected,
     handleStartAudio,
   } = useRoomLiveKitSession({
     roomRef,
@@ -396,6 +399,12 @@ function MeetingRoomContent({
     onError: handleRoomDeviceError,
     onReset: resetChat,
   });
+  const localMicLevel = useLocalMicLevel(
+    roomRef,
+    isMicEnabled,
+    activeMicrophoneId,
+    isPageVisible,
+  );
 
   useEffect(() => {
     if (activePanel === "chat") {
@@ -476,6 +485,7 @@ function MeetingRoomContent({
         />
 
         <RoomBody
+          meetingCode={meetingCode}
           isSidebarRendered={isSidebarRendered}
           sidebarPanel={sidebarPanel}
           isSidebarOpen={isSidebarOpen}
@@ -491,6 +501,8 @@ function MeetingRoomContent({
           isLayoutMotionEnabled={!isSidebarLayoutTransitioning && !isViewportResizing}
           isViewportResizing={isViewportResizing}
           isLiveKitEnabled={isLiveKitEnabled}
+          roomConnectionState={roomConnectionState}
+          hasRoomConnected={hasRoomConnected}
           canPlaybackAudio={canPlaybackAudio}
           onStartAudio={handleStartAudio}
           onChatDraftChange={setChatDraft}
@@ -513,6 +525,7 @@ function MeetingRoomContent({
           unreadChatCount={unreadChatCount}
           activePanel={activePanel}
           isMicEnabled={isMicEnabled}
+          localMicLevel={localMicLevel}
           canUnmuteMicrophone={canUnmuteMicrophone}
           isCameraEnabled={isCameraEnabled}
           isScreenSharing={isScreenSharing}

@@ -1,7 +1,13 @@
 "use client";
 
 import { Hand, Mic, MicOff, Monitor, Phone, Settings, Video, VideoOff } from "lucide-react";
+import type { ReactNode } from "react";
 
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { RoomSettings, UpdateRoomSettingsRequest } from "@/shared/services/meeting/types";
 
@@ -15,6 +21,7 @@ type RoomFooterControlsProps = {
   isCompactControlsOpen: boolean;
   openMenu: FooterMenuKey;
   isMicEnabled: boolean;
+  localMicLevel: number;
   canUnmuteMicrophone: boolean;
   isCameraEnabled: boolean;
   isScreenSharing: boolean;
@@ -42,10 +49,28 @@ type RoomFooterControlsProps = {
   onOpenLeaveDialog: () => void;
 };
 
+function ControlTooltip({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        {children}
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function RoomFooterControls({
   isCompactControlsOpen,
   openMenu,
   isMicEnabled,
+  localMicLevel,
   canUnmuteMicrophone,
   isCameraEnabled,
   isScreenSharing,
@@ -72,6 +97,10 @@ export function RoomFooterControls({
   onLeave,
   onOpenLeaveDialog,
 }: RoomFooterControlsProps) {
+  const handControlLabel = isHandRaiseCoolingDown
+    ? "Hand control is cooling down"
+    : isHandRaised ? "Lower hand" : "Raise hand";
+
   return (
     <div className="pointer-events-auto order-1 flex justify-center lg:order-2">
       <div
@@ -93,6 +122,8 @@ export function RoomFooterControls({
             isDestructive={!isMicEnabled}
             isMenuOpen={openMenu === "microphone"}
             isMainDisabled={!isMicEnabled && !canUnmuteMicrophone}
+            level={localMicLevel}
+            showLevel={isMicEnabled}
             onMainClick={() => {
               onCloseMenu();
               onToggleMic();
@@ -163,42 +194,40 @@ export function RoomFooterControls({
           ) : null}
         </div>
 
-        <button
-          type="button"
-          aria-label={isHandRaised ? "Lower hand" : "Raise hand"}
-          title={
-            isHandRaiseCoolingDown
-              ? "Hand control is cooling down"
-              : isHandRaised ? "Lower hand" : "Raise hand"
-          }
-          onClick={onToggleHandRaise}
-          disabled={isHandRaiseCoolingDown}
-          className={cn(
-            "flex size-11 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-70 motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 disabled:hover:translate-y-0 motion-reduce:transform-none",
-            isHandRaised
-              ? "bg-amber-300 text-slate-950 hover:bg-amber-200"
-              : "bg-secondary text-secondary-foreground hover:bg-secondary/85",
-          )}
-        >
-          <Hand className="h-5 w-5" />
-        </button>
+        <ControlTooltip label={handControlLabel}>
+          <button
+            type="button"
+            aria-label={isHandRaised ? "Lower hand" : "Raise hand"}
+            onClick={onToggleHandRaise}
+            disabled={isHandRaiseCoolingDown}
+            className={cn(
+              "flex size-11 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-70 motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 disabled:hover:translate-y-0 motion-reduce:transform-none",
+              isHandRaised
+                ? "bg-amber-300 text-slate-950 hover:bg-amber-200"
+                : "bg-secondary text-secondary-foreground hover:bg-secondary/85",
+            )}
+          >
+            <Hand className="h-5 w-5" />
+          </button>
+        </ControlTooltip>
 
         {isHost ? (
           <div className="relative">
-            <button
-              type="button"
-              aria-label="Room settings"
-              title="Room settings"
-              onClick={() => onToggleMenu("settings")}
-              className={cn(
-                "flex size-11 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 motion-reduce:transform-none",
-                openMenu === "settings"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-secondary text-secondary-foreground hover:bg-secondary/85",
-              )}
-            >
-              <Settings className="h-5 w-5" />
-            </button>
+            <ControlTooltip label="Room settings">
+              <button
+                type="button"
+                aria-label="Room settings"
+                onClick={() => onToggleMenu("settings")}
+                className={cn(
+                  "flex size-11 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 motion-reduce:transform-none",
+                  openMenu === "settings"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-secondary-foreground hover:bg-secondary/85",
+                )}
+              >
+                <Settings className="h-5 w-5" />
+              </button>
+            </ControlTooltip>
             {openMenu === "settings" ? (
               <RoomSettingsMenu
                 settings={roomSettings}
@@ -210,23 +239,25 @@ export function RoomFooterControls({
           </div>
         ) : null}
 
-        <button
-          type="button"
-          aria-label="Leave meeting"
-          onClick={() => {
-            onCloseMenu();
+        <ControlTooltip label="Leave meeting">
+          <button
+            type="button"
+            aria-label="Leave meeting"
+            onClick={() => {
+              onCloseMenu();
 
-            if (isHost) {
-              onOpenLeaveDialog();
-              return;
-            }
+              if (isHost) {
+                onOpenLeaveDialog();
+                return;
+              }
 
-            onLeave();
-          }}
-          className="ml-1 flex h-11 items-center justify-center rounded-full bg-destructive px-4 text-destructive-foreground transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 motion-reduce:transform-none"
-        >
-          <Phone className="h-5 w-5" />
-        </button>
+              onLeave();
+            }}
+            className="ml-1 flex h-11 items-center justify-center rounded-full bg-destructive px-4 text-destructive-foreground transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 motion-reduce:transform-none"
+          >
+            <Phone className="h-5 w-5" />
+          </button>
+        </ControlTooltip>
       </div>
     </div>
   );

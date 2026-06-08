@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import {
+  ConnectionState,
   type ChatMessage as LiveKitChatMessage,
   Participant as LiveKitParticipant,
   ParticipantEvent,
@@ -21,6 +22,7 @@ type UseLiveKitRoomParams = {
   initialCameraDeviceId?: string | null;
   initialMicrophoneDeviceId?: string | null;
   onConnectionChange?: (isConnected: boolean) => void;
+  onConnectionStateChange?: (state: ConnectionState) => void;
   onAudioPlaybackChange?: (canPlaybackAudio: boolean) => void;
   onParticipantsChange?: (room: LiveKitRoom) => void;
   onLocalMediaStateChange?: (room: LiveKitRoom) => void;
@@ -47,6 +49,7 @@ export function useLiveKitRoom({
   initialCameraDeviceId,
   initialMicrophoneDeviceId,
   onConnectionChange,
+  onConnectionStateChange,
   onAudioPlaybackChange,
   onParticipantsChange,
   onLocalMediaStateChange,
@@ -63,6 +66,8 @@ export function useLiveKitRoom({
   useEffect(() => {
     if (!enabled || !token) {
       roomRef.current = null;
+      onConnectionChange?.(false);
+      onConnectionStateChange?.(ConnectionState.Disconnected);
       onReset?.();
       return;
     }
@@ -72,6 +77,7 @@ export function useLiveKitRoom({
     const room = new LiveKitRoom(options);
     const participantSpeakingListeners = new Map<LiveKitParticipant, () => void>();
     roomRef.current = room;
+    onConnectionStateChange?.(ConnectionState.Disconnected);
     onReset?.();
 
     const syncParticipantsNow = () => {
@@ -123,15 +129,18 @@ export function useLiveKitRoom({
     room
       .on(RoomEvent.Connected, () => {
         onConnectionChange?.(true);
+        onConnectionStateChange?.(ConnectionState.Connected);
         scheduleSyncParticipants();
       })
       .on(RoomEvent.Reconnected, () => {
         onConnectionChange?.(true);
+        onConnectionStateChange?.(ConnectionState.Connected);
         scheduleSyncParticipants();
       })
       .on(RoomEvent.Disconnected, () => {
         if (!isDisposed) {
           onConnectionChange?.(false);
+          onConnectionStateChange?.(ConnectionState.Disconnected);
         }
       })
       .on(RoomEvent.ParticipantConnected, (participant) => {
@@ -166,7 +175,16 @@ export function useLiveKitRoom({
       .on(RoomEvent.MediaDevicesChanged, () => {
         onDeviceChange?.(room);
       })
-      .on(RoomEvent.ConnectionStateChanged, scheduleSyncParticipants)
+      .on(RoomEvent.ConnectionStateChanged, (state) => {
+        if (!isDisposed) {
+          onConnectionStateChange?.(state);
+        }
+
+        scheduleSyncParticipants();
+      })
+      .on(RoomEvent.ConnectionQualityChanged, () => {
+        scheduleSyncParticipants();
+      })
       .on(RoomEvent.AudioPlaybackStatusChanged, (playing) => {
         if (!isDisposed) {
           onAudioPlaybackChange?.(playing);
@@ -185,6 +203,7 @@ export function useLiveKitRoom({
     const connectRoom = async () => {
       try {
         onError?.(null);
+        onConnectionStateChange?.(ConnectionState.Connecting);
         room.prepareConnection(url, token);
         await room.connect(url, token);
 
@@ -231,6 +250,7 @@ export function useLiveKitRoom({
     return () => {
       isDisposed = true;
       onConnectionChange?.(false);
+      onConnectionStateChange?.(ConnectionState.Disconnected);
       participantSpeakingListeners.forEach((disposeListener) => {
         disposeListener();
       });
@@ -256,6 +276,7 @@ export function useLiveKitRoom({
     onAudioPlaybackChange,
     onChatMessage,
     onConnectionChange,
+    onConnectionStateChange,
     onDeviceChange,
     onRoomMetadataChanged,
     onError,

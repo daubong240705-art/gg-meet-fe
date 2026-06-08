@@ -1,7 +1,9 @@
 "use client";
 
 import { Check, Copy } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+
+import { useCopyMeetingLink } from "@/features/meeting/room/hooks/use-copy-meeting-link";
 
 type RoomFooterMeetingInfoProps = {
   meetingCode: string;
@@ -17,9 +19,8 @@ function formatTime(now: Date) {
 }
 
 export function RoomFooterMeetingInfo({ meetingCode }: RoomFooterMeetingInfoProps) {
-  const copyTimeoutRef = useRef<number | null>(null);
   const [now, setNow] = useState(() => new Date());
-  const [copied, setCopied] = useState(false);
+  const { copied, copyMeetingLink } = useCopyMeetingLink(meetingCode);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -31,35 +32,6 @@ export function RoomFooterMeetingInfo({ meetingCode }: RoomFooterMeetingInfoProp
     };
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (copyTimeoutRef.current !== null) {
-        window.clearTimeout(copyTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  const handleCopyMeetingLink = async () => {
-    if (typeof window === "undefined" || !navigator.clipboard?.writeText) {
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(`${window.location.origin}/${meetingCode}`);
-      setCopied(true);
-
-      if (copyTimeoutRef.current !== null) {
-        window.clearTimeout(copyTimeoutRef.current);
-      }
-
-      copyTimeoutRef.current = window.setTimeout(() => {
-        setCopied(false);
-      }, 2000);
-    } catch {
-      setCopied(false);
-    }
-  };
-
   return (
     <div className="pointer-events-auto order-2 flex items-center justify-center gap-2 text-xs text-muted-foreground lg:order-1 lg:justify-start">
       <span className="font-semibold text-foreground">{formatTime(now)}</span>
@@ -69,7 +41,7 @@ export function RoomFooterMeetingInfo({ meetingCode }: RoomFooterMeetingInfoProp
         <button
           type="button"
           aria-label="Copy meeting link"
-          onClick={handleCopyMeetingLink}
+          onClick={() => void copyMeetingLink()}
           className="flex size-7 items-center justify-center rounded-full bg-muted/80 text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
         >
           {copied ? (

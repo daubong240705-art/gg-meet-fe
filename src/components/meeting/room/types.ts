@@ -25,6 +25,7 @@ export type SidebarTab = Exclude<SidebarPanel, null>;
 
 export type VideoTrackReference = LocalVideoTrack | RemoteVideoTrack;
 export type AudioTrackReference = LocalAudioTrack | RemoteAudioTrack;
+export type ParticipantConnectionQuality = "excellent" | "good" | "poor" | "lost" | "unknown";
 
 export type Participant = {
   id: string;
@@ -41,6 +42,8 @@ export type Participant = {
   isCameraOff: boolean;
   isSpeaking: boolean;
   isScreenSharing: boolean;
+  connectionQuality: ParticipantConnectionQuality;
+  audioLevel: number;
   accentClassName: string;
   status: string;
   cameraTrack: VideoTrackReference | null;

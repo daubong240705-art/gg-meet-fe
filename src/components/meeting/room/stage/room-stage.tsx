@@ -1,9 +1,11 @@
 "use client";
 
 import { LayoutGroup, motion, type Transition } from "framer-motion";
-import { Monitor } from "lucide-react";
+import { Check, Copy, Monitor } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useCopyMeetingLink } from "@/features/meeting/room/hooks/use-copy-meeting-link";
 import { cn } from "@/lib/utils";
 import type { MeetingTrackType } from "@/shared/services/meeting.service";
 
@@ -22,6 +24,7 @@ type MutingParticipantTrack = {
 };
 
 type RoomStageProps = {
+  meetingCode: string;
   participants: Participant[];
   screenShareParticipant: Participant | null;
   isPageVisible: boolean;
@@ -126,6 +129,7 @@ function HiddenParticipantsPill({ count, className }: { count: number; className
 }
 
 export default function RoomStage({
+  meetingCode,
   participants,
   screenShareParticipant,
   isPageVisible,
@@ -140,13 +144,36 @@ export default function RoomStage({
 }: RoomStageProps) {
   const screenShareParticipantId = screenShareParticipant?.id ?? null;
   const isFramerLayoutEnabled = isLayoutMotionEnabled && !isViewportResizing;
+  const { copied, copyMeetingLink } = useCopyMeetingLink(meetingCode);
 
   if (participants.length === 0) {
     return (
-      <Card className="flex h-full items-center justify-center border border-border/70 bg-background/80">
-        <p className="px-6 text-center text-sm text-muted-foreground">
-          Waiting for participants to join room.
-        </p>
+      <Card className="flex h-full items-center justify-center border border-border/70 bg-background/80 px-6">
+        <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+            <Monitor className="h-7 w-7" />
+          </div>
+          <div className="space-y-2">
+            <p className="text-base font-semibold text-foreground">
+              Waiting for participants to join
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Share the meeting link to invite others into this room.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 rounded-full border border-border/70 bg-background/70 py-1.5 pl-4 pr-1.5">
+            <code className="text-sm font-semibold tracking-wide text-foreground">{meetingCode}</code>
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 rounded-full px-3"
+              onClick={() => void copyMeetingLink()}
+            >
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {copied ? "Copied" : "Copy link"}
+            </Button>
+          </div>
+        </div>
       </Card>
     );
   }

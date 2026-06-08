@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  ConnectionState,
   type ChatMessage as LiveKitChatMessage,
   Participant as LiveKitParticipant,
   Room as LiveKitRoom,
@@ -56,15 +57,35 @@ export function useRoomLiveKitSession({
 }: UseRoomLiveKitSessionParams) {
   const [canPlaybackAudio, setCanPlaybackAudio] = useState(true);
   const [isRoomConnected, setIsRoomConnected] = useState(false);
+  const [roomConnectionState, setRoomConnectionState] = useState(ConnectionState.Disconnected);
+  const [hasRoomConnected, setHasRoomConnected] = useState(false);
 
   const handleLiveKitReset = useCallback(() => {
     setIsRoomConnected(false);
+    setRoomConnectionState(ConnectionState.Disconnected);
+    setHasRoomConnected(false);
     onReset();
   }, [onReset]);
 
   const handleLiveKitError = useCallback((error: Error | null) => {
     onError(error?.message ?? null);
   }, [onError]);
+
+  const handleLiveKitConnectionChange = useCallback((isConnected: boolean) => {
+    setIsRoomConnected(isConnected);
+
+    if (isConnected) {
+      setHasRoomConnected(true);
+    }
+  }, []);
+
+  const handleLiveKitConnectionStateChange = useCallback((state: ConnectionState) => {
+    setRoomConnectionState(state);
+
+    if (state === ConnectionState.Connected) {
+      setHasRoomConnected(true);
+    }
+  }, []);
 
   useLiveKitRoom({
     enabled,
@@ -76,7 +97,8 @@ export function useRoomLiveKitSession({
     initialMicrophoneEnabled,
     initialCameraDeviceId,
     initialMicrophoneDeviceId,
-    onConnectionChange: setIsRoomConnected,
+    onConnectionChange: handleLiveKitConnectionChange,
+    onConnectionStateChange: handleLiveKitConnectionStateChange,
     onAudioPlaybackChange: setCanPlaybackAudio,
     onParticipantsChange,
     onLocalMediaStateChange,
@@ -112,6 +134,8 @@ export function useRoomLiveKitSession({
   return {
     canPlaybackAudio,
     isRoomConnected,
+    roomConnectionState,
+    hasRoomConnected,
     handleStartAudio,
   };
 }

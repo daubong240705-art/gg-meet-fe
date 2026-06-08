@@ -1,9 +1,13 @@
 import {
+  ConnectionQuality,
   Participant as LiveKitParticipant,
   Track,
 } from "livekit-client";
 
-import type { Participant } from "@/components/meeting/room/types";
+import type {
+  Participant,
+  ParticipantConnectionQuality,
+} from "@/components/meeting/room/types";
 import {
   getDefaultParticipantHandState,
   getParticipantAccentClassName,
@@ -99,6 +103,32 @@ function resolveParticipantId(participant: LiveKitParticipant): number | null {
   return null;
 }
 
+function mapConnectionQuality(
+  connectionQuality: ConnectionQuality,
+): ParticipantConnectionQuality {
+  switch (connectionQuality) {
+    case ConnectionQuality.Excellent:
+      return "excellent";
+    case ConnectionQuality.Good:
+      return "good";
+    case ConnectionQuality.Poor:
+      return "poor";
+    case ConnectionQuality.Lost:
+      return "lost";
+    case ConnectionQuality.Unknown:
+    default:
+      return "unknown";
+  }
+}
+
+function normalizeAudioLevel(audioLevel: number) {
+  if (!Number.isFinite(audioLevel)) {
+    return 0;
+  }
+
+  return Math.min(1, Math.max(0, audioLevel));
+}
+
 export function mapParticipantToUiParticipant(
   participant: LiveKitParticipant,
   localDisplayName: string,
@@ -162,6 +192,8 @@ export function mapParticipantToUiParticipant(
     isCameraOff: !(cameraPublication && !cameraPublication.isMuted),
     isSpeaking: participant.isSpeaking,
     isScreenSharing,
+    connectionQuality: mapConnectionQuality(participant.connectionQuality),
+    audioLevel: normalizeAudioLevel(participant.audioLevel),
     accentClassName: getParticipantAccentClassName(identity),
     status: getParticipantStatus(participant, isScreenSharing),
     cameraTrack: participantTracks.cameraTrack,
@@ -196,6 +228,8 @@ export function getFallbackLocalParticipant(
     isCameraOff: !isCameraEnabled,
     isSpeaking: isMicEnabled,
     isScreenSharing,
+    connectionQuality: "unknown",
+    audioLevel: 0,
     accentClassName: "from-primary/30 via-primary/10 to-background",
     status: isScreenSharing ? "Presenting" : "You",
     cameraTrack: null,
@@ -219,6 +253,7 @@ function areParticipantEqual(participant: Participant, nextParticipant: Particip
     && participant.isCameraOff === nextParticipant.isCameraOff
     && participant.isSpeaking === nextParticipant.isSpeaking
     && participant.isScreenSharing === nextParticipant.isScreenSharing
+    && participant.connectionQuality === nextParticipant.connectionQuality
     && participant.accentClassName === nextParticipant.accentClassName
     && participant.status === nextParticipant.status
     && participant.cameraTrack === nextParticipant.cameraTrack
