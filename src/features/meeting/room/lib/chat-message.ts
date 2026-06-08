@@ -20,11 +20,13 @@ type ParsedChatPayload =
     stickerKey: string;
   };
 
+const CHAT_TIME_FORMATTER = new Intl.DateTimeFormat("vi-VN", {
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
 function formatChatTime(timestamp: number) {
-  return new Intl.DateTimeFormat("vi-VN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(timestamp);
+  return CHAT_TIME_FORMATTER.format(timestamp);
 }
 
 export function parseIncomingChatPayload(rawMessage: string): ParsedChatPayload | null {

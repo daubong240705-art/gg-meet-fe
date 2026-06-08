@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { clearPersistedChatMessages } from "@/lib/meeting/chat-session-storage";
 import {
   clearInstantMeetingSession,
   readInstantMeetingSession,
@@ -76,6 +77,7 @@ export function useMeetingPageState(
 
   const handleMeetingEnded = useCallback(() => {
     clearInstantMeetingSession(meetingCode);
+    clearPersistedChatMessages(meetingCode);
     setJoinState(null);
     setLeftMeetingState({ leftAt: Date.now(), reason: "ended" });
   }, [meetingCode]);
@@ -88,6 +90,7 @@ export function useMeetingPageState(
   const handleLeaveMeeting = useCallback(
     (reason: "left" | "ended" | "kicked" | "banned" = "left") => {
       clearInstantMeetingSession(meetingCode);
+      clearPersistedChatMessages(meetingCode);
       setJoinState(null);
       setLeftMeetingState({ leftAt: Date.now(), reason });
     },

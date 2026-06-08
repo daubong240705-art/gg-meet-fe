@@ -6,6 +6,9 @@
       "Bash(echo \"=== tsc exit: $? ===\")",
       "Bash(sed -n '1,30p' src/components/home/guest-home.tsx)",
       "Bash(sed -n '1,30p' src/components/home/authenticated-home.tsx)"
+    ],
+    "additionalDirectories": [
+      "/home/lazy/GitHub/kallio/docs"
     ]
   }
 }

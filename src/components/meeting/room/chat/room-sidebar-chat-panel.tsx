@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { Send, SmilePlus } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/user/user-avatar";
@@ -24,6 +24,81 @@ type RoomSidebarChatPanelProps = {
   onSendChatMessage: (payload: OutboundChatMessage) => void;
 };
 
+const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 80;
+
+function isScrolledNearBottom(container: HTMLDivElement) {
+  return container.scrollHeight - container.scrollTop - container.clientHeight <= AUTO_SCROLL_BOTTOM_THRESHOLD_PX;
+}
+
+type ChatMessageItemProps = {
+  message: ChatMessage;
+};
+
+const ChatMessageItem = memo(function ChatMessageItem({ message }: ChatMessageItemProps) {
+  const stickerUrl = message.type === "sticker" ? getStickerUrl(message.stickerKey) : null;
+
+  return (
+    <div
+      className={cn(
+        message.isLocal ? "flex w-full justify-end" : "flex w-full justify-start",
+        "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-200 motion-reduce:animate-none",
+      )}
+    >
+      <div className={message.isLocal ? "ml-auto flex w-fit max-w-[82%] min-w-0 justify-end" : "mr-auto flex w-fit max-w-[82%] min-w-0 gap-3"}>
+        {!message.isLocal ? (
+          <UserAvatar
+            avatarUrl={message.avatarUrl}
+            name={message.name}
+            email={message.avatarSource}
+            className="h-9 w-9 text-sm"
+            initialsClassName="text-sm"
+          />
+        ) : null}
+
+        <div className={message.isLocal ? "flex min-w-0 flex-col items-end" : "flex min-w-0 flex-col items-start"}>
+          <div
+            className={message.isLocal ? "mb-1 flex items-baseline justify-end gap-2" : "mb-1 flex items-baseline gap-2"}
+          >
+            <span className="font-medium text-foreground">{message.name}</span>
+            <span className="text-xs text-muted-foreground">
+              {message.time}
+            </span>
+          </div>
+          <div
+            className={
+              message.type === "sticker"
+                ? "w-fit max-w-full"
+                : message.isLocal
+                  ? "ml-auto w-fit max-w-full self-end rounded-2xl rounded-tr-md bg-primary px-3 py-3 text-left text-sm leading-6 text-primary-foreground"
+                  : "w-fit max-w-full rounded-2xl rounded-tl-md border border-border/70 bg-background/55 px-4 py-3 text-sm leading-6 text-foreground"
+            }
+          >
+            {message.type === "sticker" ? (
+              stickerUrl ? (
+                <div className="rounded-[1.1rem] shadow-[0_8px_24px_rgba(2,6,23,0.18)]">
+                  <Image
+                    src={stickerUrl}
+                    alt={`${message.name} sticker`}
+                    width={108}
+                    height={108}
+                    unoptimized
+                    sizes="96px"
+                    className="h-24 w-24 object-contain"
+                  />
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Sticker unavailable</p>
+              )
+            ) : (
+              <ChatLinkifiedText text={message.content} isLocal={message.isLocal} />
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+
 export function RoomSidebarChatPanel({
   currentTab,
   isOpen,
@@ -37,7 +112,22 @@ export function RoomSidebarChatPanel({
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
   const stickerPickerRef = useRef<HTMLDivElement | null>(null);
+  const isNearChatBottomRef = useRef(true);
   const [isStickerPickerOpen, setIsStickerPickerOpen] = useState(false);
+
+  const scrollChatToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    const container = chatScrollRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior,
+    });
+    isNearChatBottomRef.current = true;
+  }, []);
 
   const focusChatInput = useCallback(() => {
     if (currentTab !== "chat" || !isChatReady) {
@@ -49,18 +139,25 @@ export function RoomSidebarChatPanel({
     });
   }, [currentTab, isChatReady]);
 
-  useEffect(() => {
+  const handleChatScroll = useCallback(() => {
     const container = chatScrollRef.current;
 
     if (!container) {
       return;
     }
 
-    container.scrollTo({
-      top: container.scrollHeight,
-      behavior: "smooth",
-    });
-  }, [chatMessages]);
+    isNearChatBottomRef.current = isScrolledNearBottom(container);
+  }, []);
+
+  useEffect(() => {
+    const container = chatScrollRef.current;
+
+    if (!container || !isNearChatBottomRef.current) {
+      return;
+    }
+
+    scrollChatToBottom("smooth");
+  }, [chatMessages, scrollChatToBottom]);
 
   useEffect(() => {
     if (currentTab !== "chat" || !isOpen || !isChatReady || isSendingChat) {
@@ -122,72 +219,14 @@ export function RoomSidebarChatPanel({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-150 motion-reduce:animate-none">
-      <div ref={chatScrollRef} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+      <div
+        ref={chatScrollRef}
+        className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4"
+        onScroll={handleChatScroll}
+      >
         {chatMessages.length > 0 ? (
           chatMessages.map((message) => (
-            <div
-              key={message.id}
-              className={cn(
-                message.isLocal ? "flex w-full justify-end" : "flex w-full justify-start",
-                "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-200 motion-reduce:animate-none",
-              )}
-            >
-              <div className={message.isLocal ? "ml-auto flex w-fit max-w-[82%] min-w-0 justify-end" : "mr-auto flex w-fit max-w-[82%] min-w-0 gap-3"}>
-                {!message.isLocal ? (
-                  <UserAvatar
-                    avatarUrl={message.avatarUrl}
-                    name={message.name}
-                    email={message.avatarSource}
-                    className="h-9 w-9 text-sm"
-                    initialsClassName="text-sm"
-                  />
-                ) : null}
-
-                <div className={message.isLocal ? "flex min-w-0 flex-col items-end" : "flex min-w-0 flex-col items-start"}>
-                  <div
-                    className={message.isLocal ? "mb-1 flex items-baseline justify-end gap-2" : "mb-1 flex items-baseline gap-2"}
-                  >
-                    <span className="font-medium text-foreground">{message.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {message.time}
-                    </span>
-                  </div>
-                  <div
-                    className={
-                      message.type === "sticker"
-                        ? "w-fit max-w-full"
-                        : message.isLocal
-                          ? "ml-auto w-fit max-w-full self-end rounded-2xl rounded-tr-md bg-primary px-3 py-3 text-left text-sm leading-6 text-primary-foreground"
-                          : "w-fit max-w-full rounded-2xl rounded-tl-md border border-border/70 bg-background/55 px-4 py-3 text-sm leading-6 text-foreground"
-                    }
-                  >
-                    {message.type === "sticker" ? (
-                      (() => {
-                        const stickerUrl = getStickerUrl(message.stickerKey);
-
-                        return stickerUrl ? (
-                          <div className="rounded-[1.1rem] shadow-[0_8px_24px_rgba(2,6,23,0.18)]">
-                            <Image
-                              src={stickerUrl}
-                              alt={`${message.name} sticker`}
-                              width={108}
-                              height={108}
-                              unoptimized
-                              sizes="96px"
-                              className="h-24 w-24 object-contain"
-                            />
-                          </div>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">Sticker unavailable</p>
-                        );
-                      })()
-                    ) : (
-                      <ChatLinkifiedText text={message.content} isLocal={message.isLocal} />
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <ChatMessageItem key={message.id} message={message} />
           ))
         ) : (
           <div className="flex min-h-0 flex-1 items-center justify-center rounded-3xl border border-dashed border-border/70 bg-background/35 px-6 text-center text-sm text-muted-foreground">

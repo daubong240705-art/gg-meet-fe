@@ -225,6 +225,7 @@ function MeetingRoomContent({
     handleLiveKitChatMessage,
     handleSendChatMessage,
   } = useRoomChat({
+    meetingCode,
     roomRef,
     activePanelRef,
     isLiveKitEnabled,

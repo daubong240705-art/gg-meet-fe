@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -19,6 +21,30 @@ type MutingParticipantTrack = {
   participantId: number;
   trackType: MeetingTrackType;
 };
+
+const DESKTOP_SIDEBAR_MEDIA_QUERY = "(min-width: 1280px)";
+
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(false);
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") {
+      return;
+    }
+
+    const mediaQueryList = window.matchMedia(query);
+    const handleChange = () => setMatches(mediaQueryList.matches);
+
+    handleChange();
+    mediaQueryList.addEventListener("change", handleChange);
+
+    return () => {
+      mediaQueryList.removeEventListener("change", handleChange);
+    };
+  }, [query]);
+
+  return matches;
+}
 
 type RoomBodyProps = {
   isSidebarRendered: boolean;
@@ -83,9 +109,35 @@ export default function RoomBody({
   onForceStopScreenShare,
   onPanelChange,
 }: RoomBodyProps) {
+  const isDesktopSidebarLayout = useMediaQuery(DESKTOP_SIDEBAR_MEDIA_QUERY);
+  const shouldRenderSidebar = isSidebarRendered && Boolean(sidebarPanel);
+  const sidebar = sidebarPanel ? (
+    <RoomSidebar
+      activePanel={sidebarPanel}
+      isOpen={isSidebarOpen}
+      participants={participants}
+      waitingParticipants={waitingParticipants}
+      canManageWaitingRoom={canManageWaitingRoom}
+      chatMessages={chatMessages}
+      chatDraft={chatDraft}
+      isChatReady={isChatReady}
+      isSendingChat={isSendingChat}
+      onChatDraftChange={onChatDraftChange}
+      onSendChatMessage={onSendChatMessage}
+      onApproveWaitingParticipant={onApproveWaitingParticipant}
+      onRejectWaitingParticipant={onRejectWaitingParticipant}
+      onApproveAllWaitingParticipants={onApproveAllWaitingParticipants}
+      onKickParticipant={onKickParticipant}
+      mutingParticipantTrack={mutingParticipantTrack}
+      onMuteParticipantTrack={onMuteParticipantTrack}
+      onPanelChange={onPanelChange}
+      onClose={() => onPanelChange(null)}
+    />
+  ) : null;
+
   return (
     <>
-      {isSidebarRendered && sidebarPanel ? (
+      {shouldRenderSidebar && !isDesktopSidebarLayout ? (
         <>
           <button
             type="button"
@@ -102,27 +154,7 @@ export default function RoomBody({
               isSidebarOpen ? "translate-y-0 opacity-100 lg:translate-x-0" : "pointer-events-none translate-y-4 opacity-0 lg:-translate-x-5 lg:translate-y-0",
             )}
           >
-            <RoomSidebar
-              activePanel={sidebarPanel}
-              isOpen={isSidebarOpen}
-              participants={participants}
-              waitingParticipants={waitingParticipants}
-              canManageWaitingRoom={canManageWaitingRoom}
-              chatMessages={chatMessages}
-              chatDraft={chatDraft}
-              isChatReady={isChatReady}
-              isSendingChat={isSendingChat}
-              onChatDraftChange={onChatDraftChange}
-              onSendChatMessage={onSendChatMessage}
-              onApproveWaitingParticipant={onApproveWaitingParticipant}
-              onRejectWaitingParticipant={onRejectWaitingParticipant}
-              onApproveAllWaitingParticipants={onApproveAllWaitingParticipants}
-              onKickParticipant={onKickParticipant}
-              mutingParticipantTrack={mutingParticipantTrack}
-              onMuteParticipantTrack={onMuteParticipantTrack}
-              onPanelChange={onPanelChange}
-              onClose={() => onPanelChange(null)}
-            />
+            {sidebar}
           </div>
         </>
       ) : null}
@@ -170,38 +202,18 @@ export default function RoomBody({
           </div>
         </div>
 
-        <div
-          className={cn(
-            "order-2 hidden min-h-0 shrink-0 overflow-hidden motion-safe:transition-[opacity,transform,margin] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none xl:col-start-1 xl:row-start-1 xl:order-none xl:mt-2 xl:flex xl:h-[calc(100%-0.5rem)]",
-            isSidebarOpen
-              ? "xl:translate-x-0 xl:opacity-100"
-              : "pointer-events-none xl:-translate-x-3 xl:opacity-0",
-          )}
-        >
-          {sidebarPanel ? (
-            <RoomSidebar
-              activePanel={sidebarPanel}
-              isOpen={isSidebarOpen}
-              participants={participants}
-              waitingParticipants={waitingParticipants}
-              canManageWaitingRoom={canManageWaitingRoom}
-              chatMessages={chatMessages}
-              chatDraft={chatDraft}
-              isChatReady={isChatReady}
-              isSendingChat={isSendingChat}
-              onChatDraftChange={onChatDraftChange}
-              onSendChatMessage={onSendChatMessage}
-              onApproveWaitingParticipant={onApproveWaitingParticipant}
-              onRejectWaitingParticipant={onRejectWaitingParticipant}
-              onApproveAllWaitingParticipants={onApproveAllWaitingParticipants}
-              onKickParticipant={onKickParticipant}
-              mutingParticipantTrack={mutingParticipantTrack}
-              onMuteParticipantTrack={onMuteParticipantTrack}
-              onPanelChange={onPanelChange}
-              onClose={() => onPanelChange(null)}
-            />
-          ) : null}
-        </div>
+        {isDesktopSidebarLayout ? (
+          <div
+            className={cn(
+              "order-2 hidden min-h-0 shrink-0 overflow-hidden motion-safe:transition-[opacity,transform,margin] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none xl:col-start-1 xl:row-start-1 xl:order-none xl:mt-2 xl:flex xl:h-[calc(100%-0.5rem)]",
+              isSidebarOpen
+                ? "xl:translate-x-0 xl:opacity-100"
+                : "pointer-events-none xl:-translate-x-3 xl:opacity-0",
+            )}
+          >
+            {sidebar}
+          </div>
+        ) : null}
       </div>
     </>
   );
