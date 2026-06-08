@@ -142,10 +142,18 @@ export function RoomSidebarChatPanel({
   const stickerPickerRef = useRef<HTMLDivElement | null>(null);
   const unreadDividerRef = useRef<HTMLDivElement | null>(null);
   const isNearChatBottomRef = useRef(true);
+  const isScrollingToUnreadDividerRef = useRef(false);
   const previousMessageCountRef = useRef(chatMessages.length);
   const [isStickerPickerOpen, setIsStickerPickerOpen] = useState(false);
   const [isNearChatBottom, setIsNearChatBottom] = useState(true);
   const [newMessagesBelowCount, setNewMessagesBelowCount] = useState(0);
+  const [visibleUnreadMessageId, setVisibleUnreadMessageId] = useState<string | null>(null);
+  const activeUnreadMessageId = visibleUnreadMessageId ?? firstUnreadMessageId;
+
+  const clearUnreadDividerState = useCallback(() => {
+    setVisibleUnreadMessageId(null);
+    onClearUnreadDivider();
+  }, [onClearUnreadDivider]);
 
   const scrollChatToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     const container = chatScrollRef.current;
@@ -161,8 +169,8 @@ export function RoomSidebarChatPanel({
     isNearChatBottomRef.current = true;
     setIsNearChatBottom(true);
     setNewMessagesBelowCount(0);
-    onClearUnreadDivider();
-  }, [onClearUnreadDivider]);
+    clearUnreadDividerState();
+  }, [clearUnreadDividerState]);
 
   const focusChatInput = useCallback(() => {
     if (currentTab !== "chat" || !isChatReady) {
@@ -187,9 +195,12 @@ export function RoomSidebarChatPanel({
 
     if (isNearBottom) {
       setNewMessagesBelowCount(0);
-      onClearUnreadDivider();
+
+      if (!isScrollingToUnreadDividerRef.current) {
+        clearUnreadDividerState();
+      }
     }
-  }, [onClearUnreadDivider]);
+  }, [clearUnreadDividerState]);
 
   useEffect(() => {
     const container = chatScrollRef.current;
@@ -201,7 +212,7 @@ export function RoomSidebarChatPanel({
       return;
     }
 
-    if (isNearChatBottomRef.current && !firstUnreadMessageId) {
+    if (isNearChatBottomRef.current && !activeUnreadMessageId) {
       const frameId = window.requestAnimationFrame(() => {
         scrollChatToBottom("smooth");
       });
@@ -216,7 +227,7 @@ export function RoomSidebarChatPanel({
         setNewMessagesBelowCount((currentCount) => currentCount + addedMessageCount);
       });
     }
-  }, [chatMessages.length, currentTab, firstUnreadMessageId, isOpen, scrollChatToBottom]);
+  }, [activeUnreadMessageId, chatMessages.length, currentTab, isOpen, scrollChatToBottom]);
 
   useEffect(() => {
     if (currentTab !== "chat" || !isOpen || !firstUnreadMessageId) {
@@ -224,6 +235,23 @@ export function RoomSidebarChatPanel({
     }
 
     const frameId = window.requestAnimationFrame(() => {
+      setVisibleUnreadMessageId(firstUnreadMessageId);
+      onClearUnreadDivider();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [currentTab, firstUnreadMessageId, isOpen, onClearUnreadDivider]);
+
+  useEffect(() => {
+    if (currentTab !== "chat" || !isOpen || !activeUnreadMessageId) {
+      return;
+    }
+
+    let clearAutoScrollFlagTimeoutId: number | null = null;
+    const frameId = window.requestAnimationFrame(() => {
+      isScrollingToUnreadDividerRef.current = true;
       unreadDividerRef.current?.scrollIntoView({
         behavior: "smooth",
         block: "start",
@@ -238,12 +266,20 @@ export function RoomSidebarChatPanel({
       const isNearBottom = isScrolledNearBottom(container);
       isNearChatBottomRef.current = isNearBottom;
       setIsNearChatBottom(isNearBottom);
+
+      clearAutoScrollFlagTimeoutId = window.setTimeout(() => {
+        isScrollingToUnreadDividerRef.current = false;
+      }, 600);
     });
 
     return () => {
       window.cancelAnimationFrame(frameId);
+      if (clearAutoScrollFlagTimeoutId !== null) {
+        window.clearTimeout(clearAutoScrollFlagTimeoutId);
+      }
+      isScrollingToUnreadDividerRef.current = false;
     };
-  }, [currentTab, firstUnreadMessageId, isOpen]);
+  }, [activeUnreadMessageId, currentTab, isOpen]);
 
   useEffect(() => {
     if (currentTab !== "chat" || !isOpen || !isChatReady || isSendingChat) {
@@ -316,7 +352,7 @@ export function RoomSidebarChatPanel({
           {chatMessages.length > 0 ? (
             chatMessages.map((message, index) => {
               const previousMessage = index > 0 ? chatMessages[index - 1] : null;
-              const shouldRenderUnreadDivider = firstUnreadMessageId === message.id;
+              const shouldRenderUnreadDivider = activeUnreadMessageId === message.id;
               const isGroupedWithPrevious =
                 !shouldRenderUnreadDivider && shouldGroupWithPrevious(message, previousMessage);
 
