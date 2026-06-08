@@ -38,6 +38,7 @@ type RoomFooterProps = {
   onSelectCamera: (deviceId: string) => void;
   onRefreshDevices: () => void;
   onTogglePanel: (panel: Exclude<SidebarPanel, null>) => void;
+  onOpenShortcuts: () => void;
   isCompactControlsOpen: boolean;
   onToggleCompactControls: () => void;
   onLeave: () => void;
@@ -74,6 +75,7 @@ export default function RoomFooter({
   onSelectCamera,
   onRefreshDevices,
   onTogglePanel,
+  onOpenShortcuts,
   isCompactControlsOpen,
   onToggleCompactControls,
   onLeave,
@@ -179,6 +181,10 @@ export default function RoomFooter({
             onTogglePanel={(panel) => {
               setOpenMenu(null);
               onTogglePanel(panel);
+            }}
+            onOpenShortcuts={() => {
+              setOpenMenu(null);
+              onOpenShortcuts();
             }}
           />
         </div>

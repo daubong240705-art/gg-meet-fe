@@ -14,6 +14,7 @@ import {
   useRoomIdentity,
   useRoomExitActions,
   useLocalMicLevel,
+  useRoomKeyboardShortcuts,
   useRoomLiveKitSession,
   useRoomMediaControls,
   useRoomParticipants,
@@ -31,7 +32,9 @@ import { RoomLocalVolumeProvider } from "@/features/meeting/room/providers";
 import { meetingApi } from "@/shared/services/meeting.service";
 import type { Participant } from "./types";
 
+import { RoomLeaveDialog } from "./dialogs/room-leave-dialog";
 import { ScreenShareRequestDialog } from "./dialogs/screen-share-request-dialog";
+import { RoomShortcutsDialog } from "./dialogs/room-shortcuts-dialog";
 import RoomFooter from "./footer/room-footer";
 import RoomHeader from "./header/room-header";
 import RoomBody from "./layout/room-body";
@@ -128,11 +131,17 @@ function MeetingRoomContent({
     handlePanelChange,
   } = useRoomSidebarState();
   const [isCompactControlsOpen, setIsCompactControlsOpen] = useState(false);
+  const [isShortcutsDialogOpen, setIsShortcutsDialogOpen] = useState(false);
+  const [isKeyboardLeaveDialogOpen, setIsKeyboardLeaveDialogOpen] = useState(false);
 
   const handleToggleMeetingPanel = useCallback((panel: Exclude<typeof activePanel, null>) => {
     setIsCompactControlsOpen(false);
     togglePanel(panel);
   }, [togglePanel]);
+
+  const handleOpenShortcutsDialog = useCallback(() => {
+    setIsShortcutsDialogOpen(true);
+  }, []);
 
   const handleMeetingPanelChange = useCallback((panel: typeof activePanel) => {
     if (panel) {
@@ -466,6 +475,34 @@ function MeetingRoomContent({
     onRoomSettingsChanged: patchRoomSettings,
   });
 
+  const handleToggleChatShortcut = useCallback(() => {
+    handleToggleMeetingPanel("chat");
+  }, [handleToggleMeetingPanel]);
+
+  const handleToggleParticipantsShortcut = useCallback(() => {
+    handleToggleMeetingPanel("participants");
+  }, [handleToggleMeetingPanel]);
+
+  const handleLeaveShortcut = useCallback(() => {
+    if (canManageWaitingRoom) {
+      setIsKeyboardLeaveDialogOpen(true);
+      return;
+    }
+
+    handleLeaveMeeting();
+  }, [canManageWaitingRoom, handleLeaveMeeting]);
+
+  useRoomKeyboardShortcuts({
+    disabled: isShortcutsDialogOpen || isKeyboardLeaveDialogOpen || isShareRequestDialogOpen,
+    onToggleMic: handleToggleMic,
+    onToggleCamera: handleToggleCamera,
+    onToggleChatPanel: handleToggleChatShortcut,
+    onToggleParticipantsPanel: handleToggleParticipantsShortcut,
+    onToggleHandRaise: handleToggleHandRaise,
+    onLeave: handleLeaveShortcut,
+    onOpenHelp: handleOpenShortcutsDialog,
+  });
+
   return (
     <RoomLocalVolumeProvider roomRef={roomRef} participants={participants}>
       <div className="h-screen overflow-hidden bg-background">
@@ -551,6 +588,7 @@ function MeetingRoomContent({
             void syncAvailableDevices();
           }}
           onTogglePanel={handleToggleMeetingPanel}
+          onOpenShortcuts={handleOpenShortcutsDialog}
           isCompactControlsOpen={isCompactControlsOpen}
           onToggleCompactControls={handleToggleCompactControls}
           isEndingMeeting={isEndingMeeting}
@@ -563,6 +601,19 @@ function MeetingRoomContent({
           isRequesting={isRequestingShareApproval}
           onConfirm={() => void handleSendShareRequest()}
           onClose={handleCloseShareRequestDialog}
+        />
+
+        <RoomShortcutsDialog
+          open={isShortcutsDialogOpen}
+          onOpenChange={setIsShortcutsDialogOpen}
+        />
+
+        <RoomLeaveDialog
+          open={canManageWaitingRoom && isKeyboardLeaveDialogOpen}
+          isEndingMeeting={isEndingMeeting}
+          onClose={() => setIsKeyboardLeaveDialogOpen(false)}
+          onLeave={handleLeaveMeeting}
+          onEndMeeting={handleEndMeeting}
         />
       </div>
 

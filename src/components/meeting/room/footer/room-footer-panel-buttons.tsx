@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronUp, MessageSquare, Users } from "lucide-react";
+import { ChevronDown, ChevronUp, Keyboard, MessageSquare, Users } from "lucide-react";
 import type { ReactNode } from "react";
 
 import {
@@ -19,6 +19,7 @@ type RoomFooterPanelButtonsProps = {
   isCompactControlsOpen: boolean;
   onToggleCompactControls: () => void;
   onTogglePanel: (panel: Exclude<SidebarPanel, null>) => void;
+  onOpenShortcuts: () => void;
 };
 
 function PanelButtonTooltip({
@@ -45,6 +46,7 @@ export function RoomFooterPanelButtons({
   isCompactControlsOpen,
   onToggleCompactControls,
   onTogglePanel,
+  onOpenShortcuts,
 }: RoomFooterPanelButtonsProps) {
   return (
     <div className="pointer-events-auto order-3 flex items-center justify-center gap-2 lg:justify-end">
@@ -67,7 +69,18 @@ export function RoomFooterPanelButtons({
         </button>
       </PanelButtonTooltip>
 
-      <PanelButtonTooltip label="Open participants">
+      <PanelButtonTooltip label="Keyboard shortcuts (?)">
+        <button
+          type="button"
+          aria-label="Open keyboard shortcuts"
+          onClick={onOpenShortcuts}
+          className="relative flex size-10 items-center justify-center rounded-full border border-border/80 bg-card/95 text-foreground transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transform-none"
+        >
+          <Keyboard className="h-5 w-5" />
+        </button>
+      </PanelButtonTooltip>
+
+      <PanelButtonTooltip label="Open participants (P)">
         <button
           type="button"
           aria-label="Open participants"
@@ -91,7 +104,7 @@ export function RoomFooterPanelButtons({
         </button>
       </PanelButtonTooltip>
 
-      <PanelButtonTooltip label="Open chat">
+      <PanelButtonTooltip label="Open chat (C)">
         <button
           type="button"
           aria-label="Open chat"

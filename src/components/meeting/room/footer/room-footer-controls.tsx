@@ -114,7 +114,7 @@ export function RoomFooterControls({
             label={
               !isMicEnabled && !canUnmuteMicrophone
                 ? "Microphone locked by host"
-                : isMicEnabled ? "Mute microphone" : "Unmute microphone"
+                : isMicEnabled ? "Mute microphone (M)" : "Unmute microphone (M)"
             }
             icon={isMicEnabled ? Mic : MicOff}
             mainAriaLabel={isMicEnabled ? "Mute microphone" : "Unmute microphone"}
@@ -146,7 +146,7 @@ export function RoomFooterControls({
 
         <div className="relative">
           <SplitControlButton
-            label={isCameraEnabled ? "Turn camera off" : "Turn camera on"}
+            label={isCameraEnabled ? "Turn camera off (E)" : "Turn camera on (E)"}
             icon={isCameraEnabled ? Video : VideoOff}
             mainAriaLabel={isCameraEnabled ? "Turn camera off" : "Turn camera on"}
             menuAriaLabel="Open camera device menu"
@@ -194,7 +194,7 @@ export function RoomFooterControls({
           ) : null}
         </div>
 
-        <ControlTooltip label={handControlLabel}>
+        <ControlTooltip label={`${handControlLabel} (H)`}>
           <button
             type="button"
             aria-label={isHandRaised ? "Lower hand" : "Raise hand"}
@@ -239,7 +239,7 @@ export function RoomFooterControls({
           </div>
         ) : null}
 
-        <ControlTooltip label="Leave meeting">
+        <ControlTooltip label="Leave meeting (D)">
           <button
             type="button"
             aria-label="Leave meeting"
