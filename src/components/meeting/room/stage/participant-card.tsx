@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Hand, MicOff, MoreVertical, VideoOff } from "lucide-react";
+import { memo, useEffect, useRef, useState } from "react";
+import { Hand, MicOff, MonitorOff, MoreVertical, VideoOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { cn } from "@/lib/utils";
 import type { MeetingTrackType } from "@/shared/services/meeting.service";
-import { MonitorOff } from "lucide-react";
 
 import { AudioTrackView, VideoTrackView } from "./track-view";
 import type { Participant } from "../types";
@@ -34,7 +33,7 @@ type ParticipantCardProps = {
   onForceStopScreenShare?: (participant: Participant) => void;
 };
 
-export default function ParticipantCard({
+function ParticipantCard({
   participant,
   compact = false,
   highlighted = false,
@@ -320,3 +319,43 @@ export default function ParticipantCard({
     </Card>
   );
 }
+
+function getMutingTrackTypeForParticipant(
+  participant: Participant,
+  mutingParticipantTrack?: MutingParticipantTrack | null,
+) {
+  if (participant.participantId === null) {
+    return null;
+  }
+
+  return mutingParticipantTrack?.participantId === participant.participantId
+    ? mutingParticipantTrack.trackType
+    : null;
+}
+
+function areParticipantCardPropsEqual(
+  previousProps: ParticipantCardProps,
+  nextProps: ParticipantCardProps,
+) {
+  return previousProps.participant === nextProps.participant
+    && (previousProps.compact ?? false) === (nextProps.compact ?? false)
+    && (previousProps.highlighted ?? false) === (nextProps.highlighted ?? false)
+    && previousProps.className === nextProps.className
+    && (previousProps.isLayoutTransitionEnabled ?? true) === (nextProps.isLayoutTransitionEnabled ?? true)
+    && (previousProps.renderAudio ?? true) === (nextProps.renderAudio ?? true)
+    && (previousProps.renderVideo ?? true) === (nextProps.renderVideo ?? true)
+    && (previousProps.canManageParticipantMedia ?? false) === (nextProps.canManageParticipantMedia ?? false)
+    && (previousProps.canForceStopScreenShare ?? false) === (nextProps.canForceStopScreenShare ?? false)
+    && (previousProps.isForceStoppingScreenShare ?? false) === (nextProps.isForceStoppingScreenShare ?? false)
+    && getMutingTrackTypeForParticipant(
+      nextProps.participant,
+      previousProps.mutingParticipantTrack,
+    ) === getMutingTrackTypeForParticipant(
+      nextProps.participant,
+      nextProps.mutingParticipantTrack,
+    )
+    && previousProps.onMuteParticipantTrack === nextProps.onMuteParticipantTrack
+    && previousProps.onForceStopScreenShare === nextProps.onForceStopScreenShare;
+}
+
+export default memo(ParticipantCard, areParticipantCardPropsEqual);

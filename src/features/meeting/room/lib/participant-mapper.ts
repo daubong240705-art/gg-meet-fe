@@ -204,6 +204,28 @@ export function getFallbackLocalParticipant(
   };
 }
 
+function areParticipantEqual(participant: Participant, nextParticipant: Participant) {
+  return participant.id === nextParticipant.id
+    && participant.identity === nextParticipant.identity
+    && participant.participantId === nextParticipant.participantId
+    && participant.name === nextParticipant.name
+    && participant.avatarSource === nextParticipant.avatarSource
+    && participant.avatarUrl === nextParticipant.avatarUrl
+    && participant.isHost === nextParticipant.isHost
+    && participant.isLocal === nextParticipant.isLocal
+    && participant.handRaised === nextParticipant.handRaised
+    && participant.handRaisedAt === nextParticipant.handRaisedAt
+    && participant.isMuted === nextParticipant.isMuted
+    && participant.isCameraOff === nextParticipant.isCameraOff
+    && participant.isSpeaking === nextParticipant.isSpeaking
+    && participant.isScreenSharing === nextParticipant.isScreenSharing
+    && participant.accentClassName === nextParticipant.accentClassName
+    && participant.status === nextParticipant.status
+    && participant.cameraTrack === nextParticipant.cameraTrack
+    && participant.audioTrack === nextParticipant.audioTrack
+    && participant.screenShareTrack === nextParticipant.screenShareTrack;
+}
+
 export function areParticipantsEqual(currentParticipants: Participant[], nextParticipants: Participant[]) {
   if (currentParticipants.length !== nextParticipants.length) {
     return false;
@@ -212,23 +234,37 @@ export function areParticipantsEqual(currentParticipants: Participant[], nextPar
   return currentParticipants.every((participant, index) => {
     const nextParticipant = nextParticipants[index];
 
-    return participant.id === nextParticipant.id
-      && participant.identity === nextParticipant.identity
-      && participant.participantId === nextParticipant.participantId
-      && participant.name === nextParticipant.name
-      && participant.avatarUrl === nextParticipant.avatarUrl
-      && participant.isHost === nextParticipant.isHost
-      && participant.isLocal === nextParticipant.isLocal
-      && participant.handRaised === nextParticipant.handRaised
-      && participant.handRaisedAt === nextParticipant.handRaisedAt
-      && participant.isMuted === nextParticipant.isMuted
-      && participant.isCameraOff === nextParticipant.isCameraOff
-      && participant.isSpeaking === nextParticipant.isSpeaking
-      && participant.isScreenSharing === nextParticipant.isScreenSharing
-      && participant.accentClassName === nextParticipant.accentClassName
-      && participant.status === nextParticipant.status
-      && participant.cameraTrack === nextParticipant.cameraTrack
-      && participant.audioTrack === nextParticipant.audioTrack
-      && participant.screenShareTrack === nextParticipant.screenShareTrack;
+    return areParticipantEqual(participant, nextParticipant);
   });
+}
+
+export function reconcileParticipants(
+  currentParticipants: Participant[],
+  nextParticipants: Participant[],
+) {
+  if (currentParticipants.length === 0) {
+    return nextParticipants;
+  }
+
+  const currentParticipantById = new Map(
+    currentParticipants.map((participant) => [participant.id, participant]),
+  );
+  let hasChanged = currentParticipants.length !== nextParticipants.length;
+
+  const reconciledParticipants = nextParticipants.map((nextParticipant, index) => {
+    const currentParticipant = currentParticipantById.get(nextParticipant.id);
+
+    if (!currentParticipant || !areParticipantEqual(currentParticipant, nextParticipant)) {
+      hasChanged = true;
+      return nextParticipant;
+    }
+
+    if (currentParticipants[index] !== currentParticipant) {
+      hasChanged = true;
+    }
+
+    return currentParticipant;
+  });
+
+  return hasChanged ? reconciledParticipants : currentParticipants;
 }

@@ -155,7 +155,10 @@ export default function RoomStage({
     <Card
       className={cn(
         "relative flex h-full min-h-0 min-w-0 max-w-full gap-0 overflow-hidden border border-white/10 bg-slate-950/62 px-0 py-0 text-white shadow-[0_12px_36px_rgba(2,6,23,0.3)] backdrop-blur-lg motion-reduce:animate-none",
-        !isViewportResizing && "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-3 motion-safe:duration-200 lg:motion-safe:slide-in-from-right-3",
+        // Entrance plays once on mount. Keep it out of the resize gate so toggling
+        // isViewportResizing does not strip + re-add the class and replay the
+        // animation (the one-frame flicker on layout change).
+        "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-3 motion-safe:duration-200 lg:motion-safe:slide-in-from-right-3",
       )}
     >
 
@@ -228,9 +231,13 @@ export default function RoomStage({
             <Card
               className={cn(
                 "relative h-full min-h-0 min-w-0 gap-0 overflow-hidden border border-border/70 bg-card/95 px-0 py-0 text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.38)] will-change-transform motion-reduce:animate-none",
+                // Entrance plays once on mount — kept unconditional so a resize
+                // does not strip + re-add it and replay the fade/zoom (flicker).
+                "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-200",
+                // Only the ongoing transition is suppressed while actively resizing.
                 isViewportResizing
                   ? "motion-safe:transition-none"
-                  : "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:transition-[transform,opacity,box-shadow] motion-safe:duration-200 motion-safe:ease-out",
+                  : "motion-safe:transition-[transform,opacity,box-shadow] motion-safe:duration-200 motion-safe:ease-out",
               )}
             >
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.16),transparent_38%),linear-gradient(180deg,rgba(30,41,59,0.96),rgba(15,23,42,0.98))]" />

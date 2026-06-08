@@ -7,11 +7,13 @@ type RoomFooterMeetingInfoProps = {
   meetingCode: string;
 };
 
+const MEETING_TIME_FORMATTER = new Intl.DateTimeFormat("vi-VN", {
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
 function formatTime(now: Date) {
-  return new Intl.DateTimeFormat("vi-VN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(now);
+  return MEETING_TIME_FORMATTER.format(now);
 }
 
 export function RoomFooterMeetingInfo({ meetingCode }: RoomFooterMeetingInfoProps) {

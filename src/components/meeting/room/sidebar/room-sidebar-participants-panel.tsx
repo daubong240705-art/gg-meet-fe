@@ -1,7 +1,7 @@
 "use client";
 
 import { Clock3, Hand, Mic, MicOff, MoreVertical, UserMinus, Video, VideoOff, Volume2, VolumeX, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/user/user-avatar";
@@ -32,16 +32,7 @@ type RoomSidebarParticipantsPanelProps = {
   onMuteParticipantTrack?: (participant: Participant, trackType: MeetingTrackType) => void;
 };
 
-function ParticipantRow({
-  participant,
-  canManageParticipantMedia,
-  canKickParticipant,
-  mutingParticipantTrack,
-  onMuteParticipantTrack,
-  onKickParticipant,
-  isActionMenuOpen,
-  onActionMenuOpenChange,
-}: {
+type ParticipantRowProps = {
   participant: Participant;
   canManageParticipantMedia: boolean;
   canKickParticipant: boolean;
@@ -50,7 +41,18 @@ function ParticipantRow({
   onKickParticipant: () => void;
   isActionMenuOpen: boolean;
   onActionMenuOpenChange: (isOpen: boolean) => void;
-}) {
+};
+
+const ParticipantRow = memo(function ParticipantRow({
+  participant,
+  canManageParticipantMedia,
+  canKickParticipant,
+  mutingParticipantTrack,
+  onMuteParticipantTrack,
+  onKickParticipant,
+  isActionMenuOpen,
+  onActionMenuOpenChange,
+}: ParticipantRowProps) {
   const {
     getParticipantVolume,
     setParticipantVolume,
@@ -243,6 +245,37 @@ function ParticipantRow({
       </div>
     </div>
   );
+}, areParticipantRowPropsEqual);
+
+function getMutingTrackTypeForParticipant(
+  participant: Participant,
+  mutingParticipantTrack?: MutingParticipantTrack | null,
+) {
+  if (participant.participantId === null) {
+    return null;
+  }
+
+  return mutingParticipantTrack?.participantId === participant.participantId
+    ? mutingParticipantTrack.trackType
+    : null;
+}
+
+function areParticipantRowPropsEqual(
+  previousProps: ParticipantRowProps,
+  nextProps: ParticipantRowProps,
+) {
+  return previousProps.participant === nextProps.participant
+    && previousProps.canManageParticipantMedia === nextProps.canManageParticipantMedia
+    && previousProps.canKickParticipant === nextProps.canKickParticipant
+    && previousProps.isActionMenuOpen === nextProps.isActionMenuOpen
+    && getMutingTrackTypeForParticipant(
+      nextProps.participant,
+      previousProps.mutingParticipantTrack,
+    ) === getMutingTrackTypeForParticipant(
+      nextProps.participant,
+      nextProps.mutingParticipantTrack,
+    )
+    && previousProps.onMuteParticipantTrack === nextProps.onMuteParticipantTrack;
 }
 
 function WaitingParticipantRow({
