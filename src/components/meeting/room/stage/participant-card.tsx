@@ -1,17 +1,26 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Hand, MicOff, MoreVertical, VideoOff } from "lucide-react";
+import { memo, useEffect, useRef, useState } from "react";
+import {
+  Hand,
+  type LucideIcon,
+  MicOff,
+  MonitorOff,
+  MoreVertical,
+  SignalLow,
+  SignalMedium,
+  VideoOff,
+  WifiOff,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { UserAvatar } from "@/components/user/user-avatar";
 import { cn } from "@/lib/utils";
 import type { MeetingTrackType } from "@/shared/services/meeting.service";
-import { MonitorOff } from "lucide-react";
 
 import { AudioTrackView, VideoTrackView } from "./track-view";
-import type { Participant } from "../types";
+import type { Participant, ParticipantConnectionQuality } from "../types";
 
 type MutingParticipantTrack = {
   participantId: number;
@@ -34,7 +43,42 @@ type ParticipantCardProps = {
   onForceStopScreenShare?: (participant: Participant) => void;
 };
 
-export default function ParticipantCard({
+type ConnectionQualityView = {
+  Icon: LucideIcon;
+  label: string;
+  className: string;
+};
+
+function getConnectionQualityView(
+  quality: ParticipantConnectionQuality,
+): ConnectionQualityView | null {
+  switch (quality) {
+    case "good":
+      return {
+        Icon: SignalMedium,
+        label: "Good connection",
+        className: "border-amber-200/40 bg-amber-300/85 text-slate-950",
+      };
+    case "poor":
+      return {
+        Icon: SignalLow,
+        label: "Poor connection",
+        className: "border-orange-200/40 bg-orange-500/90 text-white",
+      };
+    case "lost":
+      return {
+        Icon: WifiOff,
+        label: "Connection lost",
+        className: "border-red-200/40 bg-red-600/95 text-white",
+      };
+    case "excellent":
+    case "unknown":
+    default:
+      return null;
+  }
+}
+
+function ParticipantCard({
   participant,
   compact = false,
   highlighted = false,
@@ -66,6 +110,8 @@ export default function ParticipantCard({
   const canStopScreenShare =
     canForceStopScreenShare && participant.isScreenSharing && !participant.isLocal;
   const hasActionMenu = canMuteAudio || canMuteVideo || canStopScreenShare;
+  const connectionQualityView = getConnectionQualityView(participant.connectionQuality);
+  const ConnectionQualityIcon = connectionQualityView?.Icon;
 
   useEffect(() => {
     if (!isActionMenuOpen) {
@@ -157,18 +203,31 @@ export default function ParticipantCard({
         {renderAudio && !participant.isLocal ? <AudioTrackView track={participant.audioTrack} /> : null}
 
         <div className="flex items-start justify-between gap-3">
-          {participant.isHost ? (
-            <div
-              className={cn(
-                "pointer-events-none rounded-full border border-amber-300/30 bg-amber-400/20 text-amber-50 backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-200 motion-reduce:animate-none",
-                compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]",
-              )}
-            >
-              <span className="font-medium">Host</span>
-            </div>
-          ) : (
-            <div />
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {participant.isHost ? (
+              <div
+                className={cn(
+                  "pointer-events-none rounded-full border border-amber-300/30 bg-amber-400/20 text-amber-50 backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-200 motion-reduce:animate-none",
+                  compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]",
+                )}
+              >
+                <span className="font-medium">Host</span>
+              </div>
+            ) : null}
+
+            {connectionQualityView && ConnectionQualityIcon ? (
+              <div
+                aria-label={connectionQualityView.label}
+                className={cn(
+                  "pointer-events-none flex items-center justify-center rounded-full border shadow-sm backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-200 motion-reduce:animate-none",
+                  compact ? "h-7 w-7" : "h-8 w-8",
+                  connectionQualityView.className,
+                )}
+              >
+                <ConnectionQualityIcon className={cn(compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
+              </div>
+            ) : null}
+          </div>
 
           <div className="flex flex-col items-end gap-2">
             {participant.handRaised ? (
@@ -320,3 +379,43 @@ export default function ParticipantCard({
     </Card>
   );
 }
+
+function getMutingTrackTypeForParticipant(
+  participant: Participant,
+  mutingParticipantTrack?: MutingParticipantTrack | null,
+) {
+  if (participant.participantId === null) {
+    return null;
+  }
+
+  return mutingParticipantTrack?.participantId === participant.participantId
+    ? mutingParticipantTrack.trackType
+    : null;
+}
+
+function areParticipantCardPropsEqual(
+  previousProps: ParticipantCardProps,
+  nextProps: ParticipantCardProps,
+) {
+  return previousProps.participant === nextProps.participant
+    && (previousProps.compact ?? false) === (nextProps.compact ?? false)
+    && (previousProps.highlighted ?? false) === (nextProps.highlighted ?? false)
+    && previousProps.className === nextProps.className
+    && (previousProps.isLayoutTransitionEnabled ?? true) === (nextProps.isLayoutTransitionEnabled ?? true)
+    && (previousProps.renderAudio ?? true) === (nextProps.renderAudio ?? true)
+    && (previousProps.renderVideo ?? true) === (nextProps.renderVideo ?? true)
+    && (previousProps.canManageParticipantMedia ?? false) === (nextProps.canManageParticipantMedia ?? false)
+    && (previousProps.canForceStopScreenShare ?? false) === (nextProps.canForceStopScreenShare ?? false)
+    && (previousProps.isForceStoppingScreenShare ?? false) === (nextProps.isForceStoppingScreenShare ?? false)
+    && getMutingTrackTypeForParticipant(
+      nextProps.participant,
+      previousProps.mutingParticipantTrack,
+    ) === getMutingTrackTypeForParticipant(
+      nextProps.participant,
+      nextProps.mutingParticipantTrack,
+    )
+    && previousProps.onMuteParticipantTrack === nextProps.onMuteParticipantTrack
+    && previousProps.onForceStopScreenShare === nextProps.onForceStopScreenShare;
+}
+
+export default memo(ParticipantCard, areParticipantCardPropsEqual);

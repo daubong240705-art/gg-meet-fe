@@ -1,25 +1,26 @@
 "use client";
 
 import { CheckCircle2, Copy } from "lucide-react";
-import { useState } from "react";
 import { toast } from "sonner";
 
+import { useCopyMeetingLink } from "@/features/meeting/room/hooks/use-copy-meeting-link";
+
 export default function AuthenticatedMeetingCodeButton({ code }: { code: string }) {
-  const [copied, setCopied] = useState(false);
+  const { copied, copyMeetingLink } = useCopyMeetingLink(code);
 
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(`${window.location.origin}/${code}`);
-      setCopied(true);
+    const didCopy = await copyMeetingLink();
+
+    if (didCopy) {
       toast.success("Meeting link copied", {
         description: `Share ${code.toUpperCase()} with your participants.`,
       });
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error("Unable to copy link", {
-        description: "Please try again in a moment.",
-      });
+      return;
     }
+
+    toast.error("Unable to copy link", {
+      description: "Please try again in a moment.",
+    });
   };
 
   return (

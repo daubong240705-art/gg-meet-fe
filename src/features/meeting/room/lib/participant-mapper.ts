@@ -1,9 +1,13 @@
 import {
+  ConnectionQuality,
   Participant as LiveKitParticipant,
   Track,
 } from "livekit-client";
 
-import type { Participant } from "@/components/meeting/room/types";
+import type {
+  Participant,
+  ParticipantConnectionQuality,
+} from "@/components/meeting/room/types";
 import {
   getDefaultParticipantHandState,
   getParticipantAccentClassName,
@@ -99,6 +103,32 @@ function resolveParticipantId(participant: LiveKitParticipant): number | null {
   return null;
 }
 
+function mapConnectionQuality(
+  connectionQuality: ConnectionQuality,
+): ParticipantConnectionQuality {
+  switch (connectionQuality) {
+    case ConnectionQuality.Excellent:
+      return "excellent";
+    case ConnectionQuality.Good:
+      return "good";
+    case ConnectionQuality.Poor:
+      return "poor";
+    case ConnectionQuality.Lost:
+      return "lost";
+    case ConnectionQuality.Unknown:
+    default:
+      return "unknown";
+  }
+}
+
+function normalizeAudioLevel(audioLevel: number) {
+  if (!Number.isFinite(audioLevel)) {
+    return 0;
+  }
+
+  return Math.min(1, Math.max(0, audioLevel));
+}
+
 export function mapParticipantToUiParticipant(
   participant: LiveKitParticipant,
   localDisplayName: string,
@@ -162,6 +192,8 @@ export function mapParticipantToUiParticipant(
     isCameraOff: !(cameraPublication && !cameraPublication.isMuted),
     isSpeaking: participant.isSpeaking,
     isScreenSharing,
+    connectionQuality: mapConnectionQuality(participant.connectionQuality),
+    audioLevel: normalizeAudioLevel(participant.audioLevel),
     accentClassName: getParticipantAccentClassName(identity),
     status: getParticipantStatus(participant, isScreenSharing),
     cameraTrack: participantTracks.cameraTrack,
@@ -196,12 +228,37 @@ export function getFallbackLocalParticipant(
     isCameraOff: !isCameraEnabled,
     isSpeaking: isMicEnabled,
     isScreenSharing,
+    connectionQuality: "unknown",
+    audioLevel: 0,
     accentClassName: "from-primary/30 via-primary/10 to-background",
     status: isScreenSharing ? "Presenting" : "You",
     cameraTrack: null,
     audioTrack: null,
     screenShareTrack: null,
   };
+}
+
+function areParticipantEqual(participant: Participant, nextParticipant: Participant) {
+  return participant.id === nextParticipant.id
+    && participant.identity === nextParticipant.identity
+    && participant.participantId === nextParticipant.participantId
+    && participant.name === nextParticipant.name
+    && participant.avatarSource === nextParticipant.avatarSource
+    && participant.avatarUrl === nextParticipant.avatarUrl
+    && participant.isHost === nextParticipant.isHost
+    && participant.isLocal === nextParticipant.isLocal
+    && participant.handRaised === nextParticipant.handRaised
+    && participant.handRaisedAt === nextParticipant.handRaisedAt
+    && participant.isMuted === nextParticipant.isMuted
+    && participant.isCameraOff === nextParticipant.isCameraOff
+    && participant.isSpeaking === nextParticipant.isSpeaking
+    && participant.isScreenSharing === nextParticipant.isScreenSharing
+    && participant.connectionQuality === nextParticipant.connectionQuality
+    && participant.accentClassName === nextParticipant.accentClassName
+    && participant.status === nextParticipant.status
+    && participant.cameraTrack === nextParticipant.cameraTrack
+    && participant.audioTrack === nextParticipant.audioTrack
+    && participant.screenShareTrack === nextParticipant.screenShareTrack;
 }
 
 export function areParticipantsEqual(currentParticipants: Participant[], nextParticipants: Participant[]) {
@@ -212,23 +269,37 @@ export function areParticipantsEqual(currentParticipants: Participant[], nextPar
   return currentParticipants.every((participant, index) => {
     const nextParticipant = nextParticipants[index];
 
-    return participant.id === nextParticipant.id
-      && participant.identity === nextParticipant.identity
-      && participant.participantId === nextParticipant.participantId
-      && participant.name === nextParticipant.name
-      && participant.avatarUrl === nextParticipant.avatarUrl
-      && participant.isHost === nextParticipant.isHost
-      && participant.isLocal === nextParticipant.isLocal
-      && participant.handRaised === nextParticipant.handRaised
-      && participant.handRaisedAt === nextParticipant.handRaisedAt
-      && participant.isMuted === nextParticipant.isMuted
-      && participant.isCameraOff === nextParticipant.isCameraOff
-      && participant.isSpeaking === nextParticipant.isSpeaking
-      && participant.isScreenSharing === nextParticipant.isScreenSharing
-      && participant.accentClassName === nextParticipant.accentClassName
-      && participant.status === nextParticipant.status
-      && participant.cameraTrack === nextParticipant.cameraTrack
-      && participant.audioTrack === nextParticipant.audioTrack
-      && participant.screenShareTrack === nextParticipant.screenShareTrack;
+    return areParticipantEqual(participant, nextParticipant);
   });
+}
+
+export function reconcileParticipants(
+  currentParticipants: Participant[],
+  nextParticipants: Participant[],
+) {
+  if (currentParticipants.length === 0) {
+    return nextParticipants;
+  }
+
+  const currentParticipantById = new Map(
+    currentParticipants.map((participant) => [participant.id, participant]),
+  );
+  let hasChanged = currentParticipants.length !== nextParticipants.length;
+
+  const reconciledParticipants = nextParticipants.map((nextParticipant, index) => {
+    const currentParticipant = currentParticipantById.get(nextParticipant.id);
+
+    if (!currentParticipant || !areParticipantEqual(currentParticipant, nextParticipant)) {
+      hasChanged = true;
+      return nextParticipant;
+    }
+
+    if (currentParticipants[index] !== currentParticipant) {
+      hasChanged = true;
+    }
+
+    return currentParticipant;
+  });
+
+  return hasChanged ? reconciledParticipants : currentParticipants;
 }

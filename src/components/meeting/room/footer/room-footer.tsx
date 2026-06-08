@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { TooltipProvider } from "@/components/ui/tooltip";
 import type { RoomSettings, UpdateRoomSettingsRequest } from "@/shared/services/meeting/types";
 
 import { RoomFooterControls } from "./room-footer-controls";
@@ -17,6 +18,7 @@ type RoomFooterProps = {
   unreadChatCount: number;
   activePanel: SidebarPanel;
   isMicEnabled: boolean;
+  localMicLevel: number;
   canUnmuteMicrophone: boolean;
   isCameraEnabled: boolean;
   isScreenSharing: boolean;
@@ -36,6 +38,7 @@ type RoomFooterProps = {
   onSelectCamera: (deviceId: string) => void;
   onRefreshDevices: () => void;
   onTogglePanel: (panel: Exclude<SidebarPanel, null>) => void;
+  onOpenShortcuts: () => void;
   isCompactControlsOpen: boolean;
   onToggleCompactControls: () => void;
   onLeave: () => void;
@@ -53,6 +56,7 @@ export default function RoomFooter({
   unreadChatCount,
   activePanel,
   isMicEnabled,
+  localMicLevel,
   isCameraEnabled,
   isScreenSharing,
   isHandRaised,
@@ -71,6 +75,7 @@ export default function RoomFooter({
   onSelectCamera,
   onRefreshDevices,
   onTogglePanel,
+  onOpenShortcuts,
   isCompactControlsOpen,
   onToggleCompactControls,
   onLeave,
@@ -97,7 +102,7 @@ export default function RoomFooter({
       }
 
       setOpenMenu(null);
-  };
+    };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -128,55 +133,62 @@ export default function RoomFooter({
 
   return (
     <footer ref={footerRef} className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-3 pb-3 pt-3 sm:px-4 lg:px-6 lg:pb-4">
-      <div className="mx-auto flex max-w-420 flex-col gap-2 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:items-center">
-        <RoomFooterMeetingInfo meetingCode={meetingCode} />
+      <TooltipProvider>
+        <div className="mx-auto flex max-w-420 flex-col gap-2 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:items-center">
+          <RoomFooterMeetingInfo meetingCode={meetingCode} />
 
-        <RoomFooterControls
-          isCompactControlsOpen={isCompactControlsOpen}
-          openMenu={openMenu}
-          isMicEnabled={isMicEnabled}
-          canUnmuteMicrophone={canUnmuteMicrophone}
-          isCameraEnabled={isCameraEnabled}
-          isScreenSharing={isScreenSharing}
-          isWaitingForShareApproval={isWaitingForShareApproval}
-          isHandRaised={isHandRaised}
-          isHandRaiseCoolingDown={isHandRaiseCoolingDown}
-          microphoneDevices={microphoneDevices}
-          cameraDevices={cameraDevices}
-          activeMicrophoneId={activeMicrophoneId}
-          activeCameraId={activeCameraId}
-          isHost={isHost}
-          roomSettings={roomSettings}
-          updatingRoomSettingsFields={updatingRoomSettingsFields}
-          onUpdateRoomSettings={onUpdateRoomSettings}
-          onToggleMenu={handleToggleMenu}
-          onCloseMenu={() => setOpenMenu(null)}
-          onToggleMic={onToggleMic}
-          onToggleCamera={onToggleCamera}
-          onToggleScreenShare={onToggleScreenShare}
-          onToggleHandRaise={onToggleHandRaise}
-          onPresentOtherContent={onPresentOtherContent}
-          onSelectMicrophone={onSelectMicrophone}
-          onSelectCamera={onSelectCamera}
-          onLeave={onLeave}
-          onOpenLeaveDialog={() => setIsLeaveDialogOpen(true)}
-        />
+          <RoomFooterControls
+            isCompactControlsOpen={isCompactControlsOpen}
+            openMenu={openMenu}
+            isMicEnabled={isMicEnabled}
+            localMicLevel={localMicLevel}
+            canUnmuteMicrophone={canUnmuteMicrophone}
+            isCameraEnabled={isCameraEnabled}
+            isScreenSharing={isScreenSharing}
+            isWaitingForShareApproval={isWaitingForShareApproval}
+            isHandRaised={isHandRaised}
+            isHandRaiseCoolingDown={isHandRaiseCoolingDown}
+            microphoneDevices={microphoneDevices}
+            cameraDevices={cameraDevices}
+            activeMicrophoneId={activeMicrophoneId}
+            activeCameraId={activeCameraId}
+            isHost={isHost}
+            roomSettings={roomSettings}
+            updatingRoomSettingsFields={updatingRoomSettingsFields}
+            onUpdateRoomSettings={onUpdateRoomSettings}
+            onToggleMenu={handleToggleMenu}
+            onCloseMenu={() => setOpenMenu(null)}
+            onToggleMic={onToggleMic}
+            onToggleCamera={onToggleCamera}
+            onToggleScreenShare={onToggleScreenShare}
+            onToggleHandRaise={onToggleHandRaise}
+            onPresentOtherContent={onPresentOtherContent}
+            onSelectMicrophone={onSelectMicrophone}
+            onSelectCamera={onSelectCamera}
+            onLeave={onLeave}
+            onOpenLeaveDialog={() => setIsLeaveDialogOpen(true)}
+          />
 
-        <RoomFooterPanelButtons
-          participantsCount={participantsCount}
-          unreadChatCount={unreadChatCount}
-          activePanel={activePanel}
-          isCompactControlsOpen={isCompactControlsOpen}
-          onToggleCompactControls={() => {
-            setOpenMenu(null);
-            onToggleCompactControls();
-          }}
-          onTogglePanel={(panel) => {
-            setOpenMenu(null);
-            onTogglePanel(panel);
-          }}
-        />
-      </div>
+          <RoomFooterPanelButtons
+            participantsCount={participantsCount}
+            unreadChatCount={unreadChatCount}
+            activePanel={activePanel}
+            isCompactControlsOpen={isCompactControlsOpen}
+            onToggleCompactControls={() => {
+              setOpenMenu(null);
+              onToggleCompactControls();
+            }}
+            onTogglePanel={(panel) => {
+              setOpenMenu(null);
+              onTogglePanel(panel);
+            }}
+            onOpenShortcuts={() => {
+              setOpenMenu(null);
+              onOpenShortcuts();
+            }}
+          />
+        </div>
+      </TooltipProvider>
 
       <RoomLeaveDialog
         open={isHost && isLeaveDialogOpen}

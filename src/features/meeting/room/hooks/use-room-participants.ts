@@ -9,9 +9,9 @@ import {
   type ParticipantHandState,
 } from "@/components/meeting/room/utils";
 import {
-  areParticipantsEqual,
   getFallbackLocalParticipant,
   mapParticipantToUiParticipant,
+  reconcileParticipants,
 } from "@/features/meeting/room/lib";
 
 type UseRoomParticipantsParams = {
@@ -85,9 +85,7 @@ export function useRoomParticipants({
     ];
 
     setLiveParticipants((currentParticipants) =>
-      areParticipantsEqual(currentParticipants, nextParticipants)
-        ? currentParticipants
-        : nextParticipants,
+      reconcileParticipants(currentParticipants, nextParticipants),
     );
   }, [
     displayName,

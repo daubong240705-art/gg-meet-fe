@@ -29,8 +29,10 @@ type RoomSidebarProps = {
   chatDraft: string;
   isChatReady: boolean;
   isSendingChat: boolean;
+  firstUnreadMessageId: string | null;
   onChatDraftChange: (value: string) => void;
   onSendChatMessage: (payload: OutboundChatMessage) => void;
+  onClearUnreadDivider: () => void;
   onApproveWaitingParticipant: (participant: WaitingParticipant) => void;
   onRejectWaitingParticipant: (participant: WaitingParticipant) => void;
   onApproveAllWaitingParticipants: () => void;
@@ -51,8 +53,10 @@ export default function RoomSidebar({
   chatDraft,
   isChatReady,
   isSendingChat,
+  firstUnreadMessageId,
   onChatDraftChange,
   onSendChatMessage,
+  onClearUnreadDivider,
   onApproveWaitingParticipant,
   onRejectWaitingParticipant,
   onApproveAllWaitingParticipants,
@@ -96,8 +100,10 @@ export default function RoomSidebar({
           chatDraft={chatDraft}
           isChatReady={isChatReady}
           isSendingChat={isSendingChat}
+          firstUnreadMessageId={firstUnreadMessageId}
           onChatDraftChange={onChatDraftChange}
           onSendChatMessage={onSendChatMessage}
+          onClearUnreadDivider={onClearUnreadDivider}
         />
       )}
     </RoomSidebarShell>

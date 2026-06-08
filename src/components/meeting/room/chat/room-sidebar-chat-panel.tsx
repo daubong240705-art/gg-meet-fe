@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { Send, SmilePlus } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowDown, Send, SmilePlus } from "lucide-react";
+import { Fragment, memo, useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/user/user-avatar";
@@ -20,9 +20,110 @@ type RoomSidebarChatPanelProps = {
   chatDraft: string;
   isChatReady: boolean;
   isSendingChat: boolean;
+  firstUnreadMessageId: string | null;
   onChatDraftChange: (value: string) => void;
   onSendChatMessage: (payload: OutboundChatMessage) => void;
+  onClearUnreadDivider: () => void;
 };
+
+const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 80;
+const MESSAGE_GROUP_WINDOW_MS = 5 * 60 * 1000;
+
+function isScrolledNearBottom(container: HTMLDivElement) {
+  return container.scrollHeight - container.scrollTop - container.clientHeight <= AUTO_SCROLL_BOTTOM_THRESHOLD_PX;
+}
+
+type ChatMessageItemProps = {
+  message: ChatMessage;
+  isGroupedWithPrevious: boolean;
+  isFirstMessage: boolean;
+};
+
+function shouldGroupWithPrevious(message: ChatMessage, previousMessage: ChatMessage | null) {
+  if (!previousMessage || previousMessage.identity !== message.identity) {
+    return false;
+  }
+
+  const timeDelta = message.timestamp - previousMessage.timestamp;
+
+  return timeDelta >= 0 && timeDelta < MESSAGE_GROUP_WINDOW_MS;
+}
+
+const ChatMessageItem = memo(function ChatMessageItem({
+  message,
+  isGroupedWithPrevious,
+  isFirstMessage,
+}: ChatMessageItemProps) {
+  const stickerUrl = message.type === "sticker" ? getStickerUrl(message.stickerKey) : null;
+  const shouldShowSenderMeta = !isGroupedWithPrevious;
+
+  return (
+    <div
+      className={cn(
+        message.isLocal ? "flex w-full justify-end" : "flex w-full justify-start",
+        isFirstMessage ? "mt-0" : isGroupedWithPrevious ? "mt-1" : "mt-4",
+        "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-200 motion-reduce:animate-none",
+      )}
+    >
+      <div className={message.isLocal ? "ml-auto flex w-fit max-w-[82%] min-w-0 justify-end" : "mr-auto flex w-fit max-w-[82%] min-w-0 gap-3"}>
+        {!message.isLocal && shouldShowSenderMeta ? (
+          <UserAvatar
+            avatarUrl={message.avatarUrl}
+            name={message.name}
+            email={message.avatarSource}
+            className="h-9 w-9 text-sm"
+            initialsClassName="text-sm"
+          />
+        ) : !message.isLocal ? (
+          <div className="h-9 w-9 shrink-0" aria-hidden="true" />
+        ) : null}
+
+        <div className={message.isLocal ? "flex min-w-0 flex-col items-end" : "flex min-w-0 flex-col items-start"}>
+          {shouldShowSenderMeta ? (
+            <div
+              className={message.isLocal ? "mb-1 flex items-baseline justify-end gap-2" : "mb-1 flex items-baseline gap-2"}
+            >
+              <span className="font-medium text-foreground">{message.name}</span>
+              <span className="text-xs text-muted-foreground">
+                {message.time}
+              </span>
+            </div>
+          ) : null}
+          <div
+            aria-label={`${message.name}, ${message.time}`}
+            className={
+              message.type === "sticker"
+                ? "w-fit max-w-full"
+                : message.isLocal
+                  ? "ml-auto w-fit max-w-full self-end rounded-2xl rounded-tr-md bg-primary px-3 py-3 text-left text-sm leading-6 text-primary-foreground"
+                  : "w-fit max-w-full rounded-2xl rounded-tl-md border border-border/70 bg-background/55 px-4 py-3 text-sm leading-6 text-foreground"
+            }
+          >
+            {message.type === "sticker" ? (
+              stickerUrl ? (
+                <div className="rounded-[1.1rem] shadow-[0_8px_24px_rgba(2,6,23,0.18)]">
+                  <Image
+                    src={stickerUrl}
+                    alt={`${message.name} sticker`}
+                    width={108}
+                    height={108}
+                    unoptimized
+                    sizes="96px"
+                    className="h-24 w-24 object-contain"
+                  />
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Sticker unavailable</p>
+              )
+            ) : (
+              <ChatLinkifiedText text={message.content} isLocal={message.isLocal} />
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
 
 export function RoomSidebarChatPanel({
   currentTab,
@@ -31,13 +132,37 @@ export function RoomSidebarChatPanel({
   chatDraft,
   isChatReady,
   isSendingChat,
+  firstUnreadMessageId,
   onChatDraftChange,
   onSendChatMessage,
+  onClearUnreadDivider,
 }: RoomSidebarChatPanelProps) {
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
   const stickerPickerRef = useRef<HTMLDivElement | null>(null);
+  const unreadDividerRef = useRef<HTMLDivElement | null>(null);
+  const isNearChatBottomRef = useRef(true);
+  const previousMessageCountRef = useRef(chatMessages.length);
   const [isStickerPickerOpen, setIsStickerPickerOpen] = useState(false);
+  const [isNearChatBottom, setIsNearChatBottom] = useState(true);
+  const [newMessagesBelowCount, setNewMessagesBelowCount] = useState(0);
+
+  const scrollChatToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    const container = chatScrollRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior,
+    });
+    isNearChatBottomRef.current = true;
+    setIsNearChatBottom(true);
+    setNewMessagesBelowCount(0);
+    onClearUnreadDivider();
+  }, [onClearUnreadDivider]);
 
   const focusChatInput = useCallback(() => {
     if (currentTab !== "chat" || !isChatReady) {
@@ -49,18 +174,76 @@ export function RoomSidebarChatPanel({
     });
   }, [currentTab, isChatReady]);
 
-  useEffect(() => {
+  const handleChatScroll = useCallback(() => {
     const container = chatScrollRef.current;
 
     if (!container) {
       return;
     }
 
-    container.scrollTo({
-      top: container.scrollHeight,
-      behavior: "smooth",
+    const isNearBottom = isScrolledNearBottom(container);
+    isNearChatBottomRef.current = isNearBottom;
+    setIsNearChatBottom(isNearBottom);
+
+    if (isNearBottom) {
+      setNewMessagesBelowCount(0);
+      onClearUnreadDivider();
+    }
+  }, [onClearUnreadDivider]);
+
+  useEffect(() => {
+    const container = chatScrollRef.current;
+    const previousMessageCount = previousMessageCountRef.current;
+    const addedMessageCount = Math.max(0, chatMessages.length - previousMessageCount);
+    previousMessageCountRef.current = chatMessages.length;
+
+    if (!container) {
+      return;
+    }
+
+    if (isNearChatBottomRef.current && !firstUnreadMessageId) {
+      const frameId = window.requestAnimationFrame(() => {
+        scrollChatToBottom("smooth");
+      });
+
+      return () => {
+        window.cancelAnimationFrame(frameId);
+      };
+    }
+
+    if (currentTab === "chat" && isOpen && addedMessageCount > 0) {
+      window.requestAnimationFrame(() => {
+        setNewMessagesBelowCount((currentCount) => currentCount + addedMessageCount);
+      });
+    }
+  }, [chatMessages.length, currentTab, firstUnreadMessageId, isOpen, scrollChatToBottom]);
+
+  useEffect(() => {
+    if (currentTab !== "chat" || !isOpen || !firstUnreadMessageId) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      unreadDividerRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+
+      const container = chatScrollRef.current;
+
+      if (!container) {
+        return;
+      }
+
+      const isNearBottom = isScrolledNearBottom(container);
+      isNearChatBottomRef.current = isNearBottom;
+      setIsNearChatBottom(isNearBottom);
     });
-  }, [chatMessages]);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [currentTab, firstUnreadMessageId, isOpen]);
 
   useEffect(() => {
     if (currentTab !== "chat" || !isOpen || !isChatReady || isSendingChat) {
@@ -119,81 +302,71 @@ export function RoomSidebarChatPanel({
     setIsStickerPickerOpen(false);
     focusChatInput();
   };
+  const shouldShowNewMessagesButton =
+    currentTab === "chat" && isOpen && newMessagesBelowCount > 0 && !isNearChatBottom;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-150 motion-reduce:animate-none">
-      <div ref={chatScrollRef} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
-        {chatMessages.length > 0 ? (
-          chatMessages.map((message) => (
-            <div
-              key={message.id}
-              className={cn(
-                message.isLocal ? "flex w-full justify-end" : "flex w-full justify-start",
-                "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-200 motion-reduce:animate-none",
-              )}
-            >
-              <div className={message.isLocal ? "ml-auto flex w-fit max-w-[82%] min-w-0 justify-end" : "mr-auto flex w-fit max-w-[82%] min-w-0 gap-3"}>
-                {!message.isLocal ? (
-                  <UserAvatar
-                    avatarUrl={message.avatarUrl}
-                    name={message.name}
-                    email={message.avatarSource}
-                    className="h-9 w-9 text-sm"
-                    initialsClassName="text-sm"
+      <div className="relative min-h-0 flex-1">
+        <div
+          ref={chatScrollRef}
+          className="flex h-full min-h-0 flex-col overflow-y-auto p-4"
+          onScroll={handleChatScroll}
+        >
+          {chatMessages.length > 0 ? (
+            chatMessages.map((message, index) => {
+              const previousMessage = index > 0 ? chatMessages[index - 1] : null;
+              const shouldRenderUnreadDivider = firstUnreadMessageId === message.id;
+              const isGroupedWithPrevious =
+                !shouldRenderUnreadDivider && shouldGroupWithPrevious(message, previousMessage);
+
+              return (
+                <Fragment key={message.id}>
+                  {shouldRenderUnreadDivider ? (
+                    <div
+                      ref={unreadDividerRef}
+                      className={cn(
+                        "flex items-center gap-3 text-xs font-medium text-muted-foreground",
+                        index === 0 ? "mt-0" : "mt-5",
+                      )}
+                    >
+                      <span className="h-px flex-1 bg-border/80" />
+                      <span className="rounded-full border border-border/70 bg-background/85 px-3 py-1">
+                        Unread messages
+                      </span>
+                      <span className="h-px flex-1 bg-border/80" />
+                    </div>
+                  ) : null}
+                  <ChatMessageItem
+                    message={message}
+                    isGroupedWithPrevious={isGroupedWithPrevious}
+                    isFirstMessage={index === 0 && !shouldRenderUnreadDivider}
                   />
-                ) : null}
-
-                <div className={message.isLocal ? "flex min-w-0 flex-col items-end" : "flex min-w-0 flex-col items-start"}>
-                  <div
-                    className={message.isLocal ? "mb-1 flex items-baseline justify-end gap-2" : "mb-1 flex items-baseline gap-2"}
-                  >
-                    <span className="font-medium text-foreground">{message.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {message.time}
-                    </span>
-                  </div>
-                  <div
-                    className={
-                      message.type === "sticker"
-                        ? "w-fit max-w-full"
-                        : message.isLocal
-                          ? "ml-auto w-fit max-w-full self-end rounded-2xl rounded-tr-md bg-primary px-3 py-3 text-left text-sm leading-6 text-primary-foreground"
-                          : "w-fit max-w-full rounded-2xl rounded-tl-md border border-border/70 bg-background/55 px-4 py-3 text-sm leading-6 text-foreground"
-                    }
-                  >
-                    {message.type === "sticker" ? (
-                      (() => {
-                        const stickerUrl = getStickerUrl(message.stickerKey);
-
-                        return stickerUrl ? (
-                          <div className="rounded-[1.1rem] shadow-[0_8px_24px_rgba(2,6,23,0.18)]">
-                            <Image
-                              src={stickerUrl}
-                              alt={`${message.name} sticker`}
-                              width={108}
-                              height={108}
-                              unoptimized
-                              sizes="96px"
-                              className="h-24 w-24 object-contain"
-                            />
-                          </div>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">Sticker unavailable</p>
-                        );
-                      })()
-                    ) : (
-                      <ChatLinkifiedText text={message.content} isLocal={message.isLocal} />
-                    )}
-                  </div>
-                </div>
-              </div>
+                </Fragment>
+              );
+            })
+          ) : (
+            <div className="flex min-h-0 flex-1 items-center justify-center rounded-3xl border border-dashed border-border/70 bg-background/35 px-6 text-center text-sm text-muted-foreground">
+              Messages are only visible during your current session and will disappear once you leave.
             </div>
-          ))
-        ) : (
-          <div className="flex min-h-0 flex-1 items-center justify-center rounded-3xl border border-dashed border-border/70 bg-background/35 px-6 text-center text-sm text-muted-foreground">
-            Messages are only visible during your current session and will disappear once you leave.
+          )}
+        </div>
+
+        {shouldShowNewMessagesButton ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center px-4">
+            <Button
+              type="button"
+              size="sm"
+              className="pointer-events-auto h-8 rounded-full px-3 text-xs shadow-lg"
+              onClick={() => scrollChatToBottom("smooth")}
+            >
+              <ArrowDown className="h-3.5 w-3.5" />
+              {newMessagesBelowCount === 1
+                ? "New message"
+                : `${newMessagesBelowCount} new messages`}
+            </Button>
           </div>
-        )}
+        ) : null}
       </div>
 
       <div className="border-t border-border/70 p-4">

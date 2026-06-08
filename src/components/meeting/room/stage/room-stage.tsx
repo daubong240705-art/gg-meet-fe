@@ -1,9 +1,11 @@
 "use client";
 
 import { LayoutGroup, motion, type Transition } from "framer-motion";
-import { Monitor } from "lucide-react";
+import { Check, Copy, Monitor } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useCopyMeetingLink } from "@/features/meeting/room/hooks/use-copy-meeting-link";
 import { cn } from "@/lib/utils";
 import type { MeetingTrackType } from "@/shared/services/meeting.service";
 
@@ -22,6 +24,7 @@ type MutingParticipantTrack = {
 };
 
 type RoomStageProps = {
+  meetingCode: string;
   participants: Participant[];
   screenShareParticipant: Participant | null;
   isPageVisible: boolean;
@@ -126,6 +129,7 @@ function HiddenParticipantsPill({ count, className }: { count: number; className
 }
 
 export default function RoomStage({
+  meetingCode,
   participants,
   screenShareParticipant,
   isPageVisible,
@@ -140,13 +144,36 @@ export default function RoomStage({
 }: RoomStageProps) {
   const screenShareParticipantId = screenShareParticipant?.id ?? null;
   const isFramerLayoutEnabled = isLayoutMotionEnabled && !isViewportResizing;
+  const { copied, copyMeetingLink } = useCopyMeetingLink(meetingCode);
 
   if (participants.length === 0) {
     return (
-      <Card className="flex h-full items-center justify-center border border-border/70 bg-background/80">
-        <p className="px-6 text-center text-sm text-muted-foreground">
-          Waiting for participants to join room.
-        </p>
+      <Card className="flex h-full items-center justify-center border border-border/70 bg-background/80 px-6">
+        <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+            <Monitor className="h-7 w-7" />
+          </div>
+          <div className="space-y-2">
+            <p className="text-base font-semibold text-foreground">
+              Waiting for participants to join
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Share the meeting link to invite others into this room.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 rounded-full border border-border/70 bg-background/70 py-1.5 pl-4 pr-1.5">
+            <code className="text-sm font-semibold tracking-wide text-foreground">{meetingCode}</code>
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 rounded-full px-3"
+              onClick={() => void copyMeetingLink()}
+            >
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {copied ? "Copied" : "Copy link"}
+            </Button>
+          </div>
+        </div>
       </Card>
     );
   }
@@ -155,7 +182,10 @@ export default function RoomStage({
     <Card
       className={cn(
         "relative flex h-full min-h-0 min-w-0 max-w-full gap-0 overflow-hidden border border-white/10 bg-slate-950/62 px-0 py-0 text-white shadow-[0_12px_36px_rgba(2,6,23,0.3)] backdrop-blur-lg motion-reduce:animate-none",
-        !isViewportResizing && "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-3 motion-safe:duration-200 lg:motion-safe:slide-in-from-right-3",
+        // Entrance plays once on mount. Keep it out of the resize gate so toggling
+        // isViewportResizing does not strip + re-add the class and replay the
+        // animation (the one-frame flicker on layout change).
+        "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-3 motion-safe:duration-200 lg:motion-safe:slide-in-from-right-3",
       )}
     >
 
@@ -228,9 +258,13 @@ export default function RoomStage({
             <Card
               className={cn(
                 "relative h-full min-h-0 min-w-0 gap-0 overflow-hidden border border-border/70 bg-card/95 px-0 py-0 text-card-foreground shadow-[0_24px_80px_rgba(2,6,23,0.38)] will-change-transform motion-reduce:animate-none",
+                // Entrance plays once on mount — kept unconditional so a resize
+                // does not strip + re-add it and replay the fade/zoom (flicker).
+                "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-200",
+                // Only the ongoing transition is suppressed while actively resizing.
                 isViewportResizing
                   ? "motion-safe:transition-none"
-                  : "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:transition-[transform,opacity,box-shadow] motion-safe:duration-200 motion-safe:ease-out",
+                  : "motion-safe:transition-[transform,opacity,box-shadow] motion-safe:duration-200 motion-safe:ease-out",
               )}
             >
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.16),transparent_38%),linear-gradient(180deg,rgba(30,41,59,0.96),rgba(15,23,42,0.98))]" />

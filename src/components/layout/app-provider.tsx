@@ -7,15 +7,24 @@ import { Toaster } from "@/components/ui/sonner";
 
 import { ThemeProvider } from "./theme-provider";
 
-export function AppProvider({ children }: { children: ReactNode }) {
-    const [queryClient] = useState(() => new QueryClient());
+const QUERY_STALE_TIME_MS = 60_000;
 
-    return (
-        <QueryClientProvider client={queryClient}>
-            <ThemeProvider>
-                {children}
-                <Toaster position="top-right" richColors />
-            </ThemeProvider>
-        </QueryClientProvider>
-    );
+export function AppProvider({ children }: { children: ReactNode }) {
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: QUERY_STALE_TIME_MS,
+        refetchOnWindowFocus: false,
+      },
+    },
+  }));
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        {children}
+        <Toaster position="top-right" richColors />
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
 }

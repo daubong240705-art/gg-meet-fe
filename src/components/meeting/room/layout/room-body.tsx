@@ -1,5 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { ConnectionState } from "livekit-client";
+import { Loader2, SignalLow, WifiOff, type LucideIcon } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -11,6 +15,7 @@ import type {
   ChatMessage,
   OutboundChatMessage,
   Participant,
+  ParticipantConnectionQuality,
   SidebarPanel,
   WaitingParticipant,
 } from "../types";
@@ -20,7 +25,66 @@ type MutingParticipantTrack = {
   trackType: MeetingTrackType;
 };
 
+const DESKTOP_SIDEBAR_MEDIA_QUERY = "(min-width: 1280px)";
+
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(false);
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") {
+      return;
+    }
+
+    const mediaQueryList = window.matchMedia(query);
+    const handleChange = () => setMatches(mediaQueryList.matches);
+
+    handleChange();
+    mediaQueryList.addEventListener("change", handleChange);
+
+    return () => {
+      mediaQueryList.removeEventListener("change", handleChange);
+    };
+  }, [query]);
+
+  return matches;
+}
+
+function getLocalConnectionWarning(
+  quality: ParticipantConnectionQuality,
+): {
+  Icon: LucideIcon;
+  title: string;
+  description: string;
+  className: string;
+  iconClassName: string;
+} | null {
+  switch (quality) {
+    case "poor":
+      return {
+        Icon: SignalLow,
+        title: "Your connection is unstable",
+        description: "Others may see or hear you with reduced quality.",
+        className: "border-orange-500/30 bg-orange-500/10",
+        iconClassName: "bg-orange-500/15 text-orange-700 dark:text-orange-200",
+      };
+    case "lost":
+      return {
+        Icon: WifiOff,
+        title: "Your connection was lost",
+        description: "Keep this tab open while the meeting tries to recover.",
+        className: "border-red-500/30 bg-red-500/10",
+        iconClassName: "bg-red-500/15 text-red-700 dark:text-red-200",
+      };
+    case "excellent":
+    case "good":
+    case "unknown":
+    default:
+      return null;
+  }
+}
+
 type RoomBodyProps = {
+  meetingCode: string;
   isSidebarRendered: boolean;
   sidebarPanel: SidebarPanel;
   isSidebarOpen: boolean;
@@ -31,15 +95,19 @@ type RoomBodyProps = {
   chatDraft: string;
   isChatReady: boolean;
   isSendingChat: boolean;
+  firstUnreadMessageId: string | null;
   screenShareParticipant: Participant | null;
   isPageVisible: boolean;
   isLayoutMotionEnabled: boolean;
   isViewportResizing: boolean;
   isLiveKitEnabled: boolean;
+  roomConnectionState: ConnectionState;
+  hasRoomConnected: boolean;
   canPlaybackAudio: boolean;
   onStartAudio: () => void;
   onChatDraftChange: (value: string) => void;
   onSendChatMessage: (payload: OutboundChatMessage) => void;
+  onClearUnreadDivider: () => void;
   onApproveWaitingParticipant: (participant: WaitingParticipant) => void;
   onRejectWaitingParticipant: (participant: WaitingParticipant) => void;
   onApproveAllWaitingParticipants: () => void;
@@ -53,6 +121,7 @@ type RoomBodyProps = {
 };
 
 export default function RoomBody({
+  meetingCode,
   isSidebarRendered,
   sidebarPanel,
   isSidebarOpen,
@@ -63,15 +132,19 @@ export default function RoomBody({
   chatDraft,
   isChatReady,
   isSendingChat,
+  firstUnreadMessageId,
   screenShareParticipant,
   isPageVisible,
   isLayoutMotionEnabled,
   isViewportResizing,
   isLiveKitEnabled,
+  roomConnectionState,
+  hasRoomConnected,
   canPlaybackAudio,
   onStartAudio,
   onChatDraftChange,
   onSendChatMessage,
+  onClearUnreadDivider,
   onApproveWaitingParticipant,
   onRejectWaitingParticipant,
   onApproveAllWaitingParticipants,
@@ -83,9 +156,48 @@ export default function RoomBody({
   onForceStopScreenShare,
   onPanelChange,
 }: RoomBodyProps) {
+  const isDesktopSidebarLayout = useMediaQuery(DESKTOP_SIDEBAR_MEDIA_QUERY);
+  const shouldRenderSidebar = isSidebarRendered && Boolean(sidebarPanel);
+  const localConnectionQuality = participants.find((participant) => participant.isLocal)
+    ?.connectionQuality ?? "unknown";
+  const localConnectionWarning = getLocalConnectionWarning(localConnectionQuality);
+  const LocalConnectionWarningIcon = localConnectionWarning?.Icon;
+  const isRoomReconnecting =
+    roomConnectionState === ConnectionState.Reconnecting
+    || roomConnectionState === ConnectionState.SignalReconnecting;
+  const isRoomDisconnectedAfterConnect =
+    isLiveKitEnabled
+    && hasRoomConnected
+    && roomConnectionState === ConnectionState.Disconnected;
+  const sidebar = sidebarPanel ? (
+    <RoomSidebar
+      activePanel={sidebarPanel}
+      isOpen={isSidebarOpen}
+      participants={participants}
+      waitingParticipants={waitingParticipants}
+      canManageWaitingRoom={canManageWaitingRoom}
+      chatMessages={chatMessages}
+      chatDraft={chatDraft}
+      isChatReady={isChatReady}
+      isSendingChat={isSendingChat}
+      firstUnreadMessageId={firstUnreadMessageId}
+      onChatDraftChange={onChatDraftChange}
+      onSendChatMessage={onSendChatMessage}
+      onClearUnreadDivider={onClearUnreadDivider}
+      onApproveWaitingParticipant={onApproveWaitingParticipant}
+      onRejectWaitingParticipant={onRejectWaitingParticipant}
+      onApproveAllWaitingParticipants={onApproveAllWaitingParticipants}
+      onKickParticipant={onKickParticipant}
+      mutingParticipantTrack={mutingParticipantTrack}
+      onMuteParticipantTrack={onMuteParticipantTrack}
+      onPanelChange={onPanelChange}
+      onClose={() => onPanelChange(null)}
+    />
+  ) : null;
+
   return (
     <>
-      {isSidebarRendered && sidebarPanel ? (
+      {shouldRenderSidebar && !isDesktopSidebarLayout ? (
         <>
           <button
             type="button"
@@ -102,27 +214,7 @@ export default function RoomBody({
               isSidebarOpen ? "translate-y-0 opacity-100 lg:translate-x-0" : "pointer-events-none translate-y-4 opacity-0 lg:-translate-x-5 lg:translate-y-0",
             )}
           >
-            <RoomSidebar
-              activePanel={sidebarPanel}
-              isOpen={isSidebarOpen}
-              participants={participants}
-              waitingParticipants={waitingParticipants}
-              canManageWaitingRoom={canManageWaitingRoom}
-              chatMessages={chatMessages}
-              chatDraft={chatDraft}
-              isChatReady={isChatReady}
-              isSendingChat={isSendingChat}
-              onChatDraftChange={onChatDraftChange}
-              onSendChatMessage={onSendChatMessage}
-              onApproveWaitingParticipant={onApproveWaitingParticipant}
-              onRejectWaitingParticipant={onRejectWaitingParticipant}
-              onApproveAllWaitingParticipants={onApproveAllWaitingParticipants}
-              onKickParticipant={onKickParticipant}
-              mutingParticipantTrack={mutingParticipantTrack}
-              onMuteParticipantTrack={onMuteParticipantTrack}
-              onPanelChange={onPanelChange}
-              onClose={() => onPanelChange(null)}
-            />
+            {sidebar}
           </div>
         </>
       ) : null}
@@ -142,6 +234,74 @@ export default function RoomBody({
         )}
       >
         <div className="order-1 flex min-h-0 min-w-0 flex-1 flex-col gap-3 motion-safe:transition-[transform,opacity] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none xl:col-start-2 xl:row-start-1 xl:order-none">
+          {isLiveKitEnabled && isRoomReconnecting ? (
+            <Card
+              role="status"
+              className="flex items-start gap-3 border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-amber-950 dark:text-amber-50"
+            >
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-amber-500/15">
+                <Loader2 className="h-4 w-4 animate-spin" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Reconnecting to the meeting...</p>
+                <p className="text-xs text-amber-900/80 dark:text-amber-100/80">
+                  Keep this tab open. Audio and video will resume automatically.
+                </p>
+              </div>
+            </Card>
+          ) : null}
+
+          {isRoomDisconnectedAfterConnect ? (
+            <Card
+              role="alert"
+              className="flex flex-col gap-3 border border-red-500/30 bg-red-500/10 px-4 py-4 text-red-950 sm:flex-row sm:items-center sm:justify-between dark:text-red-50"
+            >
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-red-500/15">
+                  <WifiOff className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">Connection disconnected</p>
+                  <p className="text-xs text-red-900/80 dark:text-red-100/80">
+                    Retry if the meeting does not recover automatically.
+                  </p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => window.location.reload()}
+              >
+                Retry
+              </Button>
+            </Card>
+          ) : null}
+
+          {localConnectionWarning && LocalConnectionWarningIcon ? (
+            <Card
+              role="status"
+              className={cn(
+                "flex items-start gap-3 px-4 py-3",
+                localConnectionWarning.className,
+              )}
+            >
+              <span
+                className={cn(
+                  "flex size-9 shrink-0 items-center justify-center rounded-full",
+                  localConnectionWarning.iconClassName,
+                )}
+              >
+                <LocalConnectionWarningIcon className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-medium">{localConnectionWarning.title}</p>
+                <p className="text-xs text-muted-foreground">
+                  {localConnectionWarning.description}
+                </p>
+              </div>
+            </Card>
+          ) : null}
+
           {isLiveKitEnabled && !canPlaybackAudio ? (
             <Card className="flex flex-col gap-3 border border-sky-500/30 bg-sky-500/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-sky-900 dark:text-sky-100">
@@ -155,6 +315,7 @@ export default function RoomBody({
 
           <div className="min-h-0 flex-1">
             <RoomStage
+              meetingCode={meetingCode}
               participants={participants}
               screenShareParticipant={screenShareParticipant}
               isPageVisible={isPageVisible}
@@ -170,38 +331,18 @@ export default function RoomBody({
           </div>
         </div>
 
-        <div
-          className={cn(
-            "order-2 hidden min-h-0 shrink-0 overflow-hidden motion-safe:transition-[opacity,transform,margin] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none xl:col-start-1 xl:row-start-1 xl:order-none xl:mt-2 xl:flex xl:h-[calc(100%-0.5rem)]",
-            isSidebarOpen
-              ? "xl:translate-x-0 xl:opacity-100"
-              : "pointer-events-none xl:-translate-x-3 xl:opacity-0",
-          )}
-        >
-          {sidebarPanel ? (
-            <RoomSidebar
-              activePanel={sidebarPanel}
-              isOpen={isSidebarOpen}
-              participants={participants}
-              waitingParticipants={waitingParticipants}
-              canManageWaitingRoom={canManageWaitingRoom}
-              chatMessages={chatMessages}
-              chatDraft={chatDraft}
-              isChatReady={isChatReady}
-              isSendingChat={isSendingChat}
-              onChatDraftChange={onChatDraftChange}
-              onSendChatMessage={onSendChatMessage}
-              onApproveWaitingParticipant={onApproveWaitingParticipant}
-              onRejectWaitingParticipant={onRejectWaitingParticipant}
-              onApproveAllWaitingParticipants={onApproveAllWaitingParticipants}
-              onKickParticipant={onKickParticipant}
-              mutingParticipantTrack={mutingParticipantTrack}
-              onMuteParticipantTrack={onMuteParticipantTrack}
-              onPanelChange={onPanelChange}
-              onClose={() => onPanelChange(null)}
-            />
-          ) : null}
-        </div>
+        {isDesktopSidebarLayout ? (
+          <div
+            className={cn(
+              "order-2 hidden min-h-0 shrink-0 overflow-hidden motion-safe:transition-[opacity,transform,margin] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none xl:col-start-1 xl:row-start-1 xl:order-none xl:mt-2 xl:flex xl:h-[calc(100%-0.5rem)]",
+              isSidebarOpen
+                ? "xl:translate-x-0 xl:opacity-100"
+                : "pointer-events-none xl:-translate-x-3 xl:opacity-0",
+            )}
+          >
+            {sidebar}
+          </div>
+        ) : null}
       </div>
     </>
   );

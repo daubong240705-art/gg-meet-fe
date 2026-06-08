@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type ChatMessage as LiveKitChatMessage,
   Participant as LiveKitParticipant,
@@ -17,8 +17,13 @@ import {
   mapChatMessageToUiMessage,
   serializeOutgoingChatPayload,
 } from "@/features/meeting/room/lib";
+import {
+  persistChatMessages,
+  readPersistedChatMessages,
+} from "@/lib/meeting/chat-session-storage";
 
 type UseRoomChatParams = {
+  meetingCode: string;
   roomRef: { current: LiveKitRoom | null };
   activePanelRef: { current: SidebarPanel };
   isLiveKitEnabled: boolean;
@@ -28,7 +33,62 @@ type UseRoomChatParams = {
   onError: (message: string) => void;
 };
 
+function insertChatMessageByTimestamp(
+  messages: ChatMessage[],
+  nextMessage: ChatMessage,
+) {
+  const lastMessage = messages[messages.length - 1];
+
+  if (!lastMessage || nextMessage.timestamp >= lastMessage.timestamp) {
+    return [...messages, nextMessage];
+  }
+
+  let low = 0;
+  let high = messages.length;
+
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+
+    if (messages[middle].timestamp <= nextMessage.timestamp) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+
+  return [
+    ...messages.slice(0, low),
+    nextMessage,
+    ...messages.slice(low),
+  ];
+}
+
+function upsertChatMessage(
+  messages: ChatMessage[],
+  nextMessage: ChatMessage,
+) {
+  const existingMessageIndex = messages.findIndex(
+    (currentMessage) => currentMessage.id === nextMessage.id,
+  );
+
+  if (existingMessageIndex < 0) {
+    return insertChatMessageByTimestamp(messages, nextMessage);
+  }
+
+  if (messages[existingMessageIndex].timestamp === nextMessage.timestamp) {
+    const updatedMessages = [...messages];
+    updatedMessages[existingMessageIndex] = nextMessage;
+    return updatedMessages;
+  }
+
+  return insertChatMessageByTimestamp(
+    messages.filter((currentMessage) => currentMessage.id !== nextMessage.id),
+    nextMessage,
+  );
+}
+
 export function useRoomChat({
+  meetingCode,
   roomRef,
   activePanelRef,
   isLiveKitEnabled,
@@ -37,20 +97,43 @@ export function useRoomChat({
   localAvatarUrl,
   onError,
 }: UseRoomChatParams) {
+  // Restore the local chat history persisted for this meeting so a page refresh
+  // does not wipe messages that LiveKit will not replay.
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(
+    () => readPersistedChatMessages(meetingCode),
+  );
   const seenChatMessageIdsRef = useRef<Set<string>>(new Set());
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatDraft, setChatDraft] = useState("");
   const [isSendingChat, setIsSendingChat] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [firstUnreadMessageId, setFirstUnreadMessageId] = useState<string | null>(null);
 
+  // Seed the dedupe set from the restored history so it is not re-counted as
+  // unread. Runs before LiveKit (which connects asynchronously) delivers any
+  // message.
+  useEffect(() => {
+    for (const message of readPersistedChatMessages(meetingCode)) {
+      seenChatMessageIdsRef.current.add(message.id);
+    }
+  }, [meetingCode]);
+
+  useEffect(() => {
+    persistChatMessages(meetingCode, chatMessages);
+  }, [meetingCode, chatMessages]);
+
+  // LiveKit fires onReset on every (re)connect. Keep the restored/in-session
+  // history intact and only clear the unread badge; the explicit leave/end flow
+  // clears the persisted store.
   const resetChat = useCallback(() => {
-    setChatMessages([]);
     setUnreadChatCount(0);
-    seenChatMessageIdsRef.current = new Set();
   }, []);
 
   const clearUnreadChatCount = useCallback(() => {
     setUnreadChatCount(0);
+  }, []);
+
+  const clearUnreadDivider = useCallback(() => {
+    setFirstUnreadMessageId(null);
   }, []);
 
   const handleLiveKitChatMessage = useCallback((
@@ -78,23 +161,12 @@ export function useRoomChat({
 
       if (!nextMessage.isLocal && activePanelRef.current !== "chat") {
         setUnreadChatCount((currentCount) => currentCount + 1);
+        setFirstUnreadMessageId((currentMessageId) => currentMessageId ?? nextMessage.id);
       }
     }
 
     setChatMessages((currentMessages) => {
-      const existingMessageIndex = currentMessages.findIndex(
-        (currentMessage) => currentMessage.id === nextMessage.id,
-      );
-
-      if (existingMessageIndex >= 0) {
-        const updatedMessages = [...currentMessages];
-        updatedMessages[existingMessageIndex] = nextMessage;
-        return updatedMessages.sort((left, right) => left.timestamp - right.timestamp);
-      }
-
-      return [...currentMessages, nextMessage].sort(
-        (left, right) => left.timestamp - right.timestamp,
-      );
+      return upsertChatMessage(currentMessages, nextMessage);
     });
   }, [activePanelRef, displayName, localAvatarUrl, localEmail]);
 
@@ -135,9 +207,11 @@ export function useRoomChat({
     chatDraft,
     isSendingChat,
     unreadChatCount,
+    firstUnreadMessageId,
     setChatDraft,
     resetChat,
     clearUnreadChatCount,
+    clearUnreadDivider,
     handleLiveKitChatMessage,
     handleSendChatMessage,
   };

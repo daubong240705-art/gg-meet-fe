@@ -1,4 +1,5 @@
 import type { ReactElement } from "react";
+import { useMemo } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -36,52 +37,56 @@ function splitTrailingPunctuation(value: string) {
 }
 
 export function ChatLinkifiedText({ text, isLocal = false }: ChatLinkifiedTextProps) {
-  const parts: Array<string | ReactElement> = [];
-  let lastIndex = 0;
+  const parts = useMemo<Array<string | ReactElement>>(() => {
+    const nextParts: Array<string | ReactElement> = [];
+    let lastIndex = 0;
 
-  for (const match of text.matchAll(LINK_CANDIDATE_REGEX)) {
-    const rawMatch = match[0];
-    const matchIndex = match.index ?? 0;
+    for (const match of text.matchAll(LINK_CANDIDATE_REGEX)) {
+      const rawMatch = match[0];
+      const matchIndex = match.index ?? 0;
 
-    if (text[matchIndex - 1] === "@") {
-      continue;
+      if (text[matchIndex - 1] === "@") {
+        continue;
+      }
+
+      const { linkText, punctuation } = splitTrailingPunctuation(rawMatch);
+
+      if (!linkText) {
+        continue;
+      }
+
+      if (matchIndex > lastIndex) {
+        nextParts.push(text.slice(lastIndex, matchIndex));
+      }
+
+      nextParts.push(
+        <a
+          key={`${matchIndex}-${linkText}`}
+          href={normalizeLinkHref(linkText)}
+          target="_blank"
+          rel="noreferrer noopener"
+          className={cn(
+            "font-medium underline decoration-current/55 underline-offset-3 transition hover:decoration-current",
+            isLocal ? "text-primary-foreground" : "text-primary",
+          )}
+        >
+          {linkText}
+        </a>,
+      );
+
+      if (punctuation) {
+        nextParts.push(punctuation);
+      }
+
+      lastIndex = matchIndex + rawMatch.length;
     }
 
-    const { linkText, punctuation } = splitTrailingPunctuation(rawMatch);
-
-    if (!linkText) {
-      continue;
+    if (lastIndex < text.length) {
+      nextParts.push(text.slice(lastIndex));
     }
 
-    if (matchIndex > lastIndex) {
-      parts.push(text.slice(lastIndex, matchIndex));
-    }
-
-    parts.push(
-      <a
-        key={`${matchIndex}-${linkText}`}
-        href={normalizeLinkHref(linkText)}
-        target="_blank"
-        rel="noreferrer noopener"
-        className={cn(
-          "font-medium underline decoration-current/55 underline-offset-3 transition hover:decoration-current",
-          isLocal ? "text-primary-foreground" : "text-primary",
-        )}
-      >
-        {linkText}
-      </a>,
-    );
-
-    if (punctuation) {
-      parts.push(punctuation);
-    }
-
-    lastIndex = matchIndex + rawMatch.length;
-  }
-
-  if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
-  }
+    return nextParts;
+  }, [isLocal, text]);
 
   return (
     <p className="wrap-break-word whitespace-pre-wrap">
