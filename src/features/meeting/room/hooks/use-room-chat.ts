@@ -106,6 +106,7 @@ export function useRoomChat({
   const [chatDraft, setChatDraft] = useState("");
   const [isSendingChat, setIsSendingChat] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [firstUnreadMessageId, setFirstUnreadMessageId] = useState<string | null>(null);
 
   // Seed the dedupe set from the restored history so it is not re-counted as
   // unread. Runs before LiveKit (which connects asynchronously) delivers any
@@ -129,6 +130,10 @@ export function useRoomChat({
 
   const clearUnreadChatCount = useCallback(() => {
     setUnreadChatCount(0);
+  }, []);
+
+  const clearUnreadDivider = useCallback(() => {
+    setFirstUnreadMessageId(null);
   }, []);
 
   const handleLiveKitChatMessage = useCallback((
@@ -156,6 +161,7 @@ export function useRoomChat({
 
       if (!nextMessage.isLocal && activePanelRef.current !== "chat") {
         setUnreadChatCount((currentCount) => currentCount + 1);
+        setFirstUnreadMessageId((currentMessageId) => currentMessageId ?? nextMessage.id);
       }
     }
 
@@ -201,9 +207,11 @@ export function useRoomChat({
     chatDraft,
     isSendingChat,
     unreadChatCount,
+    firstUnreadMessageId,
     setChatDraft,
     resetChat,
     clearUnreadChatCount,
+    clearUnreadDivider,
     handleLiveKitChatMessage,
     handleSendChatMessage,
   };

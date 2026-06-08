@@ -229,9 +229,11 @@ function MeetingRoomContent({
     chatDraft,
     isSendingChat,
     unreadChatCount,
+    firstUnreadMessageId,
     setChatDraft,
     resetChat,
     clearUnreadChatCount,
+    clearUnreadDivider,
     handleLiveKitChatMessage,
     handleSendChatMessage,
   } = useRoomChat({
@@ -533,6 +535,7 @@ function MeetingRoomContent({
           chatDraft={chatDraft}
           isChatReady={isLiveKitEnabled && isRoomConnected}
           isSendingChat={isSendingChat}
+          firstUnreadMessageId={firstUnreadMessageId}
           screenShareParticipant={screenShareParticipant}
           isPageVisible={isPageVisible}
           isLayoutMotionEnabled={!isSidebarLayoutTransitioning && !isViewportResizing}
@@ -544,6 +547,7 @@ function MeetingRoomContent({
           onStartAudio={handleStartAudio}
           onChatDraftChange={setChatDraft}
           onSendChatMessage={handleSendChatMessage}
+          onClearUnreadDivider={clearUnreadDivider}
           onApproveWaitingParticipant={handleApproveWaitingParticipant}
           onRejectWaitingParticipant={handleRejectWaitingParticipant}
           onApproveAllWaitingParticipants={handleApproveAllWaitingParticipants}

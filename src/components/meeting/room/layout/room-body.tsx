@@ -95,6 +95,7 @@ type RoomBodyProps = {
   chatDraft: string;
   isChatReady: boolean;
   isSendingChat: boolean;
+  firstUnreadMessageId: string | null;
   screenShareParticipant: Participant | null;
   isPageVisible: boolean;
   isLayoutMotionEnabled: boolean;
@@ -106,6 +107,7 @@ type RoomBodyProps = {
   onStartAudio: () => void;
   onChatDraftChange: (value: string) => void;
   onSendChatMessage: (payload: OutboundChatMessage) => void;
+  onClearUnreadDivider: () => void;
   onApproveWaitingParticipant: (participant: WaitingParticipant) => void;
   onRejectWaitingParticipant: (participant: WaitingParticipant) => void;
   onApproveAllWaitingParticipants: () => void;
@@ -130,6 +132,7 @@ export default function RoomBody({
   chatDraft,
   isChatReady,
   isSendingChat,
+  firstUnreadMessageId,
   screenShareParticipant,
   isPageVisible,
   isLayoutMotionEnabled,
@@ -141,6 +144,7 @@ export default function RoomBody({
   onStartAudio,
   onChatDraftChange,
   onSendChatMessage,
+  onClearUnreadDivider,
   onApproveWaitingParticipant,
   onRejectWaitingParticipant,
   onApproveAllWaitingParticipants,
@@ -176,8 +180,10 @@ export default function RoomBody({
       chatDraft={chatDraft}
       isChatReady={isChatReady}
       isSendingChat={isSendingChat}
+      firstUnreadMessageId={firstUnreadMessageId}
       onChatDraftChange={onChatDraftChange}
       onSendChatMessage={onSendChatMessage}
+      onClearUnreadDivider={onClearUnreadDivider}
       onApproveWaitingParticipant={onApproveWaitingParticipant}
       onRejectWaitingParticipant={onRejectWaitingParticipant}
       onApproveAllWaitingParticipants={onApproveAllWaitingParticipants}
