@@ -203,13 +203,16 @@ export function useWaitingRoomStatus({
       return;
     }
 
-    void checkStatus(true);
+    const initialCheckTimeoutId = window.setTimeout(() => {
+      void checkStatus(true);
+    }, 0);
 
     const intervalId = window.setInterval(() => {
       void checkStatus(true);
     }, WAITING_ROOM_POLL_INTERVAL);
 
     return () => {
+      window.clearTimeout(initialCheckTimeoutId);
       window.clearInterval(intervalId);
     };
   }, [checkStatus, isWaiting]);

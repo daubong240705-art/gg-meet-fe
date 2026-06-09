@@ -6,7 +6,11 @@ import { toast } from "sonner";
 
 import { MEETING_AUDIO_CAPTURE_DEFAULTS } from "@/lib/meeting/audio-capture";
 import { type MeetingSocketConnection } from "@/lib/meeting/meeting-websocket";
-import { MeetingSocketProvider, useMeetingSocket } from "@/features/meeting/providers";
+import {
+  MeetingSocketProvider,
+  RoomAbilityProvider,
+  useMeetingSocket,
+} from "@/features/meeting/providers";
 import {
   useRoomChat,
   useRoomDevices,
@@ -501,7 +505,12 @@ function MeetingRoomContent({
   });
 
   return (
-    <RoomLocalVolumeProvider roomRef={roomRef} participants={participants}>
+    <RoomAbilityProvider
+      isHost={canManageWaitingRoom}
+      canUseHostMediaControls={localUserCanUseHostMediaControls}
+      roomSettings={roomSettings}
+    >
+      <RoomLocalVolumeProvider roomRef={roomRef} participants={participants}>
       <div className="h-screen overflow-hidden bg-background">
       <div className="flex h-screen flex-col overflow-hidden bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.12),transparent_42%),linear-gradient(180deg,rgba(15,23,42,1),rgba(30,41,59,0.9))]">
         <RoomHeader
@@ -549,7 +558,6 @@ function MeetingRoomContent({
           onKickParticipant={handleKickParticipant}
           mutingParticipantTrack={mutingParticipantTrack}
           onMuteParticipantTrack={handleMuteParticipantTrack}
-          canForceStopScreenShare={canManageWaitingRoom}
           forcingStopScreenShareParticipantId={forcingStopScreenShareParticipantId}
           onForceStopScreenShare={handleForceStopScreenShare}
           onPanelChange={handleMeetingPanelChange}
@@ -562,7 +570,6 @@ function MeetingRoomContent({
           activePanel={activePanel}
           isMicEnabled={isMicEnabled}
           localMicLevel={localMicLevel}
-          canUnmuteMicrophone={canUnmuteMicrophone}
           isCameraEnabled={isCameraEnabled}
           isScreenSharing={isScreenSharing}
           isWaitingForShareApproval={isWaitingForShareApproval}
@@ -572,7 +579,6 @@ function MeetingRoomContent({
           cameraDevices={cameraDevices}
           activeMicrophoneId={activeMicrophoneId}
           activeCameraId={activeCameraId}
-          isHost={canManageWaitingRoom}
           roomSettings={roomSettings}
           updatingRoomSettingsFields={updatingRoomSettingsFields}
           onUpdateRoomSettings={(patch) => void updateRoomSettings(patch)}
@@ -649,6 +655,7 @@ function MeetingRoomContent({
         </div>
       ) : null}
       </div>
-    </RoomLocalVolumeProvider>
+      </RoomLocalVolumeProvider>
+    </RoomAbilityProvider>
   );
 }

@@ -33,6 +33,7 @@ import {
   useAdminOverview,
   useAdminUsers,
 } from "@/features/admin/hooks";
+import { defineAppAbility } from "@/lib/auth/ability";
 import { useAuthSession } from "@/lib/auth/auth-session";
 import { getAvatarInitials } from "@/lib/user/avatar";
 import type {
@@ -127,6 +128,8 @@ const getErrorMessage = (error: unknown) => {
 export function AdminDashboard() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthSession();
+  const ability = useMemo(() => defineAppAbility(user?.role ?? null), [user?.role]);
+  const canAccessAdmin = ability.can("read", "AdminPanel");
   const hasMounted = useHasHydrated();
   const [activeTab, setActiveTab] = useState<AdminTab>("users");
   const [searchQuery, setSearchQuery] = useState("");
@@ -149,12 +152,12 @@ export function AdminDashboard() {
       return;
     }
 
-    if (user?.role !== "ADMIN") {
+    if (!canAccessAdmin) {
       router.replace("/");
     }
-  }, [hasMounted, isAuthenticated, router, user?.role]);
+  }, [canAccessAdmin, hasMounted, isAuthenticated, router]);
 
-  const canLoadAdminData = hasMounted && isAuthenticated && user?.role === "ADMIN";
+  const canLoadAdminData = hasMounted && isAuthenticated && canAccessAdmin;
   const meetingFrom = useMemo(() => toStartOfDay(meetingFromDate), [meetingFromDate]);
   const meetingTo = useMemo(() => toEndOfDay(meetingToDate), [meetingToDate]);
 
@@ -219,7 +222,7 @@ export function AdminDashboard() {
     return <AdminAccessState title="Redirecting" description="Sign in with an admin account to continue." />;
   }
 
-  if (user?.role !== "ADMIN") {
+  if (!canAccessAdmin) {
     return <AdminAccessState title="Forbidden" description="Your account does not have access to this workspace." />;
   }
 

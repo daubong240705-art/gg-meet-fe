@@ -8,6 +8,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useRoomAbility } from "@/features/meeting/providers";
 import { cn } from "@/lib/utils";
 import type { RoomSettings, UpdateRoomSettingsRequest } from "@/shared/services/meeting/types";
 
@@ -22,7 +23,6 @@ type RoomFooterControlsProps = {
   openMenu: FooterMenuKey;
   isMicEnabled: boolean;
   localMicLevel: number;
-  canUnmuteMicrophone: boolean;
   isCameraEnabled: boolean;
   isScreenSharing: boolean;
   isWaitingForShareApproval: boolean;
@@ -32,7 +32,6 @@ type RoomFooterControlsProps = {
   cameraDevices: MediaDeviceInfo[];
   activeMicrophoneId: string;
   activeCameraId: string;
-  isHost: boolean;
   roomSettings: RoomSettings;
   updatingRoomSettingsFields: Partial<Record<keyof RoomSettings, boolean>>;
   onToggleMenu: (menu: Exclude<FooterMenuKey, null>) => void;
@@ -70,7 +69,6 @@ export function RoomFooterControls({
   openMenu,
   isMicEnabled,
   localMicLevel,
-  canUnmuteMicrophone,
   isCameraEnabled,
   isScreenSharing,
   isWaitingForShareApproval,
@@ -80,7 +78,6 @@ export function RoomFooterControls({
   cameraDevices,
   activeMicrophoneId,
   activeCameraId,
-  isHost,
   roomSettings,
   updatingRoomSettingsFields,
   onToggleMenu,
@@ -95,6 +92,9 @@ export function RoomFooterControls({
   onSelectCamera,
   onOpenLeaveDialog,
 }: RoomFooterControlsProps) {
+  const ability = useRoomAbility();
+  const canUnmuteSelf = ability.can("unmuteSelf", "Meeting");
+  const canUpdateSettings = ability.can("updateSettings", "RoomSettings");
   const handControlLabel = isHandRaiseCoolingDown
     ? "Hand control is cooling down"
     : isHandRaised ? "Lower hand" : "Raise hand";
@@ -110,7 +110,7 @@ export function RoomFooterControls({
         <div className="relative">
           <SplitControlButton
             label={
-              !isMicEnabled && !canUnmuteMicrophone
+              !isMicEnabled && !canUnmuteSelf
                 ? "Microphone locked by host"
                 : isMicEnabled ? "Mute microphone (M)" : "Unmute microphone (M)"
             }
@@ -119,7 +119,7 @@ export function RoomFooterControls({
             menuAriaLabel="Open microphone device menu"
             isDestructive={!isMicEnabled}
             isMenuOpen={openMenu === "microphone"}
-            isMainDisabled={!isMicEnabled && !canUnmuteMicrophone}
+            isMainDisabled={!isMicEnabled && !canUnmuteSelf}
             level={localMicLevel}
             showLevel={isMicEnabled}
             onMainClick={() => {
@@ -209,7 +209,7 @@ export function RoomFooterControls({
           </button>
         </ControlTooltip>
 
-        {isHost ? (
+        {canUpdateSettings ? (
           <div className="relative">
             <ControlTooltip label="Room settings">
               <button

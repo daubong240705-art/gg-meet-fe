@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useRoomAbility } from "@/features/meeting/providers";
 import type { RoomSettings, UpdateRoomSettingsRequest } from "@/shared/services/meeting/types";
 
 import { RoomFooterControls } from "./room-footer-controls";
@@ -19,7 +20,6 @@ type RoomFooterProps = {
   activePanel: SidebarPanel;
   isMicEnabled: boolean;
   localMicLevel: number;
-  canUnmuteMicrophone: boolean;
   isCameraEnabled: boolean;
   isScreenSharing: boolean;
   isWaitingForShareApproval: boolean;
@@ -42,7 +42,6 @@ type RoomFooterProps = {
   isCompactControlsOpen: boolean;
   onToggleCompactControls: () => void;
   onLeave: () => void;
-  isHost?: boolean;
   roomSettings: RoomSettings;
   updatingRoomSettingsFields: Partial<Record<keyof RoomSettings, boolean>>;
   onUpdateRoomSettings: (patch: UpdateRoomSettingsRequest) => void;
@@ -79,14 +78,14 @@ export default function RoomFooter({
   isCompactControlsOpen,
   onToggleCompactControls,
   onLeave,
-  isHost = false,
-  canUnmuteMicrophone,
   roomSettings,
   updatingRoomSettingsFields,
   onUpdateRoomSettings,
   isEndingMeeting = false,
   onEndMeeting,
 }: RoomFooterProps) {
+  const ability = useRoomAbility();
+  const canEndMeeting = ability.can("endMeeting", "Meeting");
   const footerRef = useRef<HTMLElement | null>(null);
   const [openMenu, setOpenMenu] = useState<FooterMenuKey>(null);
   const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false);
@@ -142,7 +141,6 @@ export default function RoomFooter({
             openMenu={openMenu}
             isMicEnabled={isMicEnabled}
             localMicLevel={localMicLevel}
-            canUnmuteMicrophone={canUnmuteMicrophone}
             isCameraEnabled={isCameraEnabled}
             isScreenSharing={isScreenSharing}
             isWaitingForShareApproval={isWaitingForShareApproval}
@@ -152,7 +150,6 @@ export default function RoomFooter({
             cameraDevices={cameraDevices}
             activeMicrophoneId={activeMicrophoneId}
             activeCameraId={activeCameraId}
-            isHost={isHost}
             roomSettings={roomSettings}
             updatingRoomSettingsFields={updatingRoomSettingsFields}
             onUpdateRoomSettings={onUpdateRoomSettings}
@@ -192,7 +189,7 @@ export default function RoomFooter({
       <RoomLeaveDialog
         open={isLeaveDialogOpen}
         isEndingMeeting={isEndingMeeting}
-        canEndMeeting={isHost}
+        canEndMeeting={canEndMeeting}
         onClose={() => setIsLeaveDialogOpen(false)}
         onLeave={onLeave}
         onEndMeeting={onEndMeeting}
