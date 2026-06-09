@@ -1,13 +1,18 @@
 FROM node:22-alpine AS base
 
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+
+RUN corepack enable
 
 FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm fetch --frozen-lockfile
+RUN pnpm install --frozen-lockfile --offline
 
 FROM base AS builder
 RUN apk add --no-cache libc6-compat
@@ -28,7 +33,7 @@ ENV NEXT_PUBLIC_WEBSOCKET_URL=${NEXT_PUBLIC_WEBSOCKET_URL}
 ENV NEXT_PUBLIC_MEETING_SOCKET_URL=${NEXT_PUBLIC_MEETING_SOCKET_URL}
 ENV NEXT_PUBLIC_GA_ID=${NEXT_PUBLIC_GA_ID}
 
-RUN npm run build
+RUN pnpm run build
 
 FROM base AS runner
 WORKDIR /app

@@ -1,10 +1,12 @@
 "use client";
 
+import { subject } from "@casl/ability";
 import { Clock3, Hand, Mic, MicOff, MoreVertical, UserMinus, Video, VideoOff, Volume2, VolumeX, X } from "lucide-react";
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/user/user-avatar";
+import { useRoomAbility } from "@/features/meeting/providers";
 import {
   DEFAULT_PARTICIPANT_VOLUME,
   useRoomLocalVolumeControls,
@@ -34,8 +36,6 @@ type RoomSidebarParticipantsPanelProps = {
 
 type ParticipantRowProps = {
   participant: Participant;
-  canManageParticipantMedia: boolean;
-  canKickParticipant: boolean;
   mutingParticipantTrack?: MutingParticipantTrack | null;
   onMuteParticipantTrack?: (participant: Participant, trackType: MeetingTrackType) => void;
   onKickParticipant: () => void;
@@ -45,8 +45,6 @@ type ParticipantRowProps = {
 
 const ParticipantRow = memo(function ParticipantRow({
   participant,
-  canManageParticipantMedia,
-  canKickParticipant,
   mutingParticipantTrack,
   onMuteParticipantTrack,
   onKickParticipant,
@@ -59,6 +57,16 @@ const ParticipantRow = memo(function ParticipantRow({
     toggleParticipantMute,
     resetParticipantVolume,
   } = useRoomLocalVolumeControls();
+  const ability = useRoomAbility();
+  const participantSubject = useMemo(
+    () => subject("Participant", {
+      kind: "Participant" as const,
+      isLocal: participant.isLocal,
+      isHost: participant.isHost,
+      isScreenSharing: participant.isScreenSharing,
+    }),
+    [participant.isLocal, participant.isHost, participant.isScreenSharing],
+  );
 
   const isMutingAudio =
     mutingParticipantTrack?.participantId === participant.participantId
@@ -66,8 +74,10 @@ const ParticipantRow = memo(function ParticipantRow({
   const isMutingVideo =
     mutingParticipantTrack?.participantId === participant.participantId
     && mutingParticipantTrack.trackType === "VIDEO";
-  const canMuteAudio = canManageParticipantMedia && !participant.isMuted;
-  const canMuteVideo = canManageParticipantMedia && !participant.isCameraOff;
+  const canMuteParticipantMedia = ability.can("muteTrack", participantSubject);
+  const canMuteAudio = canMuteParticipantMedia && !participant.isMuted;
+  const canMuteVideo = canMuteParticipantMedia && !participant.isCameraOff;
+  const canKickParticipant = ability.can("kick", participantSubject);
   // You can adjust how loudly you hear anyone else — local only, never yourself.
   const canControlVolume = !participant.isLocal;
   const hasModerationActions = canMuteAudio || canMuteVideo || canKickParticipant;
@@ -265,8 +275,6 @@ function areParticipantRowPropsEqual(
   nextProps: ParticipantRowProps,
 ) {
   return previousProps.participant === nextProps.participant
-    && previousProps.canManageParticipantMedia === nextProps.canManageParticipantMedia
-    && previousProps.canKickParticipant === nextProps.canKickParticipant
     && previousProps.isActionMenuOpen === nextProps.isActionMenuOpen
     && getMutingTrackTypeForParticipant(
       nextProps.participant,
@@ -429,14 +437,12 @@ export function RoomSidebarParticipantsPanel({
             <ParticipantRow
               key={participant.id}
               participant={participant}
-              canManageParticipantMedia={canManageWaitingRoom && !participant.isLocal && !participant.isHost}
               mutingParticipantTrack={mutingParticipantTrack}
               onMuteParticipantTrack={onMuteParticipantTrack}
               onKickParticipant={() => {
                 setKickTarget(participant);
                 setIsBanChecked(false);
               }}
-              canKickParticipant={canManageWaitingRoom && !participant.isLocal && !participant.isHost}
               isActionMenuOpen={openActionMenuParticipantId === participant.id}
               onActionMenuOpenChange={(isOpen) => {
                 setOpenActionMenuParticipantId(isOpen ? participant.id : null);

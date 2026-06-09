@@ -1,11 +1,23 @@
 "use client";
 
 import { useEffect } from "react";
+import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
 
 import Lobby from "@/components/meeting/lobby";
-import MeetingRoom from "@/components/meeting/room/room";
 import { Button } from "@/components/ui/button";
+
+// The room pulls in livekit-client, framer-motion and the STOMP client — none of
+// which are needed for verify/lobby. Loading it on demand keeps those off the
+// initial meeting-page bundle until the user actually enters the room.
+const MeetingRoom = dynamic(() => import("@/components/meeting/room/room"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+    </div>
+  ),
+});
 import {
   LeftMeetingView,
   MeetingStatusView,

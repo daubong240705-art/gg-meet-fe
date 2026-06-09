@@ -1,6 +1,7 @@
 "use client";
 
-import { memo, useEffect, useRef, useState } from "react";
+import { subject } from "@casl/ability";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   Hand,
   type LucideIcon,
@@ -16,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { UserAvatar } from "@/components/user/user-avatar";
+import { useRoomAbility } from "@/features/meeting/providers";
 import { cn } from "@/lib/utils";
 import type { MeetingTrackType } from "@/shared/services/meeting.service";
 
@@ -35,8 +37,6 @@ type ParticipantCardProps = {
   isLayoutTransitionEnabled?: boolean;
   renderAudio?: boolean;
   renderVideo?: boolean;
-  canManageParticipantMedia?: boolean;
-  canForceStopScreenShare?: boolean;
   isForceStoppingScreenShare?: boolean;
   mutingParticipantTrack?: MutingParticipantTrack | null;
   onMuteParticipantTrack?: (participant: Participant, trackType: MeetingTrackType) => void;
@@ -86,17 +86,24 @@ function ParticipantCard({
   isLayoutTransitionEnabled = true,
   renderAudio = true,
   renderVideo = true,
-  canManageParticipantMedia = false,
-  canForceStopScreenShare = false,
   isForceStoppingScreenShare = false,
   mutingParticipantTrack,
   onMuteParticipantTrack,
   onForceStopScreenShare,
 }: ParticipantCardProps) {
+  const ability = useRoomAbility();
+  const participantSubject = useMemo(
+    () => subject("Participant", {
+      kind: "Participant" as const,
+      isLocal: participant.isLocal,
+      isHost: participant.isHost,
+      isScreenSharing: participant.isScreenSharing,
+    }),
+    [participant.isLocal, participant.isHost, participant.isScreenSharing],
+  );
   const isActiveSpeaker = !participant.isMuted && participant.isSpeaking;
   const shouldRenderVideo = renderVideo && !participant.isCameraOff && participant.cameraTrack;
-  const canMuteParticipantMedia =
-    canManageParticipantMedia && !participant.isLocal && !participant.isHost;
+  const canMuteParticipantMedia = ability.can("muteTrack", participantSubject);
   const isMutingAudio =
     mutingParticipantTrack?.participantId === participant.participantId
     && mutingParticipantTrack.trackType === "AUDIO";
@@ -107,8 +114,7 @@ function ParticipantCard({
   const actionMenuRef = useRef<HTMLDivElement | null>(null);
   const canMuteAudio = canMuteParticipantMedia && !participant.isMuted;
   const canMuteVideo = canMuteParticipantMedia && !participant.isCameraOff;
-  const canStopScreenShare =
-    canForceStopScreenShare && participant.isScreenSharing && !participant.isLocal;
+  const canStopScreenShare = ability.can("forceStopShare", participantSubject);
   const hasActionMenu = canMuteAudio || canMuteVideo || canStopScreenShare;
   const connectionQualityView = getConnectionQualityView(participant.connectionQuality);
   const ConnectionQualityIcon = connectionQualityView?.Icon;
@@ -404,8 +410,6 @@ function areParticipantCardPropsEqual(
     && (previousProps.isLayoutTransitionEnabled ?? true) === (nextProps.isLayoutTransitionEnabled ?? true)
     && (previousProps.renderAudio ?? true) === (nextProps.renderAudio ?? true)
     && (previousProps.renderVideo ?? true) === (nextProps.renderVideo ?? true)
-    && (previousProps.canManageParticipantMedia ?? false) === (nextProps.canManageParticipantMedia ?? false)
-    && (previousProps.canForceStopScreenShare ?? false) === (nextProps.canForceStopScreenShare ?? false)
     && (previousProps.isForceStoppingScreenShare ?? false) === (nextProps.isForceStoppingScreenShare ?? false)
     && getMutingTrackTypeForParticipant(
       nextProps.participant,

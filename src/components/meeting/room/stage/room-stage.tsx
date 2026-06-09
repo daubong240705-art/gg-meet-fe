@@ -30,8 +30,6 @@ type RoomStageProps = {
   isPageVisible: boolean;
   isLayoutMotionEnabled?: boolean;
   isViewportResizing?: boolean;
-  canManageParticipantMedia?: boolean;
-  canForceStopScreenShare?: boolean;
   forcingStopScreenShareParticipantId?: number | null;
   mutingParticipantTrack?: MutingParticipantTrack | null;
   onMuteParticipantTrack?: (participant: Participant, trackType: MeetingTrackType) => void;
@@ -135,8 +133,6 @@ export default function RoomStage({
   isPageVisible,
   isLayoutMotionEnabled = true,
   isViewportResizing = false,
-  canManageParticipantMedia = false,
-  canForceStopScreenShare = false,
   forcingStopScreenShareParticipantId = null,
   mutingParticipantTrack,
   onMuteParticipantTrack,
@@ -205,8 +201,6 @@ export default function RoomStage({
               isLayoutTransitionEnabled={!isViewportResizing}
               renderAudio={false}
               renderVideo={isPageVisible}
-              canManageParticipantMedia={canManageParticipantMedia}
-              canForceStopScreenShare={canForceStopScreenShare}
               isForceStoppingScreenShare={
                 participant.participantId !== null &&
                 participant.participantId === forcingStopScreenShareParticipantId
@@ -344,8 +338,6 @@ export default function RoomStage({
               isLayoutTransitionEnabled={!isViewportResizing}
               renderAudio={false}
               renderVideo={isPageVisible}
-              canManageParticipantMedia={canManageParticipantMedia}
-              canForceStopScreenShare={canForceStopScreenShare}
               isForceStoppingScreenShare={
                 participant.participantId !== null &&
                 participant.participantId === forcingStopScreenShareParticipantId
