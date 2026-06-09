@@ -486,13 +486,8 @@ function MeetingRoomContent({
   }, [handleToggleMeetingPanel]);
 
   const handleLeaveShortcut = useCallback(() => {
-    if (canManageWaitingRoom) {
-      setIsKeyboardLeaveDialogOpen(true);
-      return;
-    }
-
-    handleLeaveMeeting();
-  }, [canManageWaitingRoom, handleLeaveMeeting]);
+    setIsKeyboardLeaveDialogOpen(true);
+  }, []);
 
   useRoomKeyboardShortcuts({
     disabled: isShortcutsDialogOpen || isKeyboardLeaveDialogOpen || isShareRequestDialogOpen,
@@ -613,8 +608,9 @@ function MeetingRoomContent({
         />
 
         <RoomLeaveDialog
-          open={canManageWaitingRoom && isKeyboardLeaveDialogOpen}
+          open={isKeyboardLeaveDialogOpen}
           isEndingMeeting={isEndingMeeting}
+          canEndMeeting={canManageWaitingRoom}
           onClose={() => setIsKeyboardLeaveDialogOpen(false)}
           onLeave={handleLeaveMeeting}
           onEndMeeting={handleEndMeeting}

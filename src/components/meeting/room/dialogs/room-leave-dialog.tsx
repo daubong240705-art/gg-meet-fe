@@ -5,6 +5,7 @@ import { useEffect } from "react";
 type RoomLeaveDialogProps = {
   open: boolean;
   isEndingMeeting: boolean;
+  canEndMeeting?: boolean;
   onClose: () => void;
   onLeave: () => void;
   onEndMeeting?: () => void;
@@ -13,6 +14,7 @@ type RoomLeaveDialogProps = {
 export function RoomLeaveDialog({
   open,
   isEndingMeeting,
+  canEndMeeting = false,
   onClose,
   onLeave,
   onEndMeeting,
@@ -54,7 +56,9 @@ export function RoomLeaveDialog({
               Leave meeting?
             </h2>
             <p className="mx-auto max-w-xs text-sm leading-6 text-muted-foreground">
-              Leave now to keep the meeting open, or end it for everyone.
+              {canEndMeeting
+                ? "Leave now to keep the meeting open, or end it for everyone."
+                : "You can rejoin later using the same link."}
             </p>
           </div>
 
@@ -65,21 +69,27 @@ export function RoomLeaveDialog({
                 onClose();
                 onLeave();
               }}
-              className="flex h-12 items-center justify-center rounded-full border border-border/80 bg-background/80 px-4 text-sm font-medium text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+              className={
+                canEndMeeting
+                  ? "flex h-12 items-center justify-center rounded-full border border-border/80 bg-background/80 px-4 text-sm font-medium text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                  : "flex h-12 items-center justify-center rounded-full bg-destructive px-4 text-sm font-medium text-destructive-foreground transition hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+              }
             >
               Leave meeting
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                onEndMeeting?.();
-              }}
-              disabled={isEndingMeeting}
-              className="flex h-12 items-center justify-center rounded-full bg-destructive px-4 text-sm font-medium text-destructive-foreground transition hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isEndingMeeting ? "Ending..." : "End for everyone"}
-            </button>
+            {canEndMeeting ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onEndMeeting?.();
+                }}
+                disabled={isEndingMeeting}
+                className="flex h-12 items-center justify-center rounded-full bg-destructive px-4 text-sm font-medium text-destructive-foreground transition hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isEndingMeeting ? "Ending..." : "End for everyone"}
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={onClose}

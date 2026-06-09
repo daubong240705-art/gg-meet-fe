@@ -165,7 +165,6 @@ export default function RoomFooter({
             onPresentOtherContent={onPresentOtherContent}
             onSelectMicrophone={onSelectMicrophone}
             onSelectCamera={onSelectCamera}
-            onLeave={onLeave}
             onOpenLeaveDialog={() => setIsLeaveDialogOpen(true)}
           />
 
@@ -191,8 +190,9 @@ export default function RoomFooter({
       </TooltipProvider>
 
       <RoomLeaveDialog
-        open={isHost && isLeaveDialogOpen}
+        open={isLeaveDialogOpen}
         isEndingMeeting={isEndingMeeting}
+        canEndMeeting={isHost}
         onClose={() => setIsLeaveDialogOpen(false)}
         onLeave={onLeave}
         onEndMeeting={onEndMeeting}

@@ -45,7 +45,6 @@ type RoomFooterControlsProps = {
   onPresentOtherContent: () => void;
   onSelectMicrophone: (deviceId: string) => void;
   onSelectCamera: (deviceId: string) => void;
-  onLeave: () => void;
   onOpenLeaveDialog: () => void;
 };
 
@@ -94,7 +93,6 @@ export function RoomFooterControls({
   onPresentOtherContent,
   onSelectMicrophone,
   onSelectCamera,
-  onLeave,
   onOpenLeaveDialog,
 }: RoomFooterControlsProps) {
   const handControlLabel = isHandRaiseCoolingDown
@@ -245,13 +243,7 @@ export function RoomFooterControls({
             aria-label="Leave meeting"
             onClick={() => {
               onCloseMenu();
-
-              if (isHost) {
-                onOpenLeaveDialog();
-                return;
-              }
-
-              onLeave();
+              onOpenLeaveDialog();
             }}
             className="ml-1 flex h-11 items-center justify-center rounded-full bg-destructive px-4 text-destructive-foreground transition motion-safe:duration-200 motion-safe:ease-out hover:-translate-y-0.5 hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 motion-reduce:transform-none"
           >
