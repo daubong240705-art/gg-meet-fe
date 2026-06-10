@@ -1,0 +1,31 @@
+appId: gg.kallio.meet
+productName: Kallio Meet
+# No standalone server is forked anymore, so the app code can live inside asar.
+asar: true
+directories:
+  app: dist-electron
+  buildResources: electron/assets
+  output: release
+files:
+  - "**/*"
+  # The main process only uses electron + node builtins; without this filter
+  # electron-builder drags the whole renderer node_modules into the asar.
+  - "!**/node_modules/**"
+extraResources:
+  # Static export served via the app:// protocol handler (read from disk, so it
+  # stays outside asar).
+  - from: out
+    to: out
+    filter:
+      - "**/*"
+  - from: electron/assets/icon.png
+    to: icon.png
+mac:
+  target: dmg
+win:
+  target: nsis
+  icon: electron/assets/icon.ico
+linux:
+  target:
+    - AppImage
+  icon: electron/assets/icon.png

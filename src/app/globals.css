@@ -208,3 +208,15 @@
   gap: 1rem;
   background-color: var(--background);
 }
+
+/* Keep desktop content scrollable without showing Chromium scrollbars. */
+[data-desktop],
+[data-desktop] * {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+[data-desktop]::-webkit-scrollbar,
+[data-desktop] *::-webkit-scrollbar {
+  display: none;
+}

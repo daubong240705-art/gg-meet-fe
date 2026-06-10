@@ -61,6 +61,20 @@ export default function MeetingPageClient({ meetingCode }: MeetingPageClientProp
     image.src = MEETING_IMAGES.bye;
   }, [joinState]);
 
+  // The desktop build has no server-side generateMetadata, so the real meeting
+  // title is set client-side once verify succeeds. The web keeps its SSR title.
+  const verifiedMeetingTitle = verifyMeetingQuery.data?.data?.title?.trim() || null;
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.desktop?.isElectron) {
+      return;
+    }
+
+    if (verifiedMeetingTitle) {
+      document.title = verifiedMeetingTitle;
+    }
+  }, [verifiedMeetingTitle]);
+
   if (leftMeetingState) {
     return (
       <LeftMeetingView

@@ -7,6 +7,7 @@ import {
   getUpcomingMeetingStatusLabel,
   getUpcomingMeetingTiming,
 } from "@/lib/meeting/upcoming";
+import { meetingHref } from "@/lib/meeting/meeting-path";
 import { cn } from "@/lib/utils";
 
 import AuthenticatedMeetingCodeButton from "./authenticated-meeting-code-button";
@@ -93,7 +94,7 @@ export function UpcomingMeetingCard({
                   "ring-2 ring-primary/40 shadow-lg shadow-primary/25",
               )}
             >
-              <Link href={`/${encodeURIComponent(meetingCode)}`}>
+              <Link href={meetingHref(meetingCode)}>
                 {shouldHighlightJoinButton ? "Join now" : "Join"}
               </Link>
             </Button>

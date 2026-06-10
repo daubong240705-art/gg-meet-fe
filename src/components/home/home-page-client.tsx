@@ -3,12 +3,15 @@
 import { useEffect } from "react";
 
 import AuthenticatedHome from "@/components/home/authenticated-home";
+import DesktopGuestHome from "@/components/home/desktop-guest-home";
 import GuestHome from "@/components/home/guest-home";
 import HomeAuthLoadingOverlay from "@/components/home/home-auth-loading-overlay";
+import { useIsDesktopApp } from "@/hooks/desktop/use-is-desktop-app";
 import { useAuthSession } from "@/lib/auth/auth-session";
 
 export default function HomePageClient() {
   const { isAuthenticated, isLoading } = useAuthSession();
+  const isDesktop = useIsDesktopApp();
 
   // Once hydrated we know the real auth state — drop the pre-paint flag so the
   // loading overlay stops showing for logged-in visitors.
@@ -29,5 +32,9 @@ export default function HomePageClient() {
     );
   }
 
-  return isAuthenticated ? <AuthenticatedHome /> : <GuestHome />;
+  if (isAuthenticated) {
+    return <AuthenticatedHome />;
+  }
+
+  return isDesktop ? <DesktopGuestHome /> : <GuestHome />;
 }

@@ -92,7 +92,7 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{if(localStorage.getItem('auth-user')){document.documentElement.setAttribute('data-auth-pending','')}}catch(e){}",
+              "try{if(window.desktop?.isElectron){document.documentElement.setAttribute('data-desktop','')}if(localStorage.getItem('auth-user')){document.documentElement.setAttribute('data-auth-pending','')}}catch(e){}",
           }}
         />
         <AppProvider>

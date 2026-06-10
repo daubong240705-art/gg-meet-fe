@@ -12,4 +12,22 @@ declare global {
         createdAt: string;
     }
 
+    interface Window {
+        desktop?: {
+            isElectron: boolean;
+            config?: {
+                backendUrl?: string;
+                websocketUrl?: string;
+                meetingSocketUrl?: string;
+            };
+            auth?: {
+                getRefreshToken: () => Promise<string | null>;
+                setRefreshToken: (token: string | null) => Promise<void>;
+            };
+            clipboard?: {
+                writeText: (text: string) => Promise<boolean>;
+            };
+        };
+    }
+
 }

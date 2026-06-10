@@ -19,6 +19,11 @@
 
 # production
 /build
+/dist-electron
+/release
+/.desktop-excluded
+/release-test
+/release-test-2
 
 # misc
 .DS_Store

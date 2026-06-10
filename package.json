@@ -3,13 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@11.1.1",
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "next dev",
     "dev:webpack": "next dev --webpack",
     "build": "next build",
+    "build:desktop": "node scripts/build-desktop.mjs",
     "start": "next start",
     "analyze": "ANALYZE=true next build",
-    "lint": "eslint"
+    "lint": "eslint",
+    "electron:build": "tsc -p electron/tsconfig.json && node scripts/write-electron-package.mjs",
+    "desktop:dev": "cross-env NODE_ENV=development concurrently \"pnpm run dev\" \"wait-on http://localhost:3000 && tsx electron/main.ts\"",
+    "desktop:dir": "pnpm run build:desktop && pnpm run electron:build && electron-builder --dir",
+    "desktop:pack": "pnpm run build:desktop && pnpm run electron:build && electron-builder"
   },
   "dependencies": {
     "@casl/ability": "^7.0.0",
@@ -42,9 +48,15 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^10.0.3",
+    "cross-env": "^10.1.0",
+    "electron": "^42.3.3",
+    "electron-builder": "^26.15.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "tsx": "^4.22.4",
+    "typescript": "^5",
+    "wait-on": "^9.0.10"
   }
 }

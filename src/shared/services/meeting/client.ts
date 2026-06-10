@@ -5,6 +5,7 @@ import { getBackendBaseUrl } from "@/lib/config/api-url";
 import {
   getCancelJoinProxyUrl,
   normalizeCancelJoinRequest,
+  sendCancelJoinDirect,
 } from "./cancel-join";
 import type {
   CancelJoinRequest,
@@ -315,18 +316,22 @@ export const meetingApi = {
   },
 
   cancelJoinWithBeacon(meetingCode: string, cancelJoinRequest?: CancelJoinRequest | null) {
+    const normalizedCancelJoinRequest = normalizeCancelJoinRequest(cancelJoinRequest);
+
+    const requestBody = normalizedCancelJoinRequest
+      ? JSON.stringify(normalizedCancelJoinRequest)
+      : "";
+
+    if (typeof window !== "undefined" && window.desktop?.isElectron) {
+      return sendCancelJoinDirect(meetingCode, requestBody, readStoredAccessToken());
+    }
+
     if (
       typeof navigator === "undefined"
       || typeof navigator.sendBeacon !== "function"
     ) {
       return false;
     }
-
-    const normalizedCancelJoinRequest = normalizeCancelJoinRequest(cancelJoinRequest);
-
-    const requestBody = normalizedCancelJoinRequest
-      ? JSON.stringify(normalizedCancelJoinRequest)
-      : "";
 
     return navigator.sendBeacon(
       getCancelJoinProxyUrl(meetingCode),

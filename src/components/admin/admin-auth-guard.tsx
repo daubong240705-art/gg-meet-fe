@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { useIsDesktopApp } from "@/hooks/desktop/use-is-desktop-app";
 import { useAuthSession } from "@/lib/auth/auth-session";
 import { Button } from "@/components/ui/button";
 
@@ -12,6 +13,7 @@ export function AdminAuthGuard({ children }: { children: React.ReactNode }) {
     const [mounted, setMounted] = useState(false);
     const router = useRouter();
     const { user } = useAuthSession();
+    const isDesktop = useIsDesktopApp();
 
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -19,12 +21,22 @@ export function AdminAuthGuard({ children }: { children: React.ReactNode }) {
     }, []);
 
     useEffect(() => {
+        if (mounted && isDesktop) {
+            router.replace("/");
+        }
+    }, [isDesktop, mounted, router]);
+
+    useEffect(() => {
+        if (isDesktop) {
+            return;
+        }
+
         if (mounted && !user) {
             router.replace("/sign-in");
         }
-    }, [mounted, user, router]);
+    }, [isDesktop, mounted, user, router]);
 
-    if (!mounted || !user) return null;
+    if (!mounted || isDesktop || !user) return null;
 
     if (user.role !== "ADMIN") {
         return (

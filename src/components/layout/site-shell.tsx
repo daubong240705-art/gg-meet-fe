@@ -3,6 +3,8 @@
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { useIsDesktopApp } from "@/hooks/desktop/use-is-desktop-app";
+
 import Homefooter from "./home.footer";
 import Homeheader from "./home.header";
 
@@ -16,16 +18,19 @@ function shouldRenderSiteShell(pathname: string | null) {
 
 export function SiteShell({ children }: { children: ReactNode }) {
     const pathname = usePathname();
+    const isDesktop = useIsDesktopApp();
 
     if (!shouldRenderSiteShell(pathname)) {
         return <>{children}</>;
     }
 
+    const shouldRenderFooter = !(isDesktop && pathname === "/");
+
     return (
         <div className="flex min-h-screen flex-col">
             <Homeheader />
             <main className="flex-1">{children}</main>
-            <Homefooter />
+            {shouldRenderFooter ? <Homefooter /> : null}
         </div>
     );
 }

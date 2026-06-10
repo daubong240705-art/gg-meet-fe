@@ -7,6 +7,7 @@ import { Loader2, Shield, Users, Video, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import { assertApiSuccess } from "@/hooks/shared/mutation.utils";
+import { meetingHref } from "@/lib/meeting/meeting-path";
 import {
     getMeetingApiErrorDescription,
     isMeetingNotFoundError,
@@ -31,7 +32,7 @@ export default function HeroSection() {
         },
         onSuccess: (response, rawMeetingCode) => {
             const resolvedMeetingCode = response.data?.meetingCode?.trim() || rawMeetingCode.trim();
-            router.push(`/${resolvedMeetingCode}`);
+            router.push(meetingHref(resolvedMeetingCode));
         },
         onError: (error) => {
             const title = isMeetingNotFoundError(error)
