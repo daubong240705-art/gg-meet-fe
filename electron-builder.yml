@@ -1,0 +1,21 @@
+appId: gg.kallio.meet
+productName: Kallio Meet
+asar: false
+afterPack: scripts/electron-after-pack.cjs
+directories:
+  app: dist-electron
+  output: release
+files:
+  - "**/*"
+extraResources:
+  - from: .next/standalone
+    to: standalone
+    filter:
+      - "**/*"
+mac:
+  target: dmg
+win:
+  target: nsis
+linux:
+  target:
+    - AppImage
