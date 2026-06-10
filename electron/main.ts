@@ -183,9 +183,66 @@ function wireMediaPermissions() {
 
   session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
     desktopCapturer
-      .getSources({ types: ["screen", "window"] })
+      .getSources({
+        fetchWindowIcons: true,
+        thumbnailSize: { height: 0, width: 0 },
+        types: ["screen", "window"],
+      })
       .then((sources) => {
-        callback(sources[0] ? { video: sources[0] } : {});
+        let settled = false;
+
+        const finish = (source?: (typeof sources)[number]) => {
+          if (settled) {
+            return;
+          }
+
+          settled = true;
+          callback(source ? { video: source } : {});
+        };
+
+        const createSourceItems = (sourceType: "screen" | "window") =>
+          sources
+            .filter((source) => source.id.startsWith(`${sourceType}:`))
+            .map((source) => ({
+              click: () => finish(source),
+              label: source.name.replaceAll("&", "&&"),
+            }));
+
+        const screenItems = createSourceItems("screen");
+        const windowItems = createSourceItems("window");
+        const menu = Menu.buildFromTemplate([
+          {
+            enabled: false,
+            label: "Chon noi dung muon chia se",
+          },
+          { type: "separator" },
+          ...(screenItems.length > 0
+            ? [
+                {
+                  label: "Man hinh",
+                  submenu: screenItems,
+                },
+              ]
+            : []),
+          ...(windowItems.length > 0
+            ? [
+                {
+                  label: "Cua so / ung dung",
+                  submenu: windowItems,
+                },
+              ]
+            : []),
+        ]);
+
+        if (screenItems.length === 0 && windowItems.length === 0) {
+          finish();
+          return;
+        }
+
+        menu.popup({
+          callback: () => finish(),
+          window: mainWindow ?? undefined,
+        });
       })
       .catch((error) => {
         console.error("Unable to list display media sources.", error);
