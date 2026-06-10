@@ -41,4 +41,25 @@ if (!(await exists(standaloneDir))) {
 
 await copyDirectory(path.join(root, ".next", "static"), path.join(standaloneDir, ".next", "static"));
 await copyDirectory(path.join(root, "public"), path.join(standaloneDir, "public"));
+
+// Next 16 can trace only package manifests for some pnpm dependencies. The
+// standalone server still imports their runtime files after junctions are
+// materialized for an Electron package.
+const runtimeDependencies = [
+  ["@img", "colour"],
+  ["@img", "sharp-win32-x64"],
+  ["@next", "env"],
+  ["@swc", "helpers"],
+  ["client-only"],
+  ["detect-libc"],
+  ["sharp"],
+];
+
+for (const dependency of runtimeDependencies) {
+  await copyDirectory(
+    path.join(root, "node_modules", ...dependency),
+    path.join(standaloneDir, "node_modules", ...dependency),
+  );
+}
+
 await removeDotEnvFiles(standaloneDir);

@@ -21,6 +21,8 @@
 /build
 /dist-electron
 /release
+/release-test
+/release-test-2
 
 # misc
 .DS_Store
