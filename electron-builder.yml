@@ -1,15 +1,20 @@
 appId: gg.kallio.meet
 productName: Kallio Meet
-asar: false
-afterPack: scripts/electron-after-pack.cjs
+# No standalone server is forked anymore, so the app code can live inside asar.
+asar: true
 directories:
   app: dist-electron
   output: release
 files:
   - "**/*"
+  # The main process only uses electron + node builtins; without this filter
+  # electron-builder drags the whole renderer node_modules into the asar.
+  - "!**/node_modules/**"
 extraResources:
-  - from: .next/standalone
-    to: standalone
+  # Static export served via the app:// protocol handler (read from disk, so it
+  # stays outside asar).
+  - from: out
+    to: out
     filter:
       - "**/*"
 mac:

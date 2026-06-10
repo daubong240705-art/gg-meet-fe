@@ -6,9 +6,14 @@ const allowedDevOrigins = process.env.NEXT_ALLOWED_DEV_ORIGINS
   .map((origin) => origin.trim())
   .filter(Boolean) ?? ["local-origin.dev", "*.local-origin.dev"];
 
+// BUILD_TARGET=desktop builds the static SPA bundle served by the Electron
+// shell (scripts/build-desktop.mjs); the web build stays on "standalone".
+const isDesktop = process.env.BUILD_TARGET === "desktop";
+
 const nextConfig: NextConfig = {
-  output: "standalone",
+  output: isDesktop ? "export" : "standalone",
   allowedDevOrigins,
+  ...(isDesktop ? { images: { unoptimized: true } } : {}),
 };
 
 // Run `npm run analyze` (ANALYZE=true) to emit the interactive bundle report.

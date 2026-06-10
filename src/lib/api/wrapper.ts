@@ -4,6 +4,7 @@
 import queryString from "query-string";
 
 import { clearStoredAccessToken, persistAccessToken, readStoredAccessToken } from "../auth/auth-token";
+import { getDesktopRefreshToken, isDesktop, setDesktopRefreshToken } from "../auth/refresh-store";
 import { getBackendBaseUrl } from "../config/api-url";
 
 const isBrowser = typeof window !== "undefined";
@@ -16,19 +17,47 @@ type RefreshProps = {
 
 const refreshToken = async (props?: RefreshProps): Promise<string | null> => {
     const backendBaseUrl = getBackendBaseUrl();
+    const desktop = isDesktop();
+
+    const headers: Record<string, string> = props?.cookieHeader
+        ? { cookie: props.cookieHeader }
+        : {};
+
+    if (desktop) {
+        // Desktop never uses the cookie jar: the refresh token is sent
+        // explicitly and rotated through the safeStorage-backed store.
+        const storedRefreshToken = await getDesktopRefreshToken();
+
+        if (!storedRefreshToken) {
+            return null;
+        }
+
+        headers["X-Refresh-Token"] = storedRefreshToken;
+        headers["X-Client"] = "desktop";
+    }
 
     const res = await fetch(`${backendBaseUrl}/auth/refresh`, {
         method: "POST",
-        headers: props?.cookieHeader ? { cookie: props.cookieHeader } : undefined,
-        credentials: "include",
+        headers: Object.keys(headers).length > 0 ? headers : undefined,
+        credentials: desktop ? "omit" : "include",
         cache: "no-store",
     });
 
     if (!res.ok) {
+        if (desktop) {
+            await setDesktopRefreshToken(null);
+        }
+
         throw new Error("Refresh token failed");
     }
 
     const data = await res.json();
+
+    const rotatedRefreshToken = data?.data?.refresh_token ?? data?.data?.refreshToken ?? null;
+
+    if (desktop && rotatedRefreshToken) {
+        await setDesktopRefreshToken(rotatedRefreshToken);
+    }
 
     return data?.data?.accessToken ?? data?.data?.access_token ?? null;
 };
@@ -74,6 +103,9 @@ export const sendRequest = async <T>(props: IRequest): Promise<T> => {
 
     const finalHeaders: any = {
         ...(!isFormData ? { "content-type": "application/json" } : {}),
+        // Lets the backend tell non-browser clients apart (e.g. return the
+        // refresh token in the login body). Absent on the web.
+        ...(isDesktop() ? { "X-Client": "desktop" } : {}),
         ...headers,
     };
 

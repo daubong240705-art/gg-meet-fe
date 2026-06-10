@@ -1,7 +1,34 @@
+import { getBackendBaseUrl } from "@/lib/config/api-url";
+
 import type { CancelJoinRequest } from "./types";
 
 export const getCancelJoinProxyUrl = (meetingCode: string) =>
   `/api/proxy/meetings/${encodeURIComponent(meetingCode)}/cancel-join`;
+
+export const getCancelJoinDirectUrl = (meetingCode: string) =>
+  `${getBackendBaseUrl().replace(/\/+$/, "")}/meetings/${encodeURIComponent(meetingCode)}/cancel-join`;
+
+// Desktop path: sendBeacon cannot carry an Authorization header, and the
+// packaged app has no Next server to proxy through, so call the backend
+// directly. keepalive lets the request outlive the closing window (the
+// cancel-join payload is far below the 64 KB keepalive body limit).
+export function sendCancelJoinDirect(
+  meetingCode: string,
+  body: string,
+  accessToken: string | null,
+): boolean {
+  void fetch(getCancelJoinDirectUrl(meetingCode), {
+    method: "POST",
+    keepalive: true,
+    headers: {
+      "content-type": "application/json",
+      ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
+    },
+    body,
+  }).catch(() => undefined);
+
+  return true;
+}
 
 export const normalizeCancelJoinRequest = (request?: CancelJoinRequest | null) => {
   if (!request) {

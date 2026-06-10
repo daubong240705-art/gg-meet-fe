@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import type { UpcomingMeetingResponseData } from "@/shared/services/meeting.service";
 import { getUpcomingMeetingTiming } from "@/lib/meeting/upcoming";
+import { meetingHref } from "@/lib/meeting/meeting-path";
 
 const NOTIFICATION_STORAGE_PREFIX = "gg-meet:upcoming-started";
 
@@ -101,7 +102,7 @@ export function useUpcomingMeetingNotifications(
         description: "Use Join now when you are ready.",
         action: {
           label: "Join now",
-          onClick: () => router.push(`/${encodeURIComponent(meetingCode)}`),
+          onClick: () => router.push(meetingHref(meetingCode)),
         },
       });
     });

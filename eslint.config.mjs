@@ -15,12 +15,6 @@ const eslintConfig = defineConfig([
     "release/**",
     "next-env.d.ts",
   ]),
-  {
-    files: ["scripts/electron-after-pack.cjs"],
-    rules: {
-      "@typescript-eslint/no-require-imports": "off",
-    },
-  },
 ]);
 
 export default eslintConfig;

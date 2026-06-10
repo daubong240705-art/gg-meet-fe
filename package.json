@@ -8,14 +8,14 @@
     "dev": "next dev",
     "dev:webpack": "next dev --webpack",
     "build": "next build",
-    "build:standalone": "pnpm run build && node scripts/copy-standalone-assets.mjs",
+    "build:desktop": "node scripts/build-desktop.mjs",
     "start": "next start",
     "analyze": "ANALYZE=true next build",
     "lint": "eslint",
     "electron:build": "tsc -p electron/tsconfig.json && node scripts/write-electron-package.mjs",
     "desktop:dev": "cross-env NODE_ENV=development concurrently \"pnpm run dev\" \"wait-on http://localhost:3000 && tsx electron/main.ts\"",
-    "desktop:dir": "pnpm run build:standalone && pnpm run electron:build && electron-builder --dir",
-    "desktop:pack": "pnpm run build:standalone && pnpm run electron:build && electron-builder"
+    "desktop:dir": "pnpm run build:desktop && pnpm run electron:build && electron-builder --dir",
+    "desktop:pack": "pnpm run build:desktop && pnpm run electron:build && electron-builder"
   },
   "dependencies": {
     "@casl/ability": "^7.0.0",

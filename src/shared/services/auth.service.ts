@@ -17,6 +17,10 @@ export type AuthUserResponseData = {
 export type LoginResponseData = {
     access_token?: string;
     accessToken?: string;
+    // Returned by the backend only for non-browser clients (X-Client header);
+    // the web keeps the refresh token in an HTTP-only cookie.
+    refresh_token?: string;
+    refreshToken?: string;
     user?: AuthUserResponseData | null;
 };
 export type UpdateAccountRequestData = {

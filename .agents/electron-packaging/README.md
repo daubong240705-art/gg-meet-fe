@@ -1,5 +1,7 @@
 # Electron packaging — phân tích & checklist refactor
 
+> ⚠️ **Đã được thay thế**: Task A đã hoàn thành; lộ trình tiếp theo (Chiến lược B + chuẩn bị cho Flutter mobile) nằm ở [`docs/desktop-spa-flutter-roadmap/`](../../../docs/desktop-spa-flutter-roadmap/README.md) (repo root). File này giữ lại làm bối cảnh phân tích ban đầu.
+
 > Phạm vi: `gg-meet-fe` · Mục tiêu: đóng gói app thành desktop (Electron) · Trạng thái: phân tích + kế hoạch
 
 ## TL;DR

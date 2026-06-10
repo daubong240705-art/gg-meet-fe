@@ -1,5 +1,7 @@
 # Hướng Dẫn Build Electron Production
 
+> ⚠️ **Lỗi thời**: pipeline standalone (Task A) đã bị thay bằng static export + `app://` protocol — xem `docs/desktop-spa-flutter-roadmap/` ở repo root. Các script `build:standalone`, `copy-standalone-assets.mjs`, `electron-after-pack.cjs` không còn tồn tại; build desktop hiện tại dùng `pnpm build:desktop` + `pnpm desktop:pack`. File này giữ lại làm tư liệu lịch sử.
+
 Tài liệu này mô tả cách build app desktop từ bản web Next.js đã deploy thành công. Task A giữ nguyên source web, đóng gói Next standalone server vào Electron, rồi Electron mở app qua `http://127.0.0.1:<port-rảnh>`.
 
 ## Kết Quả Build

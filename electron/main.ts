@@ -1,103 +1,158 @@
-import { app, BrowserWindow, desktopCapturer, session } from "electron";
-import { fork, type ChildProcess } from "node:child_process";
-import net from "node:net";
+import {
+  app,
+  BrowserWindow,
+  desktopCapturer,
+  ipcMain,
+  net,
+  protocol,
+  safeStorage,
+  session,
+} from "electron";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 const DEV_SERVER_URL = process.env.ELECTRON_DEV_SERVER_URL ?? "http://localhost:3000";
 const isDev = process.env.NODE_ENV === "development" || !app.isPackaged;
 
+// Stable origin for the static bundle. A custom scheme (instead of a random
+// 127.0.0.1 port) keeps localStorage/auth state intact across launches.
+const APP_PROTOCOL_SCHEME = "app";
+const APP_PROTOCOL_ORIGIN = `${APP_PROTOCOL_SCHEME}://local`;
+
+// Must run before app.whenReady(), otherwise the scheme is not treated as a
+// standard, secure origin (breaking fetch, localStorage and secure contexts).
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: APP_PROTOCOL_SCHEME,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+    },
+  },
+]);
+
 let mainWindow: BrowserWindow | null = null;
-let serverProcess: ChildProcess | null = null;
-let isAppQuitting = false;
 
-function getFreePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
+type DesktopRuntimeConfig = {
+  backendUrl?: string;
+  websocketUrl?: string;
+  meetingSocketUrl?: string;
+};
 
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
+const DEFAULT_RUNTIME_CONFIG: DesktopRuntimeConfig = {
+  backendUrl: process.env.KALLIO_BACKEND_URL ?? "",
+  websocketUrl: process.env.KALLIO_LIVEKIT_WS_URL ?? "",
+  meetingSocketUrl: process.env.KALLIO_MEETING_SOCKET_URL ?? "",
+};
 
-      if (!address || typeof address === "string") {
-        server.close(() => reject(new Error("Unable to allocate a local port.")));
-        return;
+function loadRuntimeConfig(): DesktopRuntimeConfig {
+  const configPath = path.join(app.getPath("userData"), "config.json");
+
+  try {
+    if (!existsSync(configPath)) {
+      // First run: write a template so the backend can be changed without rebuilding.
+      mkdirSync(path.dirname(configPath), { recursive: true });
+      writeFileSync(configPath, `${JSON.stringify(DEFAULT_RUNTIME_CONFIG, null, 2)}\n`);
+      return DEFAULT_RUNTIME_CONFIG;
+    }
+
+    const parsed = JSON.parse(readFileSync(configPath, "utf8")) as DesktopRuntimeConfig;
+    return { ...DEFAULT_RUNTIME_CONFIG, ...parsed };
+  } catch (error) {
+    console.error("Unable to read runtime config, falling back to defaults.", error);
+    return DEFAULT_RUNTIME_CONFIG;
+  }
+}
+
+// The refresh token lives outside the browser cookie jar: encrypted with the
+// OS keychain (safeStorage) in userData, handed to the renderer over IPC only.
+const getRefreshTokenPath = () => path.join(app.getPath("userData"), "refresh-token.bin");
+
+function registerAuthIpc() {
+  ipcMain.handle("auth:getRefresh", () => {
+    try {
+      const tokenPath = getRefreshTokenPath();
+
+      if (!existsSync(tokenPath) || !safeStorage.isEncryptionAvailable()) {
+        return null;
       }
 
-      server.close(() => resolve(address.port));
-    });
-  });
-}
-
-function waitForPort(port: number, timeoutMs = 30000): Promise<void> {
-  const startedAt = Date.now();
-
-  return new Promise((resolve, reject) => {
-    const connect = () => {
-      const socket = net.connect(port, "127.0.0.1");
-
-      socket.once("connect", () => {
-        socket.destroy();
-        resolve();
-      });
-
-      socket.once("error", () => {
-        socket.destroy();
-
-        if (Date.now() - startedAt >= timeoutMs) {
-          reject(new Error(`Timed out waiting for Next server on port ${port}.`));
-          return;
-        }
-
-        setTimeout(connect, 250);
-      });
-    };
-
-    connect();
-  });
-}
-
-function getStandaloneServerEntry() {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, "standalone", "server.js");
-  }
-
-  return path.join(process.cwd(), ".next", "standalone", "server.js");
-}
-
-async function startNextServer() {
-  if (isDev) {
-    return DEV_SERVER_URL;
-  }
-
-  const port = await getFreePort();
-  const serverEntry = getStandaloneServerEntry();
-
-  serverProcess = fork(serverEntry, [], {
-    env: {
-      ...process.env,
-      HOSTNAME: "127.0.0.1",
-      PORT: String(port),
-    },
-    stdio: "inherit",
-  });
-
-  serverProcess.once("exit", (code, signal) => {
-    if (!isAppQuitting) {
-      console.error(`Next standalone server exited unexpectedly. code=${code} signal=${signal}`);
+      return safeStorage.decryptString(readFileSync(tokenPath));
+    } catch {
+      // Corrupt file or a token encrypted on another machine: treat as signed out.
+      return null;
     }
   });
 
-  await waitForPort(port);
-  return `http://127.0.0.1:${port}`;
+  ipcMain.handle("auth:setRefresh", (_event, token: unknown) => {
+    const tokenPath = getRefreshTokenPath();
+
+    if (typeof token !== "string" || token.length === 0) {
+      rmSync(tokenPath, { force: true });
+      return;
+    }
+
+    if (!safeStorage.isEncryptionAvailable()) {
+      // Never persist the token unencrypted; the session simply will not
+      // survive an app restart on systems without a keychain.
+      return;
+    }
+
+    writeFileSync(tokenPath, safeStorage.encryptString(token));
+  });
 }
 
-function stopNextServer() {
-  if (!serverProcess || serverProcess.killed) {
-    return;
+function getOutDir() {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, "out");
   }
 
-  serverProcess.kill();
-  serverProcess = null;
+  return path.join(process.cwd(), "out");
+}
+
+function registerAppProtocol() {
+  const outDir = getOutDir();
+
+  const resolveFile = (relativePath: string) => {
+    const fullPath = path.normalize(path.join(outDir, relativePath));
+
+    // Path-traversal guard: never serve anything outside the export dir.
+    if (fullPath !== outDir && !fullPath.startsWith(outDir + path.sep)) {
+      return null;
+    }
+
+    return fullPath;
+  };
+
+  protocol.handle(APP_PROTOCOL_SCHEME, (request) => {
+    const { pathname } = new URL(request.url);
+    const decodedPathname = decodeURIComponent(pathname);
+
+    // Match the static-export file layout: "/" → index.html, "/join" →
+    // join.html (or join/index.html), assets resolve as plain files.
+    const candidates =
+      decodedPathname === "/" || decodedPathname === ""
+        ? ["index.html"]
+        : [
+            decodedPathname,
+            `${decodedPathname}.html`,
+            path.join(decodedPathname, "index.html"),
+            "404.html",
+          ];
+
+    for (const candidate of candidates) {
+      const filePath = resolveFile(candidate);
+
+      if (filePath && existsSync(filePath)) {
+        return net.fetch(pathToFileURL(filePath).toString());
+      }
+    }
+
+    return new Response("Not found", { status: 404 });
+  });
 }
 
 function wireMediaPermissions() {
@@ -119,8 +174,6 @@ function wireMediaPermissions() {
 }
 
 async function createWindow() {
-  const url = await startNextServer();
-
   mainWindow = new BrowserWindow({
     height: 800,
     minHeight: 640,
@@ -128,6 +181,9 @@ async function createWindow() {
     show: false,
     width: 1280,
     webPreferences: {
+      additionalArguments: [
+        `--kallio-config=${encodeURIComponent(JSON.stringify(loadRuntimeConfig()))}`,
+      ],
       contextIsolation: true,
       nodeIntegration: false,
       preload: path.join(__dirname, "preload.js"),
@@ -143,29 +199,42 @@ async function createWindow() {
     mainWindow = null;
   });
 
-  await mainWindow.loadURL(url);
+  await mainWindow.loadURL(isDev ? DEV_SERVER_URL : `${APP_PROTOCOL_ORIGIN}/`);
 }
 
-app.whenReady().then(async () => {
-  wireMediaPermissions();
-  await createWindow();
+// Two instances would race over refresh-token.bin and the runtime config.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      void createWindow();
+      mainWindow.focus();
     }
   });
-});
 
-app.on("before-quit", () => {
-  isAppQuitting = true;
-  stopNextServer();
-});
+  app.whenReady().then(async () => {
+    if (!isDev) {
+      registerAppProtocol();
+    }
 
-app.on("window-all-closed", () => {
-  stopNextServer();
+    registerAuthIpc();
+    wireMediaPermissions();
+    await createWindow();
 
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        void createWindow();
+      }
+    });
+  });
+
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") {
+      app.quit();
+    }
+  });
+}

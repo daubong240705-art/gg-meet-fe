@@ -4,13 +4,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
+The package manager is **pnpm** (`packageManager: pnpm@11.1.1`; `pnpm-lock.yaml` is canonical — the `package-lock.json` at root is a leftover from the earlier npm setup).
+
 ```bash
-npm ci           # install dependencies (package-lock.json is canonical; the pnpm-* files at root are vestigial)
-npm run dev      # start dev server, Turbopack (http://localhost:3000)
-npm run dev:webpack  # dev server on webpack (fallback if Turbopack misbehaves)
-npm run build    # production build (output: "standalone")
-npm start        # serve the production build
-npm run lint     # ESLint (flat config, eslint-config-next core-web-vitals + typescript)
+pnpm install     # install dependencies
+pnpm dev         # start dev server, Turbopack (http://localhost:3000)
+pnpm dev:webpack # dev server on webpack (fallback if Turbopack misbehaves)
+pnpm build       # production build (output: "standalone")
+pnpm start       # serve the production build
+pnpm lint        # ESLint (flat config, eslint-config-next core-web-vitals + typescript)
+```
+
+Electron desktop app:
+```bash
+pnpm desktop:dev    # dev: runs Next dev server + Electron pointed at localhost:3000
+pnpm build:desktop  # static export for the desktop shell (BUILD_TARGET=desktop → ./out)
+pnpm desktop:dir    # build unpacked desktop app (electron-builder --dir)
+pnpm desktop:pack   # build distributable desktop package
 ```
 
 Docker (production image, standalone output):
@@ -18,7 +28,7 @@ Docker (production image, standalone output):
 docker compose up --build -d
 ```
 
-There is no test suite, and no single-test command exists — verify changes by running `npm run build` and `npm run lint`.
+There is no test suite, and no single-test command exists — verify changes by running `pnpm build` and `pnpm lint`.
 
 ## Architecture
 
@@ -86,6 +96,20 @@ All backend API methods live in `src/shared/services/meeting/client.ts` (exporte
 ### Auth
 
 Client-side only — no Next.js middleware. Access token stored in `localStorage`, refresh token in an HTTP-only cookie. `useAuthSession()` in `src/lib/auth/auth-session.ts` uses `useSyncExternalStore` for reactive auth state across tabs.
+
+### Authorization (CASL)
+
+Permissions are modeled with `@casl/ability` in `src/lib/auth/ability/`:
+- `defineAppAbility(role)` — app-level ability from the user role (`ADMIN` → `manage all`); built in `admin-dashboard.tsx`.
+- `defineRoomAbility({ isHost, canUseHostMediaControls, roomSettings })` — in-room permissions (kick, muteTrack, endMeeting, unmuteSelf, shareScreen, …), with CASL conditions on participant fields like `isLocal`/`isHost`. Provided to the room UI via `RoomAbilityProvider` (`src/features/meeting/providers/room-ability-provider.tsx`) and consumed with `ability.can(...)` checks in the room components.
+
+Check abilities rather than re-deriving `isHost`/room-settings logic in components.
+
+### Electron desktop app
+
+`electron/main.ts` is the Electron entry: in dev it loads the Next dev server (`ELECTRON_DEV_SERVER_URL`, default `http://localhost:3000`); when packaged it serves the **static export** (`pnpm build:desktop` → `./out`, built by `scripts/build-desktop.mjs` which temporarily moves the web-only routes `src/app/api/` and `src/app/(main)/[meetingCode]/` aside and sets `BUILD_TARGET=desktop`) through a custom `app://local` protocol — a stable origin, so localStorage/auth survive restarts. There is no embedded Node server.
+
+Desktop-specific plumbing: runtime config is read from `<userData>/config.json` (backend/LiveKit/STOMP URLs, overriding the baked `NEXT_PUBLIC_*` values via `window.desktop.config` in `src/lib/config/api-url.ts`); the refresh token is stored encrypted via `safeStorage` in the main process and reached over IPC (`window.desktop.auth`, consumed by `src/lib/auth/refresh-store.ts` + the desktop branch in `src/lib/api/wrapper.ts`, which sends `X-Refresh-Token`/`X-Client: desktop` instead of cookies); in-app navigation to meetings must go through `meetingHref()` (`src/lib/meeting/meeting-path.ts`), which returns `/join?code=` on desktop and `/{code}` on the web. `main.ts` also wires `session.setDisplayMediaRequestHandler` + `desktopCapturer` so in-app screen sharing works. `pnpm electron:build` compiles `electron/` with its own tsconfig into `dist-electron/` (the `main` field in package.json); packaging config is in `electron-builder.yml` (the `out/` export ships as an extraResource). The desktop auth/refresh flow requires the backend to support `X-Refresh-Token`/`X-Client` (see `docs/desktop-spa-flutter-roadmap/task-0-be-client-agnostic-auth.md` at the repo root).
 
 ### SEO & analytics
 

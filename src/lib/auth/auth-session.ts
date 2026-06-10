@@ -5,6 +5,7 @@ import { useSyncExternalStore } from "react";
 import type { LoginResponseData } from "@/shared/services/auth.service";
 import { getAvatarInitials } from "@/lib/user/avatar";
 import { clearStoredAccessToken, persistAccessToken } from "./auth-token";
+import { setDesktopRefreshToken } from "./refresh-store";
 
 const AUTH_USER_STORAGE_KEY = "auth-user";
 const AUTH_USER_CHANGED_EVENT = "auth-user-changed";
@@ -143,6 +144,7 @@ export function clearStoredAuthUser() {
     authUserSnapshot = null;
     window.localStorage.removeItem(AUTH_USER_STORAGE_KEY);
     clearStoredAccessToken();
+    void setDesktopRefreshToken(null);
     notifyAuthUserChanged();
 }
 
@@ -192,6 +194,16 @@ export function syncAuthUserFromLogin(response: IBackendRes<LoginResponseData>) 
     }
 
     persistAccessToken(accessToken);
+
+    // Desktop login: the backend returns the refresh token in the body (the
+    // cookie jar is not used there); persist it in the safeStorage store.
+    const refreshTokenFromBody = isRecord(response.data)
+        ? toStringValue(response.data.refresh_token) || toStringValue(response.data.refreshToken)
+        : "";
+
+    if (refreshTokenFromBody) {
+        void setDesktopRefreshToken(refreshTokenFromBody);
+    }
 
     const responseUser = isRecord(response.data) && isRecord(response.data.user)
         ? normalizeAuthUser(response.data.user)

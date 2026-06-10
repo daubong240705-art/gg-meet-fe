@@ -1,5 +1,9 @@
 import type { MetadataRoute } from "next";
 
+// Already prerendered statically on the web; the explicit flag is required
+// for the desktop build (output: "export").
+export const dynamic = "force-static";
+
 const DEFAULT_SITE_URL = "http://localhost:3000";
 
 const getSiteUrl = () => {

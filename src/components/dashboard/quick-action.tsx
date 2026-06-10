@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { useAuthSession } from "@/lib/auth/auth-session";
 import { persistInstantMeetingSession } from "@/lib/meeting/instant-meeting-session";
+import { meetingHref } from "@/lib/meeting/meeting-path";
 import { assertApiSuccess } from "@/hooks/shared/mutation.utils";
 import {
     DEFAULT_INSTANT_MEETING_TITLE,
@@ -58,7 +59,7 @@ export default function QuickAction() {
                 hostName: response.data?.host?.fullName?.trim() || null,
             });
 
-            router.push(`/${meetingCode}`);
+            router.push(meetingHref(meetingCode));
         },
         onError: (error) => {
             const errorDescription = Array.isArray(error.errors)
@@ -85,7 +86,7 @@ export default function QuickAction() {
         },
         onSuccess: (response, rawMeetingCode) => {
             const resolvedMeetingCode = response.data?.meetingCode?.trim() || rawMeetingCode.trim();
-            router.push(`/${resolvedMeetingCode}`);
+            router.push(meetingHref(resolvedMeetingCode));
         },
         onError: (error) => {
             const title = isMeetingNotFoundError(error)
