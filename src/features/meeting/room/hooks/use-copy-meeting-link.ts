@@ -2,7 +2,41 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { getSiteUrl } from "@/lib/seo/site";
+
 const COPIED_RESET_DELAY_MS = 2000;
+
+function getMeetingInviteUrl(meetingCode: string) {
+  const encodedMeetingCode = encodeURIComponent(meetingCode);
+
+  if (typeof window !== "undefined" && window.desktop?.isElectron) {
+    return new URL(encodedMeetingCode, `${getSiteUrl()}/`).toString();
+  }
+
+  if (typeof window !== "undefined") {
+    return new URL(encodedMeetingCode, `${window.location.origin}/`).toString();
+  }
+
+  return new URL(encodedMeetingCode, `${getSiteUrl()}/`).toString();
+}
+
+async function writeClipboardText(text: string) {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Electron can still write through the main process when browser clipboard
+    // permissions are unavailable for the custom app:// origin.
+  }
+
+  return (await window.desktop?.clipboard?.writeText(text)) ?? false;
+}
 
 export function useCopyMeetingLink(meetingCode: string) {
   const copyTimeoutRef = useRef<number | null>(null);
@@ -19,16 +53,18 @@ export function useCopyMeetingLink(meetingCode: string) {
   const copyMeetingLink = useCallback(async () => {
     const normalizedMeetingCode = meetingCode.trim();
 
-    if (
-      !normalizedMeetingCode
-      || typeof window === "undefined"
-      || !navigator.clipboard?.writeText
-    ) {
+    if (!normalizedMeetingCode || typeof window === "undefined") {
       return false;
     }
 
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/${normalizedMeetingCode}`);
+      const copiedToClipboard = await writeClipboardText(getMeetingInviteUrl(normalizedMeetingCode));
+
+      if (!copiedToClipboard) {
+        setCopied(false);
+        return false;
+      }
+
       setCopied(true);
 
       if (copyTimeoutRef.current !== null) {

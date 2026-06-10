@@ -4,6 +4,7 @@ productName: Kallio Meet
 asar: true
 directories:
   app: dist-electron
+  buildResources: electron/assets
   output: release
 files:
   - "**/*"
@@ -17,10 +18,14 @@ extraResources:
     to: out
     filter:
       - "**/*"
+  - from: electron/assets/icon.png
+    to: icon.png
 mac:
   target: dmg
 win:
   target: nsis
+  icon: electron/assets/icon.ico
 linux:
   target:
     - AppImage
+  icon: electron/assets/icon.png

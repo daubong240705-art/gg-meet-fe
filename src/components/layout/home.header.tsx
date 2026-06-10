@@ -6,12 +6,14 @@ import { useEffect, useRef, useState } from "react";
 
 import { useAuthSession } from "@/lib/auth/auth-session";
 import { useLogoutMutation } from "@/hooks/auth/useLoginForm";
+import { useIsDesktopApp } from "@/hooks/desktop/use-is-desktop-app";
 import { UserAvatar } from "@/components/user/user-avatar";
 
 import { Button } from "../ui/button";
 
 export default function Homeheader() {
     const { isAuthenticated, user } = useAuthSession();
+    const isDesktop = useIsDesktopApp();
     const logoutMutation = useLogoutMutation();
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement | null>(null);
@@ -170,7 +172,7 @@ export default function Homeheader() {
                                         </div>
                                     </Link>
 
-                                    {user.role === "ADMIN" && (
+                                    {user.role === "ADMIN" && !isDesktop && (
                                         <Link
                                             href="/admin"
                                             role="menuitem"

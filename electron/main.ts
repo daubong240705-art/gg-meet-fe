@@ -1,8 +1,10 @@
 import {
   app,
   BrowserWindow,
+  clipboard,
   desktopCapturer,
   ipcMain,
+  Menu,
   net,
   protocol,
   safeStorage,
@@ -105,12 +107,31 @@ function registerAuthIpc() {
   });
 }
 
+function registerClipboardIpc() {
+  ipcMain.handle("clipboard:writeText", (_event, text: unknown) => {
+    if (typeof text !== "string") {
+      return false;
+    }
+
+    clipboard.writeText(text);
+    return true;
+  });
+}
+
 function getOutDir() {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, "out");
   }
 
   return path.join(process.cwd(), "out");
+}
+
+function getWindowIconPath() {
+  const iconPath = app.isPackaged
+    ? path.join(process.resourcesPath, "icon.png")
+    : path.join(process.cwd(), "electron", "assets", "icon.png");
+
+  return existsSync(iconPath) ? iconPath : undefined;
 }
 
 function registerAppProtocol() {
@@ -175,7 +196,9 @@ function wireMediaPermissions() {
 
 async function createWindow() {
   mainWindow = new BrowserWindow({
+    autoHideMenuBar: true,
     height: 800,
+    icon: getWindowIconPath(),
     minHeight: 640,
     minWidth: 960,
     show: false,
@@ -199,6 +222,8 @@ async function createWindow() {
     mainWindow = null;
   });
 
+  mainWindow.setMenuBarVisibility(false);
+
   await mainWindow.loadURL(isDev ? DEV_SERVER_URL : `${APP_PROTOCOL_ORIGIN}/`);
 }
 
@@ -217,11 +242,14 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(async () => {
+    Menu.setApplicationMenu(null);
+
     if (!isDev) {
       registerAppProtocol();
     }
 
     registerAuthIpc();
+    registerClipboardIpc();
     wireMediaPermissions();
     await createWindow();
 

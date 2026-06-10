@@ -24,6 +24,9 @@ declare global {
                 getRefreshToken: () => Promise<string | null>;
                 setRefreshToken: (token: string | null) => Promise<void>;
             };
+            clipboard?: {
+                writeText: (text: string) => Promise<boolean>;
+            };
         };
     }
 

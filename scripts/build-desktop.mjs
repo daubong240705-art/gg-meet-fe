@@ -3,11 +3,11 @@ import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 
-// `output: "export"` rejects route handlers and dynamic segments without
-// generateStaticParams. These web-only routes are moved aside for the desktop
-// build and always restored afterwards, even when the build fails.
+// `output: "export"` rejects route handlers and desktop-excluded pages. Move
+// matching routes aside for the desktop build and restore them afterwards.
 const EXCLUDED_ROUTES = [
   "src/app/api",
+  "src/app/admin",
   "src/app/(main)/[meetingCode]",
 ];
 
@@ -25,7 +25,7 @@ try {
     const fullPath = path.join(root, route);
 
     if (!existsSync(fullPath)) {
-      throw new Error(`Expected web-only route is missing: ${route}`);
+      continue;
     }
 
     await rename(fullPath, stashPath(route));

@@ -22,4 +22,7 @@ contextBridge.exposeInMainWorld("desktop", {
     setRefreshToken: (token: string | null): Promise<void> =>
       ipcRenderer.invoke("auth:setRefresh", token),
   },
+  clipboard: {
+    writeText: (text: string): Promise<boolean> => ipcRenderer.invoke("clipboard:writeText", text),
+  },
 });
