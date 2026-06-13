@@ -20,8 +20,8 @@ export function ProfilePageShell({
   children,
 }: ProfilePageShellProps) {
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.12),transparent_34%),linear-gradient(180deg,var(--background),var(--background))]">
-      <div className="mx-auto max-w-6xl px-6 py-8 lg:px-8 lg:py-12">
+    <div className="flex min-h-[calc(100vh-73px)] items-center bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.12),transparent_34%),linear-gradient(180deg,var(--background),var(--background))]">
+      <div className="mx-auto w-full max-w-6xl px-6 py-8 lg:px-8">
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">

@@ -79,7 +79,7 @@ export function useRoomExitActions({
     exitMeeting("left");
   }, [exitMeeting, prepareExit, reportLeaveMeeting]);
 
-  const handleEndMeeting = useCallback(() => {
+  const handleEndMeeting = useCallback((onEnded?: () => void) => {
     if (isEndingMeeting) {
       return;
     }
@@ -90,6 +90,7 @@ export function useRoomExitActions({
     void meetingApi.endMeeting(meetingCode).then((response) => {
       assertApiSuccess(response);
       exitMeeting("ended");
+      onEnded?.();
     }).catch((error) => {
       const errorMessage =
         error && typeof error === "object" && "message" in error

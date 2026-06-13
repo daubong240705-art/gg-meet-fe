@@ -1,6 +1,7 @@
 import {
   ConnectionQuality,
   Participant as LiveKitParticipant,
+  RemoteTrackPublication,
   Track,
 } from "livekit-client";
 
@@ -145,6 +146,9 @@ export function mapParticipantToUiParticipant(
   const cameraPublication = participant.getTrackPublication(Track.Source.Camera);
   const audioPublication = participant.getTrackPublication(Track.Source.Microphone);
   const screenSharePublication = participant.getTrackPublication(Track.Source.ScreenShare);
+  const remoteScreenSharePublication = !participant.isLocal && screenSharePublication
+    ? screenSharePublication as RemoteTrackPublication
+    : null;
   const participantTracks = getLiveKitParticipantTracks(participant);
   const isScreenSharing = Boolean(screenSharePublication && !screenSharePublication.isMuted);
   const participantAvatarUrl = participant.isLocal
@@ -199,6 +203,7 @@ export function mapParticipantToUiParticipant(
     cameraTrack: participantTracks.cameraTrack,
     audioTrack: participant.isLocal ? null : participantTracks.audioTrack,
     screenShareTrack: participantTracks.screenShareTrack,
+    screenSharePublication: remoteScreenSharePublication,
   };
 }
 
@@ -235,6 +240,7 @@ export function getFallbackLocalParticipant(
     cameraTrack: null,
     audioTrack: null,
     screenShareTrack: null,
+    screenSharePublication: null,
   };
 }
 
@@ -258,7 +264,8 @@ function areParticipantEqual(participant: Participant, nextParticipant: Particip
     && participant.status === nextParticipant.status
     && participant.cameraTrack === nextParticipant.cameraTrack
     && participant.audioTrack === nextParticipant.audioTrack
-    && participant.screenShareTrack === nextParticipant.screenShareTrack;
+    && participant.screenShareTrack === nextParticipant.screenShareTrack
+    && participant.screenSharePublication === nextParticipant.screenSharePublication;
 }
 
 export function areParticipantsEqual(currentParticipants: Participant[], nextParticipants: Participant[]) {

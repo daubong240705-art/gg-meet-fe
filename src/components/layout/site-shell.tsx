@@ -24,7 +24,9 @@ export function SiteShell({ children }: { children: ReactNode }) {
         return <>{children}</>;
     }
 
-    const shouldRenderFooter = !(isDesktop && pathname === "/");
+    const shouldRenderFooter =
+        !isDesktop
+        && !pathname.startsWith("/profile");
 
     return (
         <div className="flex min-h-screen flex-col">

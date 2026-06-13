@@ -4,14 +4,10 @@ import { subject } from "@casl/ability";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   Hand,
-  type LucideIcon,
   MicOff,
   MonitorOff,
   MoreVertical,
-  SignalLow,
-  SignalMedium,
   VideoOff,
-  WifiOff,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -22,7 +18,7 @@ import { cn } from "@/lib/utils";
 import type { MeetingTrackType } from "@/shared/services/meeting.service";
 
 import { AudioTrackView, VideoTrackView } from "./track-view";
-import type { Participant, ParticipantConnectionQuality } from "../types";
+import type { Participant } from "../types";
 
 type MutingParticipantTrack = {
   participantId: number;
@@ -42,41 +38,6 @@ type ParticipantCardProps = {
   onMuteParticipantTrack?: (participant: Participant, trackType: MeetingTrackType) => void;
   onForceStopScreenShare?: (participant: Participant) => void;
 };
-
-type ConnectionQualityView = {
-  Icon: LucideIcon;
-  label: string;
-  className: string;
-};
-
-function getConnectionQualityView(
-  quality: ParticipantConnectionQuality,
-): ConnectionQualityView | null {
-  switch (quality) {
-    case "good":
-      return {
-        Icon: SignalMedium,
-        label: "Good connection",
-        className: "border-amber-200/40 bg-amber-300/85 text-slate-950",
-      };
-    case "poor":
-      return {
-        Icon: SignalLow,
-        label: "Poor connection",
-        className: "border-orange-200/40 bg-orange-500/90 text-white",
-      };
-    case "lost":
-      return {
-        Icon: WifiOff,
-        label: "Connection lost",
-        className: "border-red-200/40 bg-red-600/95 text-white",
-      };
-    case "excellent":
-    case "unknown":
-    default:
-      return null;
-  }
-}
 
 function ParticipantCard({
   participant,
@@ -116,8 +77,6 @@ function ParticipantCard({
   const canMuteVideo = canMuteParticipantMedia && !participant.isCameraOff;
   const canStopScreenShare = ability.can("forceStopShare", participantSubject);
   const hasActionMenu = canMuteAudio || canMuteVideo || canStopScreenShare;
-  const connectionQualityView = getConnectionQualityView(participant.connectionQuality);
-  const ConnectionQualityIcon = connectionQualityView?.Icon;
 
   useEffect(() => {
     if (!isActionMenuOpen) {
@@ -221,18 +180,6 @@ function ParticipantCard({
               </div>
             ) : null}
 
-            {connectionQualityView && ConnectionQualityIcon ? (
-              <div
-                aria-label={connectionQualityView.label}
-                className={cn(
-                  "pointer-events-none flex items-center justify-center rounded-full border shadow-sm backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-200 motion-reduce:animate-none",
-                  compact ? "h-7 w-7" : "h-8 w-8",
-                  connectionQualityView.className,
-                )}
-              >
-                <ConnectionQualityIcon className={cn(compact ? "h-3.5 w-3.5" : "h-4 w-4")} />
-              </div>
-            ) : null}
           </div>
 
           <div className="flex flex-col items-end gap-2">

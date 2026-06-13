@@ -6,10 +6,17 @@ import { toast } from "sonner";
 
 import type { Participant } from "@/components/meeting/room/types";
 import {
-  MEETING_SCREEN_SHARE_CAPTURE_OPTIONS,
-  MEETING_SCREEN_SHARE_PUBLISH_OPTIONS,
+  DEFAULT_SCREEN_SHARE_QUALITY,
+  buildScreenShareOptions,
+  type ScreenShareQuality,
 } from "@/lib/meeting/screen-share-options";
+import { isDesktop } from "@/lib/auth/refresh-store";
 import { meetingApi } from "@/shared/services/meeting.service";
+
+type ScreenSharePickerSelection = {
+  sourceId: string;
+  quality: Required<ScreenShareQuality>;
+};
 
 type UseRoomScreenShareParams = {
   participants: Participant[];
@@ -17,8 +24,10 @@ type UseRoomScreenShareParams = {
   isLiveKitEnabled: boolean;
   canShareScreen: boolean;
   isHost: boolean;
+  isAdmin: boolean;
   meetingCode: string;
   meetingToken?: string | null;
+  openDesktopScreenSharePicker?: () => Promise<ScreenSharePickerSelection | null>;
   onError: (message: string) => void;
 };
 
@@ -28,8 +37,10 @@ export function useRoomScreenShare({
   isLiveKitEnabled,
   canShareScreen,
   isHost,
+  isAdmin,
   meetingCode,
   meetingToken,
+  openDesktopScreenSharePicker,
   onError,
 }: UseRoomScreenShareParams) {
   const [activeScreenShareId, setActiveScreenShareId] = useState<string | null>(null);
@@ -77,16 +88,31 @@ export function useRoomScreenShare({
   }, [canUseScreenShare, isLiveKitEnabled, onError, roomRef]);
 
   const startLiveKitScreenShare = useCallback((room: LiveKitRoom) => {
-    void room.localParticipant.setScreenShareEnabled(
-      true,
-      MEETING_SCREEN_SHARE_CAPTURE_OPTIONS,
-      MEETING_SCREEN_SHARE_PUBLISH_OPTIONS,
-    ).catch((error) => {
+    void (async () => {
+      let quality: ScreenShareQuality = DEFAULT_SCREEN_SHARE_QUALITY;
+
+      if (isDesktop() && window.desktop?.screen && openDesktopScreenSharePicker) {
+        const selection = await openDesktopScreenSharePicker();
+
+        if (!selection) {
+          return;
+        }
+
+        quality = selection.quality.resolution === 1440 && !isAdmin
+          ? { ...selection.quality, resolution: DEFAULT_SCREEN_SHARE_QUALITY.resolution }
+          : selection.quality;
+        await window.desktop.screen.setPreferredSource(selection.sourceId);
+      }
+
+      const { capture, publish } = buildScreenShareOptions(quality);
+
+      await room.localParticipant.setScreenShareEnabled(true, capture, publish);
+    })().catch((error) => {
       const errorMessage =
         error instanceof Error ? error.message : "Unable to start screen sharing.";
       onError(errorMessage);
     });
-  }, [onError]);
+  }, [isAdmin, onError, openDesktopScreenSharePicker]);
 
   const handleScreenShare = useCallback(() => {
     const room = roomRef.current;
@@ -141,18 +167,32 @@ export function useRoomScreenShare({
     }
 
     void (async () => {
+      let quality: ScreenShareQuality = DEFAULT_SCREEN_SHARE_QUALITY;
+
+      if (isDesktop() && window.desktop?.screen && openDesktopScreenSharePicker) {
+        const selection = await openDesktopScreenSharePicker();
+
+        if (!selection) {
+          return;
+        }
+
+        quality = selection.quality.resolution === 1440 && !isAdmin
+          ? { ...selection.quality, resolution: DEFAULT_SCREEN_SHARE_QUALITY.resolution }
+          : selection.quality;
+        await window.desktop.screen.setPreferredSource(selection.sourceId);
+      }
+
+      const { capture, publish } = buildScreenShareOptions(quality);
+
       if (isScreenSharing) {
         await room.localParticipant.setScreenShareEnabled(false);
       }
-      await room.localParticipant.setScreenShareEnabled(
-        true,
-        MEETING_SCREEN_SHARE_CAPTURE_OPTIONS,
-        MEETING_SCREEN_SHARE_PUBLISH_OPTIONS,
-      );
+
+      await room.localParticipant.setScreenShareEnabled(true, capture, publish);
     })().catch((error) => {
       onError(error instanceof Error ? error.message : "Unable to present different content.");
     });
-  }, [canUseScreenShare, isLiveKitEnabled, isScreenSharing, isWaitingForShareApproval, onError, roomRef]);
+  }, [canUseScreenShare, isAdmin, isLiveKitEnabled, isScreenSharing, isWaitingForShareApproval, onError, openDesktopScreenSharePicker, roomRef]);
 
   const handleSendShareRequest = useCallback(async () => {
     setIsRequestingShareApproval(true);

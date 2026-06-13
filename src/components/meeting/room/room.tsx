@@ -5,6 +5,7 @@ import { Room as LiveKitRoom } from "livekit-client";
 import { toast } from "sonner";
 
 import { MEETING_AUDIO_CAPTURE_DEFAULTS } from "@/lib/meeting/audio-capture";
+import { useAuthSession } from "@/lib/auth/auth-session";
 import { type MeetingSocketConnection } from "@/lib/meeting/meeting-websocket";
 import {
   MeetingSocketProvider,
@@ -37,6 +38,10 @@ import { meetingApi } from "@/shared/services/meeting.service";
 import type { Participant } from "./types";
 
 import { RoomLeaveDialog } from "./dialogs/room-leave-dialog";
+import {
+  ScreenSharePickerDialog,
+  type ScreenSharePickerResult,
+} from "./dialogs/screen-share-picker-dialog";
 import { ScreenShareRequestDialog } from "./dialogs/screen-share-request-dialog";
 import { RoomShortcutsDialog } from "./dialogs/room-shortcuts-dialog";
 import RoomFooter from "./footer/room-footer";
@@ -74,6 +79,8 @@ function MeetingRoomContent({
   hostName,
   onLeave,
 }: MeetingRoomProps) {
+  const { user } = useAuthSession();
+  const isAdmin = user?.role === "ADMIN";
   const {
     connect: connectMeetingSocket,
     disconnect: disconnectMeetingSocket,
@@ -137,6 +144,11 @@ function MeetingRoomContent({
   const [isCompactControlsOpen, setIsCompactControlsOpen] = useState(false);
   const [isShortcutsDialogOpen, setIsShortcutsDialogOpen] = useState(false);
   const [isKeyboardLeaveDialogOpen, setIsKeyboardLeaveDialogOpen] = useState(false);
+  const [isScreenSharePickerOpen, setIsScreenSharePickerOpen] = useState(false);
+  const desktopCloseRequestedRef = useRef(false);
+  const screenSharePickerResolverRef = useRef<
+    ((result: ScreenSharePickerResult | null) => void) | null
+  >(null);
 
   const handleToggleMeetingPanel = useCallback((panel: Exclude<typeof activePanel, null>) => {
     setIsCompactControlsOpen(false);
@@ -164,6 +176,34 @@ function MeetingRoomContent({
 
     setIsCompactControlsOpen(shouldOpenCompactControls);
   }, [handlePanelChange, isCompactControlsOpen]);
+
+  const openDesktopScreenSharePicker = useCallback(() => {
+    screenSharePickerResolverRef.current?.(null);
+
+    return new Promise<ScreenSharePickerResult | null>((resolve) => {
+      screenSharePickerResolverRef.current = resolve;
+      setIsScreenSharePickerOpen(true);
+    });
+  }, []);
+
+  const handleScreenSharePickerConfirm = useCallback((result: ScreenSharePickerResult) => {
+    screenSharePickerResolverRef.current?.(result);
+    screenSharePickerResolverRef.current = null;
+    setIsScreenSharePickerOpen(false);
+  }, []);
+
+  const handleScreenSharePickerCancel = useCallback(() => {
+    screenSharePickerResolverRef.current?.(null);
+    screenSharePickerResolverRef.current = null;
+    setIsScreenSharePickerOpen(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      screenSharePickerResolverRef.current?.(null);
+      screenSharePickerResolverRef.current = null;
+    };
+  }, []);
 
   // Room settings
   const {
@@ -199,6 +239,13 @@ function MeetingRoomContent({
     shouldNotifyHostMediaActions: !localUserCanUseHostMediaControls,
     onError: handleRoomDeviceError,
   });
+  const handleToggleMicRef = useRef(handleToggleMic);
+  const handleToggleCameraRef = useRef(handleToggleCamera);
+
+  useEffect(() => {
+    handleToggleMicRef.current = handleToggleMic;
+    handleToggleCameraRef.current = handleToggleCamera;
+  }, [handleToggleCamera, handleToggleMic]);
 
   const {
     localHandState,
@@ -345,8 +392,10 @@ function MeetingRoomContent({
     isLiveKitEnabled,
     canShareScreen: roomSettings.allowParticipantShareScreen,
     isHost: canManageWaitingRoom,
+    isAdmin,
     meetingCode,
     meetingToken,
+    openDesktopScreenSharePicker,
     onError: handleRoomDeviceError,
   });
 
@@ -490,11 +539,101 @@ function MeetingRoomContent({
   }, [handleToggleMeetingPanel]);
 
   const handleLeaveShortcut = useCallback(() => {
+    desktopCloseRequestedRef.current = false;
     setIsKeyboardLeaveDialogOpen(true);
   }, []);
 
+  useEffect(() => {
+    const desktopMeeting = window.desktop?.meeting;
+
+    if (!desktopMeeting) {
+      return;
+    }
+
+    void desktopMeeting.setActive(true);
+
+    const unsubscribeCloseRequest = desktopMeeting.onCloseRequest(() => {
+      desktopCloseRequestedRef.current = true;
+      setIsKeyboardLeaveDialogOpen(true);
+    });
+    const unsubscribeControl = desktopMeeting.onControl((control) => {
+      if (control === "toggle-mic") {
+        handleToggleMicRef.current();
+        return;
+      }
+
+      if (control === "toggle-camera") {
+        handleToggleCameraRef.current();
+        return;
+      }
+
+      desktopCloseRequestedRef.current = false;
+      setIsKeyboardLeaveDialogOpen(true);
+    });
+
+    return () => {
+      unsubscribeCloseRequest();
+      unsubscribeControl();
+      void desktopMeeting.setActive(false);
+    };
+  }, []);
+
+  useEffect(() => {
+    const desktopMeeting = window.desktop?.meeting;
+
+    if (!desktopMeeting) {
+      return;
+    }
+
+    void desktopMeeting.updateState({
+      title: meetingTitle,
+      participantCount: participants.length,
+      isMicEnabled,
+      isCameraEnabled,
+      isScreenSharing,
+    });
+  }, [
+    isCameraEnabled,
+    isMicEnabled,
+    isScreenSharing,
+    meetingTitle,
+    participants.length,
+  ]);
+
+  const handleCloseLeaveDialog = useCallback(() => {
+    desktopCloseRequestedRef.current = false;
+    setIsKeyboardLeaveDialogOpen(false);
+  }, []);
+
+  const handleConfirmedLeave = useCallback(() => {
+    const shouldCloseApp = desktopCloseRequestedRef.current;
+
+    desktopCloseRequestedRef.current = false;
+    setIsKeyboardLeaveDialogOpen(false);
+    handleLeaveMeeting();
+
+    if (shouldCloseApp) {
+      window.desktop?.meeting?.confirmClose();
+    }
+  }, [handleLeaveMeeting]);
+
+  const handleConfirmedEndMeeting = useCallback(() => {
+    const shouldCloseApp = desktopCloseRequestedRef.current;
+
+    desktopCloseRequestedRef.current = false;
+    setIsKeyboardLeaveDialogOpen(false);
+    handleEndMeeting(() => {
+      if (shouldCloseApp) {
+        window.desktop?.meeting?.confirmClose();
+      }
+    });
+  }, [handleEndMeeting]);
+
   useRoomKeyboardShortcuts({
-    disabled: isShortcutsDialogOpen || isKeyboardLeaveDialogOpen || isShareRequestDialogOpen,
+    disabled: isShortcutsDialogOpen
+      || isKeyboardLeaveDialogOpen
+      || isShareRequestDialogOpen
+      || isScreenSharePickerOpen,
     onToggleMic: handleToggleMic,
     onToggleCamera: handleToggleCamera,
     onToggleChatPanel: handleToggleChatShortcut,
@@ -608,6 +747,13 @@ function MeetingRoomContent({
           onClose={handleCloseShareRequestDialog}
         />
 
+        <ScreenSharePickerDialog
+          open={isScreenSharePickerOpen}
+          canUse1440p={isAdmin}
+          onConfirm={handleScreenSharePickerConfirm}
+          onCancel={handleScreenSharePickerCancel}
+        />
+
         <RoomShortcutsDialog
           open={isShortcutsDialogOpen}
           onOpenChange={setIsShortcutsDialogOpen}
@@ -617,9 +763,9 @@ function MeetingRoomContent({
           open={isKeyboardLeaveDialogOpen}
           isEndingMeeting={isEndingMeeting}
           canEndMeeting={canManageWaitingRoom}
-          onClose={() => setIsKeyboardLeaveDialogOpen(false)}
-          onLeave={handleLeaveMeeting}
-          onEndMeeting={handleEndMeeting}
+          onClose={handleCloseLeaveDialog}
+          onLeave={handleConfirmedLeave}
+          onEndMeeting={handleConfirmedEndMeeting}
         />
       </div>
 
