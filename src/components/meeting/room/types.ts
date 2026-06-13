@@ -2,6 +2,7 @@ import type {
   LocalAudioTrack,
   LocalVideoTrack,
   RemoteAudioTrack,
+  RemoteTrackPublication,
   RemoteVideoTrack,
 } from "livekit-client";
 
@@ -49,6 +50,7 @@ export type Participant = {
   cameraTrack: VideoTrackReference | null;
   audioTrack: AudioTrackReference | null;
   screenShareTrack: VideoTrackReference | null;
+  screenSharePublication: RemoteTrackPublication | null;
 };
 
 type ChatMessageBase = {

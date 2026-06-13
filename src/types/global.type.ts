@@ -12,6 +12,15 @@ declare global {
         createdAt: string;
     }
 
+    type DesktopScreenShareSource = {
+        id: string;
+        name: string;
+        thumbnail: string;
+        appIcon: string | null;
+        displayId: string;
+        type: 'screen' | 'window';
+    };
+
     interface Window {
         desktop?: {
             isElectron: boolean;
@@ -26,6 +35,12 @@ declare global {
             };
             clipboard?: {
                 writeText: (text: string) => Promise<boolean>;
+            };
+            screen?: {
+                getSources: () => Promise<DesktopScreenShareSource[]>;
+                setPreferredSource: (sourceId: string | null) => Promise<void>;
+                onPickRequest: (callback: () => void) => () => void;
+                pickResponse: (sourceId: string | null) => void;
             };
         };
     }

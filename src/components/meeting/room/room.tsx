@@ -37,6 +37,10 @@ import { meetingApi } from "@/shared/services/meeting.service";
 import type { Participant } from "./types";
 
 import { RoomLeaveDialog } from "./dialogs/room-leave-dialog";
+import {
+  ScreenSharePickerDialog,
+  type ScreenSharePickerResult,
+} from "./dialogs/screen-share-picker-dialog";
 import { ScreenShareRequestDialog } from "./dialogs/screen-share-request-dialog";
 import { RoomShortcutsDialog } from "./dialogs/room-shortcuts-dialog";
 import RoomFooter from "./footer/room-footer";
@@ -137,6 +141,10 @@ function MeetingRoomContent({
   const [isCompactControlsOpen, setIsCompactControlsOpen] = useState(false);
   const [isShortcutsDialogOpen, setIsShortcutsDialogOpen] = useState(false);
   const [isKeyboardLeaveDialogOpen, setIsKeyboardLeaveDialogOpen] = useState(false);
+  const [isScreenSharePickerOpen, setIsScreenSharePickerOpen] = useState(false);
+  const screenSharePickerResolverRef = useRef<
+    ((result: ScreenSharePickerResult | null) => void) | null
+  >(null);
 
   const handleToggleMeetingPanel = useCallback((panel: Exclude<typeof activePanel, null>) => {
     setIsCompactControlsOpen(false);
@@ -164,6 +172,34 @@ function MeetingRoomContent({
 
     setIsCompactControlsOpen(shouldOpenCompactControls);
   }, [handlePanelChange, isCompactControlsOpen]);
+
+  const openDesktopScreenSharePicker = useCallback(() => {
+    screenSharePickerResolverRef.current?.(null);
+
+    return new Promise<ScreenSharePickerResult | null>((resolve) => {
+      screenSharePickerResolverRef.current = resolve;
+      setIsScreenSharePickerOpen(true);
+    });
+  }, []);
+
+  const handleScreenSharePickerConfirm = useCallback((result: ScreenSharePickerResult) => {
+    screenSharePickerResolverRef.current?.(result);
+    screenSharePickerResolverRef.current = null;
+    setIsScreenSharePickerOpen(false);
+  }, []);
+
+  const handleScreenSharePickerCancel = useCallback(() => {
+    screenSharePickerResolverRef.current?.(null);
+    screenSharePickerResolverRef.current = null;
+    setIsScreenSharePickerOpen(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      screenSharePickerResolverRef.current?.(null);
+      screenSharePickerResolverRef.current = null;
+    };
+  }, []);
 
   // Room settings
   const {
@@ -347,6 +383,7 @@ function MeetingRoomContent({
     isHost: canManageWaitingRoom,
     meetingCode,
     meetingToken,
+    openDesktopScreenSharePicker,
     onError: handleRoomDeviceError,
   });
 
@@ -494,7 +531,10 @@ function MeetingRoomContent({
   }, []);
 
   useRoomKeyboardShortcuts({
-    disabled: isShortcutsDialogOpen || isKeyboardLeaveDialogOpen || isShareRequestDialogOpen,
+    disabled: isShortcutsDialogOpen
+      || isKeyboardLeaveDialogOpen
+      || isShareRequestDialogOpen
+      || isScreenSharePickerOpen,
     onToggleMic: handleToggleMic,
     onToggleCamera: handleToggleCamera,
     onToggleChatPanel: handleToggleChatShortcut,
@@ -606,6 +646,12 @@ function MeetingRoomContent({
           isRequesting={isRequestingShareApproval}
           onConfirm={() => void handleSendShareRequest()}
           onClose={handleCloseShareRequestDialog}
+        />
+
+        <ScreenSharePickerDialog
+          open={isScreenSharePickerOpen}
+          onConfirm={handleScreenSharePickerConfirm}
+          onCancel={handleScreenSharePickerCancel}
         />
 
         <RoomShortcutsDialog

@@ -25,4 +25,23 @@ contextBridge.exposeInMainWorld("desktop", {
   clipboard: {
     writeText: (text: string): Promise<boolean> => ipcRenderer.invoke("clipboard:writeText", text),
   },
+  screen: {
+    getSources: () => ipcRenderer.invoke("screen:getSources"),
+    setPreferredSource: (sourceId: string | null): Promise<void> =>
+      ipcRenderer.invoke("screen:setPreferredSource", sourceId),
+    onPickRequest: (callback: () => void) => {
+      const listener = () => {
+        callback();
+      };
+
+      ipcRenderer.on("screen:pick-request", listener);
+
+      return () => {
+        ipcRenderer.off("screen:pick-request", listener);
+      };
+    },
+    pickResponse: (sourceId: string | null) => {
+      ipcRenderer.send("screen:pick-response", sourceId);
+    },
+  },
 });

@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LayoutGroup, motion, type Transition } from "framer-motion";
-import { Check, Copy, Monitor } from "lucide-react";
+import { Check, Copy, Monitor, Settings } from "lucide-react";
+import { RemoteTrackPublication, VideoQuality } from "livekit-client";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -122,6 +124,165 @@ function HiddenParticipantsPill({ count, className }: { count: number; className
   return (
     <div className={cn("pointer-events-none absolute bottom-4 right-4 z-20 rounded-full border border-white/10 bg-black/55 px-3 py-1.5 text-xs font-medium text-white shadow-lg backdrop-blur-sm", className)}>
       +{count} more in participant list
+    </div>
+  );
+}
+
+type ScreenShareQualitySelection = "auto" | "high" | "medium";
+
+type ScreenShareQualityOption = {
+  value: ScreenShareQualitySelection;
+  label: string;
+  description: string;
+};
+
+function getScreenShareTrackHeight(track: Participant["screenShareTrack"]) {
+  const settings = track
+    ? (track as { mediaStreamTrack?: MediaStreamTrack }).mediaStreamTrack?.getSettings()
+    : null;
+  const dimensions = track as { dimensions?: { height?: number } } | null;
+
+  return settings?.height ?? dimensions?.dimensions?.height ?? 1080;
+}
+
+function resetRemoteScreenShareQuality(publication: RemoteTrackPublication) {
+  const publicationWithInternals = publication as RemoteTrackPublication & {
+    requestedMaxQuality?: VideoQuality;
+    requestedVideoDimensions?: { width: number; height: number };
+    emitTrackUpdate?: () => void;
+  };
+
+  publicationWithInternals.requestedMaxQuality = undefined;
+  publicationWithInternals.requestedVideoDimensions = undefined;
+  publicationWithInternals.emitTrackUpdate?.();
+}
+
+function buildScreenShareQualityOptions(
+  screenShareTrack: Participant["screenShareTrack"],
+): ScreenShareQualityOption[] {
+  const sourceHeight = getScreenShareTrackHeight(screenShareTrack);
+  const highLabel = sourceHeight >= 1000 ? "High (1080p)" : sourceHeight >= 700
+    ? "High (720p)"
+    : "High (480p)";
+  const options: ScreenShareQualityOption[] = [
+    {
+      value: "auto",
+      label: "Auto",
+      description: "Let LiveKit adapt to this view",
+    },
+    {
+      value: "high",
+      label: highLabel,
+      description: "Prefer the sharpest layer",
+    },
+  ];
+
+  if (sourceHeight >= 1000) {
+    options.push({
+      value: "medium",
+      label: "Medium (720p)",
+      description: "Use less bandwidth",
+    });
+  }
+
+  return options;
+}
+
+function ScreenShareQualityMenu({
+  publication,
+  screenShareTrack,
+}: {
+  publication: RemoteTrackPublication | null;
+  screenShareTrack: Participant["screenShareTrack"];
+}) {
+  const [open, setOpen] = useState(false);
+  const [selection, setSelection] = useState<ScreenShareQualitySelection>("auto");
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const options = useMemo(
+    () => buildScreenShareQualityOptions(screenShareTrack),
+    [screenShareTrack],
+  );
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (menuRef.current?.contains(event.target as Node)) {
+        return;
+      }
+
+      setOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  if (!publication) {
+    return null;
+  }
+
+  const applyQuality = (nextSelection: ScreenShareQualitySelection) => {
+    setSelection(nextSelection);
+    setOpen(false);
+
+    if (nextSelection === "auto") {
+      resetRemoteScreenShareQuality(publication);
+      return;
+    }
+
+    publication.setVideoQuality(
+      nextSelection === "high" ? VideoQuality.HIGH : VideoQuality.MEDIUM,
+    );
+  };
+
+  return (
+    <div ref={menuRef} className="absolute right-3 top-3 z-30">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className="border-white/15 bg-black/50 text-white shadow-lg backdrop-blur-md hover:bg-black/65 hover:text-white"
+      >
+        <Settings className="h-4 w-4" />
+        Quality
+      </Button>
+
+      {open ? (
+        <div className="absolute right-0 mt-2 w-56 overflow-hidden rounded-lg border border-white/10 bg-slate-950/92 p-1 text-sm text-white shadow-2xl backdrop-blur-xl">
+          {options.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => applyQuality(option.value)}
+              className="flex w-full items-start gap-2 rounded-md px-3 py-2 text-left transition hover:bg-white/10"
+            >
+              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
+                {selection === option.value ? <Check className="h-4 w-4" /> : null}
+              </span>
+              <span className="min-w-0">
+                <span className="block font-medium">{option.label}</span>
+                <span className="block text-xs text-white/60">{option.description}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -271,6 +432,11 @@ export default function RoomStage({
                         track={screenShareParticipant.screenShareTrack}
                         muted={screenShareParticipant.isLocal}
                         className="object-contain"
+                      />
+                      <ScreenShareQualityMenu
+                        key={screenShareParticipant.screenSharePublication?.trackSid ?? "none"}
+                        publication={screenShareParticipant.screenSharePublication}
+                        screenShareTrack={screenShareParticipant.screenShareTrack}
                       />
                     </div>
                   ) : (

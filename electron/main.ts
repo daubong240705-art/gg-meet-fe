@@ -10,6 +10,7 @@ import {
   safeStorage,
   session,
 } from "electron";
+import type { DesktopCapturerSource } from "electron";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -37,6 +38,8 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 let mainWindow: BrowserWindow | null = null;
+let pendingDisplayMediaRequest: ((sourceId: string | null) => void) | null = null;
+let preferredDisplayMediaSourceId: string | null = null;
 
 type DesktopRuntimeConfig = {
   backendUrl?: string;
@@ -49,6 +52,17 @@ const DEFAULT_RUNTIME_CONFIG: DesktopRuntimeConfig = {
   websocketUrl: process.env.KALLIO_LIVEKIT_WS_URL ?? "",
   meetingSocketUrl: process.env.KALLIO_MEETING_SOCKET_URL ?? "",
 };
+
+function cancelPendingDisplayMediaRequest() {
+  const resolvePendingRequest = pendingDisplayMediaRequest;
+
+  if (!resolvePendingRequest) {
+    return;
+  }
+
+  pendingDisplayMediaRequest = null;
+  resolvePendingRequest(null);
+}
 
 function loadRuntimeConfig(): DesktopRuntimeConfig {
   const configPath = path.join(app.getPath("userData"), "config.json");
@@ -118,6 +132,60 @@ function registerClipboardIpc() {
   });
 }
 
+type SerializedDisplayMediaSource = {
+  id: string;
+  name: string;
+  thumbnail: string;
+  appIcon: string | null;
+  displayId: string;
+  type: "screen" | "window";
+};
+
+function serializeDisplayMediaSource(
+  source: DesktopCapturerSource,
+): SerializedDisplayMediaSource {
+  const [sourceType] = source.id.split(":");
+
+  return {
+    id: source.id,
+    name: source.name,
+    thumbnail: source.thumbnail.toDataURL(),
+    appIcon: source.appIcon?.toDataURL() ?? null,
+    displayId: source.display_id,
+    type: sourceType === "screen" ? "screen" : "window",
+  };
+}
+
+function getDisplayMediaSources() {
+  return desktopCapturer.getSources({
+    types: ["screen", "window"],
+    thumbnailSize: { width: 320, height: 200 },
+    fetchWindowIcons: true,
+  });
+}
+
+function registerScreenShareIpc() {
+  ipcMain.handle("screen:getSources", async () => {
+    const sources = await getDisplayMediaSources();
+    return sources.map(serializeDisplayMediaSource);
+  });
+
+  ipcMain.handle("screen:setPreferredSource", (_event, sourceId: unknown) => {
+    preferredDisplayMediaSourceId = typeof sourceId === "string" ? sourceId : null;
+  });
+
+  ipcMain.on("screen:pick-response", (_event, sourceId: unknown) => {
+    const resolvePendingRequest = pendingDisplayMediaRequest;
+
+    if (!resolvePendingRequest) {
+      return;
+    }
+
+    pendingDisplayMediaRequest = null;
+    resolvePendingRequest(typeof sourceId === "string" ? sourceId : null);
+  });
+}
+
 function getOutDir() {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, "out");
@@ -182,72 +250,47 @@ function wireMediaPermissions() {
   });
 
   session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
-    desktopCapturer
-      .getSources({
-        fetchWindowIcons: true,
-        thumbnailSize: { height: 0, width: 0 },
-        types: ["screen", "window"],
-      })
-      .then((sources) => {
-        let settled = false;
+    cancelPendingDisplayMediaRequest();
 
-        const finish = (source?: (typeof sources)[number]) => {
-          if (settled) {
-            return;
-          }
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      callback({});
+      return;
+    }
 
-          settled = true;
-          callback(source ? { video: source } : {});
-        };
+    const preferredSourceId = preferredDisplayMediaSourceId;
+    preferredDisplayMediaSourceId = null;
 
-        const createSourceItems = (sourceType: "screen" | "window") =>
-          sources
-            .filter((source) => source.id.startsWith(`${sourceType}:`))
-            .map((source) => ({
-              click: () => finish(source),
-              label: source.name.replaceAll("&", "&&"),
-            }));
-
-        const screenItems = createSourceItems("screen");
-        const windowItems = createSourceItems("window");
-        const menu = Menu.buildFromTemplate([
-          {
-            enabled: false,
-            label: "Chon noi dung muon chia se",
-          },
-          { type: "separator" },
-          ...(screenItems.length > 0
-            ? [
-                {
-                  label: "Man hinh",
-                  submenu: screenItems,
-                },
-              ]
-            : []),
-          ...(windowItems.length > 0
-            ? [
-                {
-                  label: "Cua so / ung dung",
-                  submenu: windowItems,
-                },
-              ]
-            : []),
-        ]);
-
-        if (screenItems.length === 0 && windowItems.length === 0) {
-          finish();
-          return;
-        }
-
-        menu.popup({
-          callback: () => finish(),
-          window: mainWindow ?? undefined,
+    if (preferredSourceId) {
+      getDisplayMediaSources()
+        .then((sources) => {
+          const selectedSource = sources.find((source) => source.id === preferredSourceId);
+          callback(selectedSource ? { video: selectedSource } : {});
+        })
+        .catch((error) => {
+          console.error("Unable to list display media sources.", error);
+          callback({});
         });
-      })
-      .catch((error) => {
-        console.error("Unable to list display media sources.", error);
+      return;
+    }
+
+    pendingDisplayMediaRequest = (sourceId) => {
+      if (!sourceId) {
         callback({});
-      });
+        return;
+      }
+
+      getDisplayMediaSources()
+        .then((sources) => {
+          const selectedSource = sources.find((source) => source.id === sourceId);
+          callback(selectedSource ? { video: selectedSource } : {});
+        })
+        .catch((error) => {
+          console.error("Unable to list display media sources.", error);
+          callback({});
+        });
+    };
+
+    mainWindow.webContents.send("screen:pick-request");
   });
 }
 
@@ -276,6 +319,7 @@ async function createWindow() {
   });
 
   mainWindow.on("closed", () => {
+    cancelPendingDisplayMediaRequest();
     mainWindow = null;
   });
 
@@ -307,6 +351,7 @@ if (!app.requestSingleInstanceLock()) {
 
     registerAuthIpc();
     registerClipboardIpc();
+    registerScreenShareIpc();
     wireMediaPermissions();
     await createWindow();
 
