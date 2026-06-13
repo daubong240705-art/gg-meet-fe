@@ -24,6 +24,7 @@ type UseRoomScreenShareParams = {
   isLiveKitEnabled: boolean;
   canShareScreen: boolean;
   isHost: boolean;
+  isAdmin: boolean;
   meetingCode: string;
   meetingToken?: string | null;
   openDesktopScreenSharePicker?: () => Promise<ScreenSharePickerSelection | null>;
@@ -36,6 +37,7 @@ export function useRoomScreenShare({
   isLiveKitEnabled,
   canShareScreen,
   isHost,
+  isAdmin,
   meetingCode,
   meetingToken,
   openDesktopScreenSharePicker,
@@ -96,7 +98,9 @@ export function useRoomScreenShare({
           return;
         }
 
-        quality = selection.quality;
+        quality = selection.quality.resolution === 1440 && !isAdmin
+          ? { ...selection.quality, resolution: DEFAULT_SCREEN_SHARE_QUALITY.resolution }
+          : selection.quality;
         await window.desktop.screen.setPreferredSource(selection.sourceId);
       }
 
@@ -108,7 +112,7 @@ export function useRoomScreenShare({
         error instanceof Error ? error.message : "Unable to start screen sharing.";
       onError(errorMessage);
     });
-  }, [onError, openDesktopScreenSharePicker]);
+  }, [isAdmin, onError, openDesktopScreenSharePicker]);
 
   const handleScreenShare = useCallback(() => {
     const room = roomRef.current;
@@ -172,7 +176,9 @@ export function useRoomScreenShare({
           return;
         }
 
-        quality = selection.quality;
+        quality = selection.quality.resolution === 1440 && !isAdmin
+          ? { ...selection.quality, resolution: DEFAULT_SCREEN_SHARE_QUALITY.resolution }
+          : selection.quality;
         await window.desktop.screen.setPreferredSource(selection.sourceId);
       }
 
@@ -186,7 +192,7 @@ export function useRoomScreenShare({
     })().catch((error) => {
       onError(error instanceof Error ? error.message : "Unable to present different content.");
     });
-  }, [canUseScreenShare, isLiveKitEnabled, isScreenSharing, isWaitingForShareApproval, onError, openDesktopScreenSharePicker, roomRef]);
+  }, [canUseScreenShare, isAdmin, isLiveKitEnabled, isScreenSharing, isWaitingForShareApproval, onError, openDesktopScreenSharePicker, roomRef]);
 
   const handleSendShareRequest = useCallback(async () => {
     setIsRequestingShareApproval(true);

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ConnectionState } from "livekit-client";
-import { Loader2, SignalLow, WifiOff, type LucideIcon } from "lucide-react";
+import { Loader2, WifiOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,7 +15,6 @@ import type {
   ChatMessage,
   OutboundChatMessage,
   Participant,
-  ParticipantConnectionQuality,
   SidebarPanel,
   WaitingParticipant,
 } from "../types";
@@ -47,40 +46,6 @@ function useMediaQuery(query: string) {
   }, [query]);
 
   return matches;
-}
-
-function getLocalConnectionWarning(
-  quality: ParticipantConnectionQuality,
-): {
-  Icon: LucideIcon;
-  title: string;
-  description: string;
-  className: string;
-  iconClassName: string;
-} | null {
-  switch (quality) {
-    case "poor":
-      return {
-        Icon: SignalLow,
-        title: "Your connection is unstable",
-        description: "Others may see or hear you with reduced quality.",
-        className: "border-orange-500/30 bg-orange-500/10",
-        iconClassName: "bg-orange-500/15 text-orange-700 dark:text-orange-200",
-      };
-    case "lost":
-      return {
-        Icon: WifiOff,
-        title: "Your connection was lost",
-        description: "Keep this tab open while the meeting tries to recover.",
-        className: "border-red-500/30 bg-red-500/10",
-        iconClassName: "bg-red-500/15 text-red-700 dark:text-red-200",
-      };
-    case "excellent":
-    case "good":
-    case "unknown":
-    default:
-      return null;
-  }
 }
 
 type RoomBodyProps = {
@@ -156,10 +121,6 @@ export default function RoomBody({
 }: RoomBodyProps) {
   const isDesktopSidebarLayout = useMediaQuery(DESKTOP_SIDEBAR_MEDIA_QUERY);
   const shouldRenderSidebar = isSidebarRendered && Boolean(sidebarPanel);
-  const localConnectionQuality = participants.find((participant) => participant.isLocal)
-    ?.connectionQuality ?? "unknown";
-  const localConnectionWarning = getLocalConnectionWarning(localConnectionQuality);
-  const LocalConnectionWarningIcon = localConnectionWarning?.Icon;
   const isRoomReconnecting =
     roomConnectionState === ConnectionState.Reconnecting
     || roomConnectionState === ConnectionState.SignalReconnecting;
@@ -272,31 +233,6 @@ export default function RoomBody({
               >
                 Retry
               </Button>
-            </Card>
-          ) : null}
-
-          {localConnectionWarning && LocalConnectionWarningIcon ? (
-            <Card
-              role="status"
-              className={cn(
-                "flex items-start gap-3 px-4 py-3",
-                localConnectionWarning.className,
-              )}
-            >
-              <span
-                className={cn(
-                  "flex size-9 shrink-0 items-center justify-center rounded-full",
-                  localConnectionWarning.iconClassName,
-                )}
-              >
-                <LocalConnectionWarningIcon className="h-4 w-4" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-sm font-medium">{localConnectionWarning.title}</p>
-                <p className="text-xs text-muted-foreground">
-                  {localConnectionWarning.description}
-                </p>
-              </div>
             </Card>
           ) : null}
 

@@ -136,7 +136,14 @@ type ScreenShareQualityOption = {
   description: string;
 };
 
-function getScreenShareTrackHeight(track: Participant["screenShareTrack"]) {
+function getScreenShareSourceHeight(
+  publication: RemoteTrackPublication | null,
+  track: Participant["screenShareTrack"],
+) {
+  if (publication?.dimensions?.height) {
+    return publication.dimensions.height;
+  }
+
   const settings = track
     ? (track as { mediaStreamTrack?: MediaStreamTrack }).mediaStreamTrack?.getSettings()
     : null;
@@ -149,6 +156,7 @@ function resetRemoteScreenShareQuality(publication: RemoteTrackPublication) {
   const publicationWithInternals = publication as RemoteTrackPublication & {
     requestedMaxQuality?: VideoQuality;
     requestedVideoDimensions?: { width: number; height: number };
+    videoDimensionsAdaptiveStream?: { width: number; height: number };
     emitTrackUpdate?: () => void;
   };
 
@@ -157,11 +165,33 @@ function resetRemoteScreenShareQuality(publication: RemoteTrackPublication) {
   publicationWithInternals.emitTrackUpdate?.();
 }
 
+function setRemoteScreenShareQuality(
+  publication: RemoteTrackPublication,
+  quality: VideoQuality,
+) {
+  const publicationWithInternals = publication as RemoteTrackPublication & {
+    requestedMaxQuality?: VideoQuality;
+    requestedVideoDimensions?: { width: number; height: number };
+    videoDimensionsAdaptiveStream?: { width: number; height: number };
+    emitTrackUpdate?: () => void;
+  };
+  const adaptiveDimensions = publicationWithInternals.videoDimensionsAdaptiveStream;
+
+  publicationWithInternals.requestedMaxQuality = quality;
+  publicationWithInternals.requestedVideoDimensions = undefined;
+  publicationWithInternals.videoDimensionsAdaptiveStream = undefined;
+  publicationWithInternals.emitTrackUpdate?.();
+  publicationWithInternals.videoDimensionsAdaptiveStream = adaptiveDimensions;
+}
+
 function buildScreenShareQualityOptions(
+  publication: RemoteTrackPublication | null,
   screenShareTrack: Participant["screenShareTrack"],
 ): ScreenShareQualityOption[] {
-  const sourceHeight = getScreenShareTrackHeight(screenShareTrack);
-  const highLabel = sourceHeight >= 1000 ? "High (1080p)" : sourceHeight >= 700
+  const sourceHeight = getScreenShareSourceHeight(publication, screenShareTrack);
+  const highLabel = sourceHeight >= 1400 ? "High (1440p)" : sourceHeight >= 1000
+    ? "High (1080p)"
+    : sourceHeight >= 700
     ? "High (720p)"
     : "High (480p)";
   const options: ScreenShareQualityOption[] = [
@@ -199,8 +229,8 @@ function ScreenShareQualityMenu({
   const [selection, setSelection] = useState<ScreenShareQualitySelection>("auto");
   const menuRef = useRef<HTMLDivElement | null>(null);
   const options = useMemo(
-    () => buildScreenShareQualityOptions(screenShareTrack),
-    [screenShareTrack],
+    () => buildScreenShareQualityOptions(publication, screenShareTrack),
+    [publication, screenShareTrack],
   );
 
   useEffect(() => {
@@ -244,7 +274,8 @@ function ScreenShareQualityMenu({
       return;
     }
 
-    publication.setVideoQuality(
+    setRemoteScreenShareQuality(
+      publication,
       nextSelection === "high" ? VideoQuality.HIGH : VideoQuality.MEDIUM,
     );
   };

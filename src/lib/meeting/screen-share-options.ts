@@ -4,7 +4,7 @@ import {
   type TrackPublishOptions,
 } from "livekit-client";
 
-export type ScreenShareResolution = 480 | 720 | 1080;
+export type ScreenShareResolution = 480 | 720 | 1080 | 1440;
 export type ScreenShareFps = 15 | 30 | 60;
 export type ScreenShareContentHint = "detail" | "text" | "motion";
 
@@ -19,7 +19,7 @@ type ScreenShareDimensions = {
   height: number;
 };
 
-export const SCREEN_SHARE_RESOLUTIONS: ScreenShareResolution[] = [480, 720, 1080];
+export const SCREEN_SHARE_RESOLUTIONS: ScreenShareResolution[] = [480, 720, 1080, 1440];
 export const SCREEN_SHARE_FPS_OPTIONS: ScreenShareFps[] = [15, 30, 60];
 
 export const DEFAULT_SCREEN_SHARE_QUALITY = {
@@ -32,6 +32,7 @@ export const SCREEN_SHARE_DIMENSIONS = {
   480: { width: 854, height: 480 },
   720: { width: 1280, height: 720 },
   1080: { width: 1920, height: 1080 },
+  1440: { width: 2560, height: 1440 },
 } satisfies Record<ScreenShareResolution, ScreenShareDimensions>;
 
 const SCREEN_SHARE_BITRATES: Record<ScreenShareResolution, Record<ScreenShareFps, number>> = {
@@ -49,6 +50,11 @@ const SCREEN_SHARE_BITRATES: Record<ScreenShareResolution, Record<ScreenShareFps
     15: 2_500_000,
     30: 4_000_000,
     60: 6_000_000,
+  },
+  1440: {
+    15: 4_000_000,
+    30: 6_000_000,
+    60: 9_000_000,
   },
 };
 

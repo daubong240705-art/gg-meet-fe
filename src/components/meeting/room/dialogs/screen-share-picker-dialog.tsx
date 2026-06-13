@@ -35,6 +35,7 @@ export type ScreenSharePickerResult = {
 
 type ScreenSharePickerDialogProps = {
   open?: boolean;
+  canUse1440p?: boolean;
   onConfirm?: (result: ScreenSharePickerResult) => void;
   onCancel?: () => void;
 };
@@ -54,7 +55,7 @@ function isScreenShareFps(value: unknown): value is ScreenShareFps {
   return SCREEN_SHARE_FPS_OPTIONS.includes(value as ScreenShareFps);
 }
 
-function readStoredQuality(): RequiredScreenShareQuality {
+function readStoredQuality(canUse1440p: boolean): RequiredScreenShareQuality {
   if (typeof window === "undefined") {
     return DEFAULT_SCREEN_SHARE_QUALITY;
   }
@@ -63,9 +64,12 @@ function readStoredQuality(): RequiredScreenShareQuality {
     const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "null") as
       | Partial<ScreenShareQuality>
       | null;
-    const resolution = isScreenShareResolution(parsed?.resolution)
+    const storedResolution = isScreenShareResolution(parsed?.resolution)
       ? parsed.resolution
       : DEFAULT_SCREEN_SHARE_QUALITY.resolution;
+    const resolution = storedResolution === 1440 && !canUse1440p
+      ? DEFAULT_SCREEN_SHARE_QUALITY.resolution
+      : storedResolution;
     const fps = isScreenShareFps(parsed?.fps)
       ? parsed.fps
       : DEFAULT_SCREEN_SHARE_QUALITY.fps;
@@ -90,6 +94,7 @@ function persistQuality(quality: RequiredScreenShareQuality) {
 
 export function ScreenSharePickerDialog({
   open: controlledOpen,
+  canUse1440p = false,
   onConfirm,
   onCancel,
 }: ScreenSharePickerDialogProps = {}) {
@@ -97,12 +102,18 @@ export function ScreenSharePickerDialog({
   const [sources, setSources] = useState<DesktopScreenShareSource[]>([]);
   const [activeTab, setActiveTab] = useState<SourceTab>("screen");
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
-  const [quality, setQuality] = useState<RequiredScreenShareQuality>(() => readStoredQuality());
+  const [quality, setQuality] = useState<RequiredScreenShareQuality>(
+    () => readStoredQuality(canUse1440p),
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const pendingRequestRef = useRef(false);
   const isControlled = controlledOpen !== undefined;
   const open = controlledOpen ?? fallbackOpen;
+  const availableResolutions = useMemo(
+    () => SCREEN_SHARE_RESOLUTIONS.filter((resolution) => resolution !== 1440 || canUse1440p),
+    [canUse1440p],
+  );
 
   const loadSources = useCallback(async () => {
     const desktopScreen = window.desktop?.screen;
@@ -161,10 +172,14 @@ export function ScreenSharePickerDialog({
       return;
     }
 
-    persistQuality(quality);
+    const permittedQuality = quality.resolution === 1440 && !canUse1440p
+      ? { ...quality, resolution: DEFAULT_SCREEN_SHARE_QUALITY.resolution }
+      : quality;
+
+    persistQuality(permittedQuality);
 
     if (isControlled) {
-      onConfirm?.({ sourceId: selectedSource.id, quality });
+      onConfirm?.({ sourceId: selectedSource.id, quality: permittedQuality });
       return;
     }
 
@@ -176,7 +191,7 @@ export function ScreenSharePickerDialog({
 
     pendingRequestRef.current = false;
     setFallbackOpen(false);
-  }, [isControlled, onConfirm, quality, selectedSourceId, sources]);
+  }, [canUse1440p, isControlled, onConfirm, quality, selectedSourceId, sources]);
 
   const handleTabChange = useCallback((tab: SourceTab) => {
     setActiveTab(tab);
@@ -298,8 +313,11 @@ export function ScreenSharePickerDialog({
             <div className="mt-3 space-y-3">
               <div className="space-y-1.5">
                 <p className="text-xs text-muted-foreground">Resolution</p>
-                <div className="grid grid-cols-3 gap-1">
-                  {SCREEN_SHARE_RESOLUTIONS.map((resolution) => (
+                <div className={cn(
+                  "grid gap-1",
+                  availableResolutions.length === 4 ? "grid-cols-2" : "grid-cols-3",
+                )}>
+                  {availableResolutions.map((resolution) => (
                     <button
                       key={resolution}
                       type="button"

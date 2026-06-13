@@ -182,9 +182,6 @@ export function useLiveKitRoom({
 
         scheduleSyncParticipants();
       })
-      .on(RoomEvent.ConnectionQualityChanged, () => {
-        scheduleSyncParticipants();
-      })
       .on(RoomEvent.AudioPlaybackStatusChanged, (playing) => {
         if (!isDisposed) {
           onAudioPlaybackChange?.(playing);
