@@ -33,10 +33,33 @@ const getMeetingCode = (params: MeetingPageParams) => {
 const getMeetingPath = (meetingCode: string) =>
   meetingCode ? `/${encodeURIComponent(meetingCode)}` : "/";
 
-const getMeetingDescription = (meetingTitle: string | null) =>
-  meetingTitle
-    ? `Join "${meetingTitle}" on Kallio.`
-    : FALLBACK_DESCRIPTION;
+const getDisplayMeetingCode = (meetingCode: string) => meetingCode.trim().toUpperCase();
+
+const getMeetingTitleText = (meetingCode: string, meetingTitle: string | null) => {
+  const displayMeetingCode = getDisplayMeetingCode(meetingCode);
+
+  if (!displayMeetingCode) {
+    return meetingTitle || FALLBACK_TITLE;
+  }
+
+  return meetingTitle
+    ? `${meetingTitle} | Room ${displayMeetingCode}`
+    : `Join Room ${displayMeetingCode} on Kallio`;
+};
+
+const getMeetingDescription = (meetingCode: string, meetingTitle: string | null) => {
+  const displayMeetingCode = getDisplayMeetingCode(meetingCode);
+
+  if (!displayMeetingCode) {
+    return meetingTitle
+      ? `Join "${meetingTitle}" on Kallio.`
+      : FALLBACK_DESCRIPTION;
+  }
+
+  return meetingTitle
+    ? `Join "${meetingTitle}" on Kallio. Room code: ${displayMeetingCode}.`
+    : `Join a secure Kallio video meeting from your browser. Room code: ${displayMeetingCode}.`;
+};
 
 async function getMeetingTitle(meetingCode: string) {
   if (!meetingCode) {
@@ -83,8 +106,8 @@ async function getMeetingTitle(meetingCode: string) {
 export async function generateMetadata({ params }: MeetingPageProps): Promise<Metadata> {
   const meetingCode = getMeetingCode(await params);
   const meetingTitle = await getMeetingTitle(meetingCode);
-  const title = meetingTitle || FALLBACK_TITLE;
-  const description = getMeetingDescription(meetingTitle);
+  const title = getMeetingTitleText(meetingCode, meetingTitle);
+  const description = getMeetingDescription(meetingCode, meetingTitle);
   const canonicalPath = getMeetingPath(meetingCode);
   const ogImage = getOpenGraphImage();
 
