@@ -14,6 +14,11 @@ function readConfigArg() {
   }
 }
 
+function isLinuxWayland() {
+  return process.platform === "linux"
+    && (process.env.XDG_SESSION_TYPE === "wayland" || Boolean(process.env.WAYLAND_DISPLAY));
+}
+
 contextBridge.exposeInMainWorld("desktop", {
   isElectron: true,
   config: readConfigArg(),
@@ -69,6 +74,7 @@ contextBridge.exposeInMainWorld("desktop", {
     },
   },
   screen: {
+    isLinuxWayland: isLinuxWayland(),
     getSources: () => ipcRenderer.invoke("screen:getSources"),
     setPreferredSource: (sourceId: string | null): Promise<void> =>
       ipcRenderer.invoke("screen:setPreferredSource", sourceId),

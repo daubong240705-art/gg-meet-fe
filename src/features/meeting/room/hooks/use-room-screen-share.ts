@@ -14,7 +14,7 @@ import { isDesktop } from "@/lib/auth/refresh-store";
 import { meetingApi } from "@/shared/services/meeting.service";
 
 type ScreenSharePickerSelection = {
-  sourceId: string;
+  sourceId: string | null;
   quality: Required<ScreenShareQuality>;
 };
 
@@ -101,7 +101,10 @@ export function useRoomScreenShare({
         quality = selection.quality.resolution === 1440 && !isAdmin
           ? { ...selection.quality, resolution: DEFAULT_SCREEN_SHARE_QUALITY.resolution }
           : selection.quality;
-        await window.desktop.screen.setPreferredSource(selection.sourceId);
+
+        if (!window.desktop.screen.isLinuxWayland && selection.sourceId) {
+          await window.desktop.screen.setPreferredSource(selection.sourceId);
+        }
       }
 
       const { capture, publish } = buildScreenShareOptions(quality);
@@ -179,7 +182,10 @@ export function useRoomScreenShare({
         quality = selection.quality.resolution === 1440 && !isAdmin
           ? { ...selection.quality, resolution: DEFAULT_SCREEN_SHARE_QUALITY.resolution }
           : selection.quality;
-        await window.desktop.screen.setPreferredSource(selection.sourceId);
+
+        if (!window.desktop.screen.isLinuxWayland && selection.sourceId) {
+          await window.desktop.screen.setPreferredSource(selection.sourceId);
+        }
       }
 
       const { capture, publish } = buildScreenShareOptions(quality);

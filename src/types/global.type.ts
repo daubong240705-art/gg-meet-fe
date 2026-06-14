@@ -58,6 +58,7 @@ declare global {
                 confirmClose: () => void;
             };
             screen?: {
+                isLinuxWayland: boolean;
                 getSources: () => Promise<DesktopScreenShareSource[]>;
                 setPreferredSource: (sourceId: string | null) => Promise<void>;
                 onPickRequest: (callback: () => void) => () => void;
