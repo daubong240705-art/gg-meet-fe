@@ -30,6 +30,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   useAdminActions,
@@ -51,6 +59,11 @@ import type {
 } from "@/shared/services/admin.service";
 
 type AdminTab = "users" | "meetings";
+type AdminConfirmation =
+  | { type: "ban-user"; user: AdminUser; label: string }
+  | { type: "unban-user"; user: AdminUser; label: string }
+  | { type: "update-user-role"; user: AdminUser; label: string; nextRole: AdminUserRole }
+  | { type: "force-end-meeting"; meeting: AdminMeeting; label: string };
 
 const PAGE_SIZE = 10;
 const SEARCH_DEBOUNCE_MS = 350;
@@ -147,6 +160,7 @@ export function AdminDashboard() {
   const [meetingStatus, setMeetingStatus] = useState<AdminMeetingStatus | "">("");
   const [meetingFromDate, setMeetingFromDate] = useState("");
   const [meetingToDate, setMeetingToDate] = useState("");
+  const [confirmation, setConfirmation] = useState<AdminConfirmation | null>(null);
 
   useEffect(() => {
     if (!hasMounted) return;
@@ -294,61 +308,73 @@ export function AdminDashboard() {
   const handleToggleUserBan = (adminUser: AdminUser) => {
     const label = getUserLabel(adminUser);
     const isBanned = Boolean(adminUser.isBanned);
-    const confirmed = window.confirm(
-      isBanned
-        ? `Unban ${label}? They will be able to sign in again.`
-        : `Ban ${label}? Their active tokens will be invalidated immediately.`,
-    );
 
-    if (!confirmed) {
-      return;
-    }
-
-    if (isBanned) {
-      adminActions.unbanUser.mutate({ userId: adminUser.id, label });
-      return;
-    }
-
-    adminActions.banUser.mutate({ userId: adminUser.id, label });
+    setConfirmation({
+      type: isBanned ? "unban-user" : "ban-user",
+      user: adminUser,
+      label,
+    });
   };
 
   const handleToggleUserRole = (adminUser: AdminUser) => {
     const label = getUserLabel(adminUser);
     const currentRole = adminUser.role?.toString().trim().toUpperCase();
     const nextRole: AdminUserRole = currentRole === "ADMIN" ? "USER" : "ADMIN";
-    const confirmed = window.confirm(
-      `Change ${label}'s role to ${nextRole === "ADMIN" ? "Admin" : "User"}?`,
-    );
 
-    if (!confirmed) {
-      return;
-    }
-
-    adminActions.updateUserRole.mutate({
-      userId: adminUser.id,
-      role: nextRole,
+    setConfirmation({
+      type: "update-user-role",
+      user: adminUser,
       label,
+      nextRole,
     });
   };
 
   const handleForceEndMeeting = (meeting: AdminMeeting) => {
     const title = meeting.title?.trim() || meeting.meetingCode?.trim() || `Meeting #${meeting.id}`;
-    const confirmed = window.confirm(
-      `Force-end ${title}? All participants will be disconnected from this meeting.`,
-    );
 
-    if (!confirmed) {
-      return;
-    }
-
-    adminActions.forceEndMeeting.mutate({
-      meetingId: meeting.id,
+    setConfirmation({
+      type: "force-end-meeting",
+      meeting,
       label: title,
     });
   };
 
+  const handleConfirmAdminAction = () => {
+    const currentConfirmation = confirmation;
+
+    if (!currentConfirmation) {
+      return;
+    }
+
+    setConfirmation(null);
+
+    if (currentConfirmation.type === "ban-user") {
+      adminActions.banUser.mutate({
+        userId: currentConfirmation.user.id,
+        label: currentConfirmation.label,
+      });
+    } else if (currentConfirmation.type === "unban-user") {
+      adminActions.unbanUser.mutate({
+        userId: currentConfirmation.user.id,
+        label: currentConfirmation.label,
+      });
+    } else if (currentConfirmation.type === "update-user-role") {
+      adminActions.updateUserRole.mutate({
+        userId: currentConfirmation.user.id,
+        role: currentConfirmation.nextRole,
+        label: currentConfirmation.label,
+      });
+    } else {
+      adminActions.forceEndMeeting.mutate({
+        meetingId: currentConfirmation.meeting.id,
+        label: currentConfirmation.label,
+      });
+    }
+  };
+
   return (
-    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-8">
+    <>
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-8">
       <section>
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
           Dashboard Overview
@@ -469,8 +495,124 @@ export function AdminDashboard() {
             onRetry={() => meetingsQuery.refetch()}
           />
         )}
-      </section>
-    </div>
+        </section>
+      </div>
+
+      <AdminConfirmDialog
+        confirmation={confirmation}
+        onClose={() => setConfirmation(null)}
+        onConfirm={handleConfirmAdminAction}
+      />
+    </>
+  );
+}
+
+function getConfirmationCopy(confirmation: AdminConfirmation | null) {
+  if (!confirmation) {
+    return null;
+  }
+
+  if (confirmation.type === "ban-user") {
+    return {
+      title: "Ban this user?",
+      description:
+        "This will lock the account, invalidate current access tokens, and remove the stored refresh token. The user will not be able to sign in until an admin unbans them.",
+      targetLabel: confirmation.label,
+      confirmLabel: "Ban user",
+      confirmVariant: "destructive" as const,
+    };
+  }
+
+  if (confirmation.type === "unban-user") {
+    return {
+      title: "Unban this user?",
+      description:
+        "This will restore account access. The user can sign in again with valid credentials after this action completes.",
+      targetLabel: confirmation.label,
+      confirmLabel: "Unban user",
+      confirmVariant: "default" as const,
+    };
+  }
+
+  if (confirmation.type === "update-user-role") {
+    const nextRoleLabel = confirmation.nextRole === "ADMIN" ? "Admin" : "User";
+
+    return {
+      title: `Change role to ${nextRoleLabel}?`,
+      description:
+        confirmation.nextRole === "ADMIN"
+          ? "This account will gain access to admin dashboard features and administrative actions."
+          : "This account will lose admin dashboard access and administrative actions.",
+      targetLabel: confirmation.label,
+      confirmLabel: `Make ${nextRoleLabel}`,
+      confirmVariant: confirmation.nextRole === "ADMIN" ? "default" as const : "destructive" as const,
+    };
+  }
+
+  return {
+    title: "Force-end this meeting?",
+    description:
+      "This will delete the LiveKit room, disconnect all participants, mark the meeting as ended, and notify clients through the meeting WebSocket.",
+    targetLabel: confirmation.label,
+    confirmLabel: "End meeting now",
+    confirmVariant: "destructive" as const,
+  };
+}
+
+function AdminConfirmDialog({
+  confirmation,
+  onClose,
+  onConfirm,
+}: {
+  confirmation: AdminConfirmation | null;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const copy = getConfirmationCopy(confirmation);
+
+  return (
+    <Dialog
+      open={confirmation !== null}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) {
+          onClose();
+        }
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <div className="mb-1 flex h-11 w-11 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <DialogTitle>{copy?.title ?? "Confirm action"}</DialogTitle>
+          <DialogDescription>
+            {copy?.description ?? "Please confirm this admin action."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="rounded-lg border border-border bg-muted/35 p-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Target
+          </p>
+          <p className="mt-1 break-words text-sm font-medium text-foreground">
+            {copy?.targetLabel ?? "Unknown target"}
+          </p>
+        </div>
+
+        <DialogFooter className="gap-2 sm:gap-2">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant={copy?.confirmVariant ?? "default"}
+            onClick={onConfirm}
+          >
+            {copy?.confirmLabel ?? "Confirm"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

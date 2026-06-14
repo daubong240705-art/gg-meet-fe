@@ -34,7 +34,6 @@ export function AdminStatCard({
           <div className={`flex h-11 w-11 items-center justify-center rounded-lg ${toneClasses[tone]}`}>
             <Icon className="h-5 w-5" />
           </div>
-          <span className={`text-sm font-medium ${trendClass}`}>{change}</span>
         </div>
         <div className="mt-5">
           <p className="text-3xl font-semibold tracking-tight">{value}</p>
