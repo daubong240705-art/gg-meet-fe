@@ -31,6 +31,7 @@ export type AdminUser = {
   fullName?: string | null;
   role?: AdminUserRole | string | null;
   status?: AdminUserStatus | string | null;
+  isBanned?: boolean | null;
   avatar?: string | null;
   meetingCount?: number | null;
   createdAt?: string | null;

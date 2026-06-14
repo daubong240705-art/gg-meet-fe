@@ -5,11 +5,14 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   AlertTriangle,
+  Ban,
   Calendar,
+  CheckCircle2,
   Filter,
-  MoreVertical,
+  Power,
   RefreshCw,
   Search,
+  Shield,
   ShieldAlert,
   UsersRound,
   Video,
@@ -29,6 +32,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
+  useAdminActions,
   useAdminMeetings,
   useAdminOverview,
   useAdminUsers,
@@ -162,6 +166,7 @@ export function AdminDashboard() {
   const meetingTo = useMemo(() => toEndOfDay(meetingToDate), [meetingToDate]);
 
   const overviewQuery = useAdminOverview({ enabled: canLoadAdminData });
+  const adminActions = useAdminActions();
   const usersQuery = useAdminUsers(
     {
       page: usersPage,
@@ -213,6 +218,18 @@ export function AdminDashboard() {
     ],
     [overviewQuery.data],
   );
+
+  const activeUserActionId =
+    adminActions.banUser.isPending
+      ? adminActions.banUser.variables?.userId ?? null
+      : adminActions.unbanUser.isPending
+        ? adminActions.unbanUser.variables?.userId ?? null
+        : adminActions.updateUserRole.isPending
+          ? adminActions.updateUserRole.variables?.userId ?? null
+          : null;
+  const activeMeetingActionId = adminActions.forceEndMeeting.isPending
+    ? adminActions.forceEndMeeting.variables?.meetingId ?? null
+    : null;
 
   if (!hasMounted) {
     return <AdminAccessState title="Checking access" description="Preparing admin workspace." />;
@@ -269,6 +286,65 @@ export function AdminDashboard() {
     setMeetingFromDate("");
     setMeetingToDate("");
     setMeetingsPage(0);
+  };
+
+  const getUserLabel = (adminUser: AdminUser) =>
+    adminUser.fullName?.trim() || adminUser.email?.trim() || `User #${adminUser.id}`;
+
+  const handleToggleUserBan = (adminUser: AdminUser) => {
+    const label = getUserLabel(adminUser);
+    const isBanned = Boolean(adminUser.isBanned);
+    const confirmed = window.confirm(
+      isBanned
+        ? `Unban ${label}? They will be able to sign in again.`
+        : `Ban ${label}? Their active tokens will be invalidated immediately.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    if (isBanned) {
+      adminActions.unbanUser.mutate({ userId: adminUser.id, label });
+      return;
+    }
+
+    adminActions.banUser.mutate({ userId: adminUser.id, label });
+  };
+
+  const handleToggleUserRole = (adminUser: AdminUser) => {
+    const label = getUserLabel(adminUser);
+    const currentRole = adminUser.role?.toString().trim().toUpperCase();
+    const nextRole: AdminUserRole = currentRole === "ADMIN" ? "USER" : "ADMIN";
+    const confirmed = window.confirm(
+      `Change ${label}'s role to ${nextRole === "ADMIN" ? "Admin" : "User"}?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    adminActions.updateUserRole.mutate({
+      userId: adminUser.id,
+      role: nextRole,
+      label,
+    });
+  };
+
+  const handleForceEndMeeting = (meeting: AdminMeeting) => {
+    const title = meeting.title?.trim() || meeting.meetingCode?.trim() || `Meeting #${meeting.id}`;
+    const confirmed = window.confirm(
+      `Force-end ${title}? All participants will be disconnected from this meeting.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    adminActions.forceEndMeeting.mutate({
+      meetingId: meeting.id,
+      label: title,
+    });
   };
 
   return (
@@ -373,6 +449,9 @@ export function AdminDashboard() {
             isError={usersQuery.isError}
             error={usersQuery.error}
             page={usersPage}
+            activeActionUserId={activeUserActionId}
+            onToggleBan={handleToggleUserBan}
+            onToggleRole={handleToggleUserRole}
             onPageChange={setUsersPage}
             onRetry={() => usersQuery.refetch()}
           />
@@ -384,6 +463,8 @@ export function AdminDashboard() {
             isError={meetingsQuery.isError}
             error={meetingsQuery.error}
             page={meetingsPage}
+            activeActionMeetingId={activeMeetingActionId}
+            onForceEndMeeting={handleForceEndMeeting}
             onPageChange={setMeetingsPage}
             onRetry={() => meetingsQuery.refetch()}
           />
@@ -558,6 +639,9 @@ function UsersTable({
   isError,
   error,
   page,
+  activeActionUserId,
+  onToggleBan,
+  onToggleRole,
   onPageChange,
   onRetry,
 }: {
@@ -567,6 +651,9 @@ function UsersTable({
   isError: boolean;
   error: unknown;
   page: number;
+  activeActionUserId: number | null;
+  onToggleBan: (user: AdminUser) => void;
+  onToggleRole: (user: AdminUser) => void;
   onPageChange: (page: number) => void;
   onRetry: () => void;
 }) {
@@ -601,7 +688,15 @@ function UsersTable({
               ) : users.length === 0 ? (
                 <TableStateRow columns={6} title="No users found" description="Try changing search or filters." />
               ) : (
-                users.map((user) => <UserRow key={user.id} user={user} />)
+                users.map((user) => (
+                  <UserRow
+                    key={user.id}
+                    user={user}
+                    isActionPending={activeActionUserId === user.id}
+                    onToggleBan={onToggleBan}
+                    onToggleRole={onToggleRole}
+                  />
+                ))
               )}
             </tbody>
           </table>
@@ -620,9 +715,22 @@ function UsersTable({
   );
 }
 
-function UserRow({ user }: { user: AdminUser }) {
+function UserRow({
+  user,
+  isActionPending,
+  onToggleBan,
+  onToggleRole,
+}: {
+  user: AdminUser;
+  isActionPending: boolean;
+  onToggleBan: (user: AdminUser) => void;
+  onToggleRole: (user: AdminUser) => void;
+}) {
   const fullName = user.fullName?.trim() || user.email?.trim() || "Unknown user";
   const email = user.email?.trim() || "—";
+  const isBanned = Boolean(user.isBanned);
+  const normalizedRole = user.role?.toString().trim().toUpperCase();
+  const nextRoleLabel = normalizedRole === "ADMIN" ? "Make User" : "Make Admin";
 
   return (
     <tr className="border-b border-border/60 last:border-0">
@@ -639,7 +747,7 @@ function UserRow({ user }: { user: AdminUser }) {
         <AdminRoleBadge role={user.role || "USER"} />
       </td>
       <td className="px-4 py-4">
-        <AdminStatusBadge kind="user" status={user.status || "INACTIVE"} />
+        <AdminStatusBadge kind="user" status={isBanned ? "BANNED" : user.status || "INACTIVE"} />
       </td>
       <td className="px-4 py-4">
         <span className="inline-flex items-center gap-2">
@@ -649,9 +757,28 @@ function UserRow({ user }: { user: AdminUser }) {
       </td>
       <td className="px-4 py-4 text-muted-foreground">{formatDate(user.createdAt)}</td>
       <td className="py-4 pl-4 text-right">
-        <Button type="button" variant="ghost" size="icon-sm" aria-label="User actions">
-          <MoreVertical className="h-4 w-4" />
-        </Button>
+        <div className="flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isActionPending}
+            onClick={() => onToggleRole(user)}
+          >
+            <Shield className="h-4 w-4" />
+            {nextRoleLabel}
+          </Button>
+          <Button
+            type="button"
+            variant={isBanned ? "outline" : "destructive"}
+            size="sm"
+            disabled={isActionPending}
+            onClick={() => onToggleBan(user)}
+          >
+            {isBanned ? <CheckCircle2 className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+            {isBanned ? "Unban" : "Ban"}
+          </Button>
+        </div>
       </td>
     </tr>
   );
@@ -694,6 +821,8 @@ function MeetingsTable({
   isError,
   error,
   page,
+  activeActionMeetingId,
+  onForceEndMeeting,
   onPageChange,
   onRetry,
 }: {
@@ -703,6 +832,8 @@ function MeetingsTable({
   isError: boolean;
   error: unknown;
   page: number;
+  activeActionMeetingId: number | null;
+  onForceEndMeeting: (meeting: AdminMeeting) => void;
   onPageChange: (page: number) => void;
   onRetry: () => void;
 }) {
@@ -737,7 +868,14 @@ function MeetingsTable({
               ) : meetings.length === 0 ? (
                 <TableStateRow columns={6} title="No meetings found" description="Try changing search or filters." />
               ) : (
-                meetings.map((meeting) => <MeetingRow key={meeting.id} meeting={meeting} />)
+                meetings.map((meeting) => (
+                  <MeetingRow
+                    key={meeting.id}
+                    meeting={meeting}
+                    isActionPending={activeActionMeetingId === meeting.id}
+                    onForceEndMeeting={onForceEndMeeting}
+                  />
+                ))
               )}
             </tbody>
           </table>
@@ -756,11 +894,20 @@ function MeetingsTable({
   );
 }
 
-function MeetingRow({ meeting }: { meeting: AdminMeeting }) {
+function MeetingRow({
+  meeting,
+  isActionPending,
+  onForceEndMeeting,
+}: {
+  meeting: AdminMeeting;
+  isActionPending: boolean;
+  onForceEndMeeting: (meeting: AdminMeeting) => void;
+}) {
   const title = meeting.title?.trim() || "Untitled meeting";
   const hostName = meeting.hostName?.trim() || "Unknown host";
   const hostEmail = meeting.hostEmail?.trim();
   const meetingCode = meeting.meetingCode?.trim() || "—";
+  const canForceEnd = meeting.status?.toString().trim().toUpperCase() === "ACTIVE";
 
   return (
     <tr className="border-b border-border/60 last:border-0">
@@ -787,8 +934,15 @@ function MeetingRow({ meeting }: { meeting: AdminMeeting }) {
         </code>
       </td>
       <td className="py-4 pl-4 text-right">
-        <Button type="button" variant="ghost" size="icon-sm" aria-label="Meeting actions">
-          <MoreVertical className="h-4 w-4" />
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          disabled={!canForceEnd || isActionPending}
+          onClick={() => onForceEndMeeting(meeting)}
+        >
+          <Power className="h-4 w-4" />
+          End now
         </Button>
       </td>
     </tr>

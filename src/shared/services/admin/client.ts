@@ -8,6 +8,7 @@ import type {
   AdminPaged,
   AdminUsersQuery,
   AdminUser,
+  AdminUserRole,
 } from "./types";
 
 const API_URL = getBackendBaseUrl();
@@ -55,6 +56,43 @@ export const adminApi = {
         from,
         to,
       }),
+      useCredentials: true,
+      auth: true,
+    });
+  },
+
+  banUser(userId: number) {
+    return sendRequest<IBackendRes<AdminUser>>({
+      url: `${API_URL}/admin/users/${encodeURIComponent(userId)}/ban`,
+      method: "POST",
+      useCredentials: true,
+      auth: true,
+    });
+  },
+
+  unbanUser(userId: number) {
+    return sendRequest<IBackendRes<AdminUser>>({
+      url: `${API_URL}/admin/users/${encodeURIComponent(userId)}/unban`,
+      method: "POST",
+      useCredentials: true,
+      auth: true,
+    });
+  },
+
+  updateUserRole(userId: number, role: AdminUserRole) {
+    return sendRequest<IBackendRes<AdminUser>>({
+      url: `${API_URL}/admin/users/${encodeURIComponent(userId)}`,
+      method: "PUT",
+      body: { role },
+      useCredentials: true,
+      auth: true,
+    });
+  },
+
+  forceEndMeeting(meetingId: number) {
+    return sendRequest<IBackendRes<null>>({
+      url: `${API_URL}/admin/meetings/${encodeURIComponent(meetingId)}`,
+      method: "DELETE",
       useCredentials: true,
       auth: true,
     });

@@ -29,7 +29,7 @@ type SourceTab = DesktopScreenShareSource["type"];
 type RequiredScreenShareQuality = Required<ScreenShareQuality>;
 
 export type ScreenSharePickerResult = {
-  sourceId: string;
+  sourceId: string | null;
   quality: RequiredScreenShareQuality;
 };
 
@@ -110,6 +110,9 @@ export function ScreenSharePickerDialog({
   const pendingRequestRef = useRef(false);
   const isControlled = controlledOpen !== undefined;
   const open = controlledOpen ?? fallbackOpen;
+  const isLinuxWayland = Boolean(
+    typeof window !== "undefined" && window.desktop?.screen?.isLinuxWayland,
+  );
   const availableResolutions = useMemo(
     () => SCREEN_SHARE_RESOLUTIONS.filter((resolution) => resolution !== 1440 || canUse1440p),
     [canUse1440p],
@@ -119,6 +122,14 @@ export function ScreenSharePickerDialog({
     const desktopScreen = window.desktop?.screen;
 
     if (!desktopScreen) {
+      return;
+    }
+
+    if (isLinuxWayland) {
+      setSources([]);
+      setSelectedSourceId(null);
+      setErrorMessage(null);
+      setIsLoading(false);
       return;
     }
 
@@ -148,7 +159,7 @@ export function ScreenSharePickerDialog({
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isLinuxWayland]);
 
   const closePicker = useCallback(() => {
     if (isControlled) {
@@ -168,7 +179,7 @@ export function ScreenSharePickerDialog({
   const handleConfirm = useCallback(() => {
     const selectedSource = sources.find((source) => source.id === selectedSourceId);
 
-    if (!selectedSource) {
+    if (!isLinuxWayland && !selectedSource) {
       return;
     }
 
@@ -179,19 +190,30 @@ export function ScreenSharePickerDialog({
     persistQuality(permittedQuality);
 
     if (isControlled) {
-      onConfirm?.({ sourceId: selectedSource.id, quality: permittedQuality });
+      onConfirm?.({
+        sourceId: isLinuxWayland ? null : selectedSource?.id ?? null,
+        quality: permittedQuality,
+      });
       return;
     }
 
     const desktopScreen = window.desktop?.screen;
 
     if (pendingRequestRef.current && desktopScreen) {
-      desktopScreen.pickResponse(selectedSource.id);
+      desktopScreen.pickResponse(isLinuxWayland ? null : selectedSource?.id ?? null);
     }
 
     pendingRequestRef.current = false;
     setFallbackOpen(false);
-  }, [canUse1440p, isControlled, onConfirm, quality, selectedSourceId, sources]);
+  }, [
+    canUse1440p,
+    isControlled,
+    isLinuxWayland,
+    onConfirm,
+    quality,
+    selectedSourceId,
+    sources,
+  ]);
 
   const handleTabChange = useCallback((tab: SourceTab) => {
     setActiveTab(tab);
@@ -259,54 +281,70 @@ export function ScreenSharePickerDialog({
         }
       }}
     >
-      <DialogContent className="max-h-[min(820px,calc(100vh-2rem))] overflow-hidden sm:max-w-4xl">
+      <DialogContent
+        className={cn(
+          "max-h-[min(820px,calc(100vh-2rem))] overflow-hidden",
+          isLinuxWayland ? "sm:max-w-md" : "sm:max-w-4xl",
+        )}
+      >
         <DialogHeader>
-          <DialogTitle>Choose what to share</DialogTitle>
+          <DialogTitle>
+            {isLinuxWayland ? "Choose share quality" : "Choose what to share"}
+          </DialogTitle>
           <DialogDescription>
-            Select a screen or application window and choose the maximum share quality.
+            {isLinuxWayland
+              ? "Choose the maximum share quality."
+              : "Select a screen or application window and choose the maximum share quality."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_15rem]">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex rounded-lg border border-border bg-muted/40 p-1">
-              {SOURCE_TABS.map((tab) => {
-                const Icon = tab.icon;
-                const isActive = activeTab === tab.value;
+        <div
+          className={cn(
+            "grid gap-3",
+            !isLinuxWayland && "lg:grid-cols-[minmax(0,1fr)_15rem]",
+          )}
+        >
+          {!isLinuxWayland ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex rounded-lg border border-border bg-muted/40 p-1">
+                {SOURCE_TABS.map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = activeTab === tab.value;
 
-                return (
-                  <button
-                    key={tab.value}
-                    type="button"
-                    onClick={() => handleTabChange(tab.value)}
-                    className={cn(
-                      "inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm font-medium transition",
-                      isActive
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    <Icon className="h-4 w-4" />
-                    <span>{tab.label}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {sourceCounts[tab.value]}
-                    </span>
-                  </button>
-                );
-              })}
+                  return (
+                    <button
+                      key={tab.value}
+                      type="button"
+                      onClick={() => handleTabChange(tab.value)}
+                      className={cn(
+                        "inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm font-medium transition",
+                        isActive
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span>{tab.label}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {sourceCounts[tab.value]}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isLoading}
+                onClick={() => void loadSources()}
+              >
+                <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+                Refresh
+              </Button>
             </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={isLoading}
-              onClick={() => void loadSources()}
-            >
-              <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-              Refresh
-            </Button>
-          </div>
+          ) : null}
 
           <div className="rounded-lg border border-border bg-muted/25 p-3">
             <p className="text-sm font-medium">Share quality</p>
@@ -359,71 +397,75 @@ export function ScreenSharePickerDialog({
           </div>
         </div>
 
-        <div className="min-h-72 overflow-y-auto rounded-lg border border-border bg-background/60 p-3">
-          {isLoading ? (
-            <div className="flex min-h-64 items-center justify-center text-sm text-muted-foreground">
-              Loading screens and windows...
-            </div>
-          ) : errorMessage ? (
-            <div className="flex min-h-64 items-center justify-center px-6 text-center text-sm text-muted-foreground">
-              {errorMessage}
-            </div>
-          ) : visibleSources.length === 0 ? (
-            <div className="flex min-h-64 items-center justify-center px-6 text-center text-sm text-muted-foreground">
-              No {activeTab === "screen" ? "screens" : "windows"} found.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {visibleSources.map((source) => {
-                const isSelected = selectedSourceId === source.id;
+        {!isLinuxWayland ? (
+          <div className="min-h-72 overflow-y-auto rounded-lg border border-border bg-background/60 p-3">
+            {isLoading ? (
+              <div className="flex min-h-64 items-center justify-center text-sm text-muted-foreground">
+                Loading screens and windows...
+              </div>
+            ) : errorMessage ? (
+              <div className="flex min-h-64 items-center justify-center px-6 text-center text-sm text-muted-foreground">
+                {errorMessage}
+              </div>
+            ) : visibleSources.length === 0 ? (
+              <div className="flex min-h-64 items-center justify-center px-6 text-center text-sm text-muted-foreground">
+                No {activeTab === "screen" ? "screens" : "windows"} found.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {visibleSources.map((source) => {
+                  const isSelected = selectedSourceId === source.id;
 
-                return (
-                  <button
-                    key={source.id}
-                    type="button"
-                    onClick={() => setSelectedSourceId(source.id)}
-                    className={cn(
-                      "overflow-hidden rounded-lg border bg-card text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      isSelected
-                        ? "border-primary ring-2 ring-primary/30"
-                        : "border-border hover:border-primary/60",
-                    )}
-                  >
-                    <div className="aspect-video bg-muted">
-                      <img
-                        src={source.thumbnail}
-                        alt=""
-                        className="h-full w-full object-cover"
-                        draggable={false}
-                      />
-                    </div>
-                    <div className="flex min-h-12 items-center gap-2 px-3 py-2">
-                      {source.appIcon ? (
+                  return (
+                    <button
+                      key={source.id}
+                      type="button"
+                      onClick={() => setSelectedSourceId(source.id)}
+                      className={cn(
+                        "overflow-hidden rounded-lg border bg-card text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        isSelected
+                          ? "border-primary ring-2 ring-primary/30"
+                          : "border-border hover:border-primary/60",
+                      )}
+                    >
+                      <div className="aspect-video bg-muted">
                         <img
-                          src={source.appIcon}
+                          src={source.thumbnail}
                           alt=""
-                          className="h-5 w-5 shrink-0"
+                          className="h-full w-full object-cover"
                           draggable={false}
                         />
-                      ) : activeTab === "screen" ? (
-                        <Monitor className="h-5 w-5 shrink-0 text-muted-foreground" />
-                      ) : (
-                        <AppWindow className="h-5 w-5 shrink-0 text-muted-foreground" />
-                      )}
-                      <span className="min-w-0 truncate text-sm font-medium">
-                        {source.name}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                      </div>
+                      <div className="flex min-h-12 items-center gap-2 px-3 py-2">
+                        {source.appIcon ? (
+                          <img
+                            src={source.appIcon}
+                            alt=""
+                            className="h-5 w-5 shrink-0"
+                            draggable={false}
+                          />
+                        ) : activeTab === "screen" ? (
+                          <Monitor className="h-5 w-5 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <AppWindow className="h-5 w-5 shrink-0 text-muted-foreground" />
+                        )}
+                        <span className="min-w-0 truncate text-sm font-medium">
+                          {source.name}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : null}
 
         <DialogFooter className="items-center justify-between sm:justify-between">
           <p className="min-w-0 truncate text-xs text-muted-foreground">
-            {selectedSource
+            {isLinuxWayland
+              ? `Share at ${quality.resolution}p/${quality.fps}fps`
+              : selectedSource
               ? `Selected: ${selectedSource.name} at ${quality.resolution}p/${quality.fps}fps`
               : "Select a source to continue."}
           </p>
@@ -437,7 +479,7 @@ export function ScreenSharePickerDialog({
             </Button>
             <Button
               type="button"
-              disabled={!selectedSource || isLoading}
+              disabled={(!isLinuxWayland && !selectedSource) || isLoading}
               onClick={handleConfirm}
             >
               Share

@@ -12,6 +12,7 @@ type AdminStatusKind = "user" | "meeting";
 const statusConfig: Record<string, { label: string; tone: StatusTone; icon: LucideIcon }> = {
   active: { label: "Active", tone: "default", icon: CheckCircle2 },
   inactive: { label: "Inactive", tone: "muted", icon: AlertCircle },
+  banned: { label: "Banned", tone: "outline", icon: AlertCircle },
   ongoing: { label: "Ongoing", tone: "default", icon: Video },
   scheduled: { label: "Scheduled", tone: "muted", icon: Clock },
   completed: { label: "Completed", tone: "outline", icon: CheckCircle2 },
@@ -34,6 +35,7 @@ const normalizeStatus = (status: string, kind: AdminStatusKind) => {
 
   if (normalizedStatus === "ACTIVE") return "active";
   if (normalizedStatus === "INACTIVE") return "inactive";
+  if (normalizedStatus === "BANNED") return "banned";
 
   return status.trim().toLowerCase();
 };

@@ -45,6 +45,15 @@ let preferredDisplayMediaSourceId: string | null = null;
 let isMeetingActive = false;
 let allowMainWindowClose = false;
 
+function isLinuxWayland() {
+  return process.platform === "linux"
+    && (process.env.XDG_SESSION_TYPE === "wayland" || Boolean(process.env.WAYLAND_DISPLAY));
+}
+
+if (isLinuxWayland()) {
+  app.commandLine.appendSwitch("enable-features", "WebRTCPipeWireCapturer");
+}
+
 type DesktopMeetingState = {
   title: string;
   participantCount: number;
@@ -572,6 +581,19 @@ function wireMediaPermissions() {
 
     if (!mainWindow || mainWindow.isDestroyed()) {
       callback({});
+      return;
+    }
+
+    if (isLinuxWayland()) {
+      preferredDisplayMediaSourceId = null;
+      getDisplayMediaSources()
+        .then((sources) => {
+          callback(sources[0] ? { video: sources[0] } : {});
+        })
+        .catch((error) => {
+          console.error("Unable to list Wayland display media sources.", error);
+          callback({});
+        });
       return;
     }
 
