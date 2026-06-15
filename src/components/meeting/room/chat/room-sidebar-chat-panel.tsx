@@ -290,6 +290,17 @@ export function RoomSidebarChatPanel({
   }, [currentTab, focusChatInput, isChatReady, isOpen, isSendingChat]);
 
   useEffect(() => {
+    const input = chatInputRef.current;
+
+    if (!input) {
+      return;
+    }
+
+    input.style.height = "0px";
+    input.style.height = `${Math.min(input.scrollHeight, 112)}px`;
+  }, [chatDraft]);
+
+  useEffect(() => {
     if (!isStickerPickerOpen) {
       return;
     }
@@ -407,7 +418,7 @@ export function RoomSidebarChatPanel({
 
       <div className="border-t border-border/70 p-4">
         <form
-          className="flex items-end gap-2"
+          className="grid grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             handleSendTextMessage();
@@ -418,7 +429,7 @@ export function RoomSidebarChatPanel({
               <RoomSidebarStickerPicker onSelect={handleStickerSelect} />
             ) : null}
 
-            <div className="flex min-h-[3.5rem] items-center gap-1 rounded-[1.75rem] border border-border/70 bg-background/55 px-4 py-2">
+            <div className="flex min-h-[3.5rem] items-center gap-2 rounded-[1.75rem] border border-border/70 bg-background/55 px-4 py-2">
               <textarea
                 ref={chatInputRef}
                 value={chatDraft}
@@ -436,10 +447,10 @@ export function RoomSidebarChatPanel({
                 }
                 disabled={!isChatReady || isSendingChat}
                 rows={1}
-                className="min-h-[2rem] max-h-28 w-full resize-none bg-transparent leading-8 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                className="max-h-28 min-h-6 w-full resize-none overflow-y-auto bg-transparent py-1 pr-1 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground [scrollbar-color:rgba(148,163,184,0.35)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-track]:bg-transparent"
               />
 
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex shrink-0 items-center">
                 <Button
                   type="button"
                   size="icon-sm"
@@ -457,7 +468,7 @@ export function RoomSidebarChatPanel({
             type="submit"
             size="icon"
             variant="ghost"
-            className="h-11 w-11 shrink-0 self-end rounded-full text-primary hover:bg-transparent hover:text-primary/80"
+            className="h-11 w-11 shrink-0 rounded-full text-primary hover:bg-transparent hover:text-primary/80"
             disabled={!isChatReady || isSendingChat || !chatDraft.trim()}
           >
             <Send className="h-5 w-5" />
