@@ -16,4 +16,8 @@ export const MEETING_STICKERS = {
   cat: "/stickers/cat-160.webp",
   daragon: "/stickers/daragon-160.webp",
   gianggay: "/stickers/gianggay-160.webp",
+  cuongseg: "/stickers/cuongseg-160.webp",
+  nguyen1: "/stickers/n1-160.webp",
+  nguyen2: "/stickers/n2-160.webp",
+  nguyen3: "/stickers/n3-160.webp",
 } as const;

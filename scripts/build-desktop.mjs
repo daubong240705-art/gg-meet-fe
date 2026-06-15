@@ -1,4 +1,4 @@
-import { mkdir, rename, rm } from "node:fs/promises";
+import { mkdir, readdir, rename, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
@@ -13,23 +13,62 @@ const EXCLUDED_ROUTES = [
 
 const root = process.cwd();
 const stashDir = path.join(root, ".desktop-excluded");
-const stashPath = (route) => path.join(stashDir, route.replaceAll("/", "__"));
 
-const movedRoutes = [];
+async function listFiles(directory) {
+  if (!existsSync(directory)) {
+    return [];
+  }
 
-try {
-  await rm(stashDir, { force: true, recursive: true });
-  await mkdir(stashDir, { recursive: true });
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = await Promise.all(
+    entries.map((entry) => {
+      const entryPath = path.join(directory, entry.name);
+      return entry.isDirectory() ? listFiles(entryPath) : [entryPath];
+    }),
+  );
 
-  for (const route of EXCLUDED_ROUTES) {
-    const fullPath = path.join(root, route);
+  return files.flat();
+}
 
-    if (!existsSync(fullPath)) {
-      continue;
+async function moveFile(source, destination) {
+  await mkdir(path.dirname(destination), { recursive: true });
+  await rename(source, destination);
+}
+
+async function restoreStashedFiles() {
+  for (const stashedFile of await listFiles(stashDir)) {
+    const relativePath = path.relative(stashDir, stashedFile);
+    const sourcePath = path.join(root, relativePath);
+
+    if (existsSync(sourcePath)) {
+      throw new Error(
+        `Cannot restore desktop-excluded file because it already exists: ${relativePath}`,
+      );
     }
 
-    await rename(fullPath, stashPath(route));
-    movedRoutes.push(route);
+    await moveFile(stashedFile, sourcePath);
+  }
+
+  await rm(stashDir, { force: true, recursive: true });
+}
+
+// Renaming a directory commonly fails with EPERM on Windows while an editor,
+// dev server, or indexer has it open. Moving its files leaves the directory
+// handles intact and still prevents Next.js from discovering these routes.
+if (existsSync(stashDir)) {
+  await restoreStashedFiles();
+}
+
+const filesToExclude = (
+  await Promise.all(
+    EXCLUDED_ROUTES.map((route) => listFiles(path.join(root, route))),
+  )
+).flat();
+
+try {
+  for (const sourcePath of filesToExclude) {
+    const relativePath = path.relative(root, sourcePath);
+    await moveFile(sourcePath, path.join(stashDir, relativePath));
   }
 
   const result = spawnSync("pnpm", ["exec", "next", "build"], {
@@ -40,9 +79,7 @@ try {
 
   process.exitCode = result.status ?? 1;
 } finally {
-  for (const route of movedRoutes.reverse()) {
-    await rename(stashPath(route), path.join(root, route));
+  if (existsSync(stashDir)) {
+    await restoreStashedFiles();
   }
-
-  await rm(stashDir, { force: true, recursive: true });
 }
