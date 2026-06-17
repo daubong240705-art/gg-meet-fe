@@ -16,6 +16,7 @@ export type MeetingAudioSoundId =
   | "tada"
   | "boing"
   | "hi"
+  | "nguyenDmm"
   | "none";
 export type MeetingAudioPreferences = Record<MeetingAudioKey, MeetingAudioSoundId>;
 
@@ -42,6 +43,7 @@ export const MEETING_AUDIO_SOUND_OPTIONS: Array<{
   { id: "tada", label: "Tada" },
   { id: "boing", label: "Boing" },
   { id: "hi", label: "Hi" },
+  { id: "nguyenDmm", label: "Nguyên DMM" },
   { id: "none", label: "Off" },
 ];
 
@@ -61,6 +63,7 @@ export const MEETING_AUDIO_SOUND_SOURCES: Partial<Record<MeetingAudioSoundId, st
   tada: "/audio/Tada.mp3",
   boing: "/audio/Boing.mp3",
   hi: "/audio/Hi.mp3",
+  nguyenDmm: "/audio/Nguy%C3%AAn-dmm.mp3",
 };
 
 export const VALID_MEETING_AUDIO_SOUND_IDS = new Set<MeetingAudioSoundId>(
