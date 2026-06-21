@@ -91,23 +91,3 @@ Khi `rememberLastUsedDevices = true`:
 | `joinRequestSound` | Âm thanh khi có người xin vào (host) |
 
 Người dùng có thể preview âm thanh trước khi lưu.
-
----
-
-## Các vấn đề tiềm ẩn
-
-### 1. avatarUrl không được validate
-- **Vấn đề:** `avatarUrl` là free-text URL, không được validate format hay kiểm tra URL còn truy cập không.
-- **Hậu quả:** Người dùng có thể lưu URL không hợp lệ → avatar broken trên toàn app.
-
-### 2. Profile draft không persist
-- **Vấn đề:** `useProfileDraft` state là React state — reset khi navigate đi hoặc refresh trang.
-- **Hậu quả:** Người dùng nhập thông tin, navigate đi → mất draft. Không có warning "unsaved changes".
-
-### 3. Device IDs có thể không còn valid
-- **Vấn đề:** `defaultCameraDeviceId` và `defaultMicrophoneDeviceId` lưu device ID từ lần trước. Nếu user cắm/rút thiết bị, ID cũ sẽ không còn trong `enumerateDevices()`.
-- **Hậu quả:** Lobby sẽ fallback về thiết bị default, không có thông báo rõ ràng cho người dùng.
-
-### 4. Không có validation khi lưu preferences
-- **Vấn đề:** `setMeetingDevicePreferences()` normalize nhưng không validate deviceId format.
-- **Hậu quả:** Bất kỳ string nào cũng được lưu làm deviceId — kể cả empty string hoặc garbage data.

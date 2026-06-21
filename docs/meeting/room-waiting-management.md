@@ -115,26 +115,3 @@ Host có thể thay đổi:
 API: `meetingApi.updateRoomSettings(meetingCode, settings, meetingToken)`
 
 Khi settings thay đổi, backend broadcast `ROOM_SETTINGS_CHANGED` event qua STOMP → tất cả participants nhận và cập nhật local state.
-
----
-
-## Các vấn đề tiềm ẩn
-
-### 1. Approve-all không có rollback
-- **Vấn đề:** `handleApproveAllWaitingParticipants()` gửi nhiều `sendAccept` trong loop. Nếu socket disconnect giữa chừng, một số participants được duyệt, số khác thì không.
-- **Hậu quả:** Danh sách waiting inconsistent giữa client và server. Resync sau đó sẽ sửa, nhưng có độ trễ.
-
-### 2. Optimistic remove có thể sai
-- **Vấn đề:** `removeWaitingParticipant()` xóa participant khỏi list ngay khi sendAccept/sendReject. Nếu STOMP publish thất bại (socket not connected), action bị drop nhưng UI đã xóa participant.
-- **Hậu quả:** Participant biến mất khỏi list của host nhưng vẫn đang chờ ở backend. Resync sẽ đưa participant trở lại, nhưng tạo confusion.
-
-### 3. muteParticipantTrack không update LiveKit state local
-- **Vấn đề:** Sau khi gọi API mute, host không thấy track state của participant thay đổi ngay — cần chờ LiveKit event `TrackMuted` propagate.
-- **Hậu quả:** Loading state (`mutingParticipantTrack`) cleared ngay sau API call, nhưng UI track state chưa cập nhật → người dùng có thể click mute lần 2.
-
-### 4. Room settings chỉ được check client-side
-- **Vấn đề:** `canUnmuteMicrophone` và `canShareScreen` là state local — host có thể thay đổi cài đặt. Backend cũng enforce, nhưng nếu có race condition giữa settings update và participant action, có thể phát sinh lỗi ngắn.
-- **Ví dụ:** Host disable share screen → participant đang share vẫn share thêm vài giây cho đến khi `canUseScreenShare` effect trigger.
-
-### 5. Kick không có confirmation round-trip
-- **Vấn đề:** `sendKickout` là fire-and-forget STOMP publish. Nếu socket fail, kick không được thực hiện nhưng host không nhận được thông báo lỗi (chỉ catch Error và gọi `toast.error`).

@@ -24,6 +24,7 @@ sendRequest<T>(props: IRequest): Promise<T>
 | `useCredentials` | `true` → `credentials: "include"` (gửi cookie) |
 | `redirectOnAuthFail` | URL redirect khi refresh token thất bại. Mặc định `/sign-in`. Set `false` để tắt |
 | `accessToken` | Override token thay vì đọc từ localStorage |
+| `cookieHeader` | Cookie thủ công (chỉ server-side + `useCredentials`) |
 | `nextOption` | Tùy chọn thêm vào `RequestInit` (ví dụ: `{ keepalive: true }`) |
 
 ### Luồng xử lý
@@ -31,19 +32,26 @@ sendRequest<T>(props: IRequest): Promise<T>
 ```
 1. Build URL với queryParams
 2. Build headers:
-   - Content-Type: application/json (trừ FormData)
+   - content-type: application/json (trừ FormData)
+   - X-Client: desktop (khi chạy trong Electron)
    - Authorization: Bearer <token> (nếu auth: true)
-   - cookie: ... (nếu server-side + useCredentials)
-3. fetch(url, options)
-4. Nếu OK → return JSON response
-5. Nếu 401 + auth: true →
-   a. getFreshToken() — dedup bằng refreshPromise singleton
-   b. Cập nhật Authorization header
+   - cookie: ... (nếu server-side + useCredentials + cookieHeader)
+3. Guard keepalive: nếu body > 60 KB thì bỏ cờ keepalive (giới hạn 64 KB của fetch keepalive)
+4. fetch(url, options)
+   - Lỗi mạng (fetch throw) → return { status: 0, statusCode: 0, error: "NetworkError" }
+5. Nếu OK → return JSON response (rỗng → {})
+6. Nếu 401 + auth: true →
+   a. getFreshToken() — dedup bằng refreshPromise singleton, gọi POST /auth/refresh
+   b. Cập nhật Authorization header + persistAccessToken(token mới)
    c. Retry request
    d. Nếu retry OK → return JSON
-   e. Nếu refresh fail → clearStoredAccessToken() + redirect
-6. Các lỗi khác → normalize thành object {status, message, error, errors}
+   e. Nếu refresh fail (không có token mới) → clearStoredAccessToken() + redirect
+7. Các lỗi khác → normalize thành object {status, statusCode, message, error, errors}
 ```
+
+> Token refresh tự rẽ nhánh theo môi trường: bản web gửi refresh token qua HTTP-only cookie
+> (`credentials: "include"`), bản desktop (Electron) gửi qua header `X-Refresh-Token` và xoay vòng
+> token mới qua store mã hoá `safeStorage` — xem [auth/authentication.md](../auth/authentication.md).
 
 ---
 
@@ -114,11 +122,3 @@ Tất cả API liên quan đến phòng họp (sau khi join) cần gửi kèm `M
 - Beacon gửi POST đến `/api/proxy/meetings/{code}/cancel-join`
 - Route này forward sang backend thực sự
 - Lý do cần proxy: `sendBeacon()` không thể set custom headers như Authorization hay Cookie đúng cách với cross-origin
-
----
-
-## Các vấn đề tiềm ẩn
-
-### 1. Token đọc tại thời điểm xây dựng request
-- **Vấn đề:** Access token được đọc trong khi build request. Nếu một request concurrent vừa refresh token, request này vẫn dùng token cũ → sẽ gặp 401 → tự refresh lại (không sao, nhưng mất một round-trip).
-- **Ghi chú:** Đây là hành vi chấp nhận được — `getFreshToken()` đã có dedup bằng singleton promise nên chỉ một refresh xảy ra. Extra round-trip không gây lỗi.

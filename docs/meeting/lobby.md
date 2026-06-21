@@ -115,31 +115,3 @@ handlePageExit():
   3. meetingApi.cancelJoinWithBeacon() — dùng navigator.sendBeacon
   4. disconnectMeetingSocket()
 ```
-
----
-
-## Các vấn đề tiềm ẩn
-
-### 1. Race condition giữa STOMP ADMITTED và polling
-- **Vấn đề:** Khi socket reconnect và polling đang chạy đồng thời, cả hai có thể phát hiện ACCEPT cùng lúc.
-- **Giảm thiểu:** `hasCompletedPendingJoinRef` flag — `completeApprovedJoin()` chỉ chạy một lần. Tuy nhiên, `requestApprovedJoin()` (gọi lại joinMeeting) có thể chạy đôi lần trước khi flag được set.
-
-### 2. joinMeeting() lần 2 thất bại sau ADMITTED
-- **Vấn đề:** Sau khi nhận ADMITTED từ STOMP, `requestApprovedJoin()` gọi lại `meetingApi.joinMeeting()`. Nếu request này fail (network error), người dùng thấy thông báo lỗi trong waiting screen dù đã được duyệt.
-- **Hậu quả:** Người dùng stuck ở waiting screen. Cần refresh trang để thử lại.
-
-### 3. `livekitToken` missing sau ADMITTED
-- **Vấn đề:** Nếu backend trả ADMITTED qua STOMP nhưng joinMeeting lần 2 không có `livekitToken`, code throw `Error("The host approved you, but the server did not provide a LiveKit token yet.")`.
-- **Hậu quả:** Người dùng thấy lỗi dù đã được duyệt. Khó tự phục hồi.
-
-### 4. Cancel join không đảm bảo khi crash
-- **Vấn đề:** `sendBeacon` có thể fail nếu URL không reachable hoặc payload quá lớn. Nếu tab bị force-kill trước khi `pagehide` fires, event không được gửi.
-- **Hậu quả:** Participant "zombie" trong waiting room của host.
-
-### 5. Polling interval 5s không dừng khi unmount nhanh
-- **Vấn đề:** `setInterval` chạy mỗi 5 giây để sync join status. Cleanup xảy ra trong `useEffect` return. Nếu component unmount và remount nhanh (React StrictMode), interval cũ có thể chạy thêm một tick.
-- **Hậu quả:** Gọi API thêm một lần không cần thiết — không crash nhưng lãng phí.
-
-### 6. Thiết bị không enumerate được
-- **Vấn đề:** `enumerateDevices()` trả về device không có `label` nếu chưa có permission. Selector sẽ hiển thị label trống.
-- **Hậu quả:** Người dùng không biết đang chọn thiết bị nào. Cần xin permission trước khi enumerate.

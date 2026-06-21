@@ -69,23 +69,3 @@ Participants khác nhận được attributes thay đổi qua LiveKit event và 
 `use-room-participants.ts` sort participants:
 1. Participants đang giơ tay lên đầu, sorted theo `handRaisedAt` tăng dần (người giơ tay trước lên đầu)
 2. Local participant thường ở đầu nếu không có ai giơ tay
-
----
-
-## Các vấn đề tiềm ẩn
-
-### 1. Lỗi setAttributes không rollback UI
-- **Vấn đề:** Nếu `setAttributes()` thất bại (LiveKit error), state đã optimistic update nhưng không có rollback.
-- **Hậu quả:** Người dùng thấy mình đang "giơ tay" nhưng thực ra LiveKit không biết. Những người khác không thấy hand raise. State diverge cho đến khi có LiveKit attributes event tiếp theo.
-
-### 2. Cooldown không reset khi setAttributes fail
-- **Vấn đề:** Cooldown timer chạy bất kể thành công hay thất bại.
-- **Hậu quả:** Sau khi lỗi, người dùng phải chờ 1.8 giây để thử lại.
-
-### 3. handRaisedAt là client timestamp
-- **Vấn đề:** `handRaisedAt = Date.now()` dùng đồng hồ client, không đồng bộ với server.
-- **Hậu quả:** Nếu đồng hồ giữa các client lệch nhau, thứ tự sort participants giơ tay có thể sai. Ví dụ: người A giơ tay trước nhưng đồng hồ client A chạy chậm → A hiển thị sau B.
-
-### 4. resetHandRaise() không gửi lên LiveKit
-- **Vấn đề:** `resetHandRaise()` chỉ reset local state, không gọi `setAttributes()` để clear remote.
-- **Hậu quả:** Sau khi exit room và re-join, hand raise cũ có thể vẫn còn trong LiveKit participant attributes đến khi participant rejoin với attributes mới.

@@ -94,23 +94,9 @@ exited
 
 ## Session persistence (`instant-meeting-session.ts`)
 
-- Key: `instant-meeting:{meetingCode}`
-- Lưu: `LobbyJoinPayload` (livekitToken, meetingToken, deviceSettings, participantStatus, ...)
+- **Storage:** `sessionStorage`, một key duy nhất `instant-meeting-session`.
+- **Cấu trúc:** map `Record<meetingCode, InstantMeetingSession>` — `meetingCode` được normalize (`trim().toLowerCase()`), cho phép lưu song song nhiều meeting trong cùng tab.
+- **`InstantMeetingSession` gồm:** `meetingCode`, `title`, `userName`, `guestId`, `guestSecret`, `isMicOn`, `isCameraOn`, `selectedMic`, `selectedCamera`, `livekitToken`, `meetingToken`, `participantStatus`, `hostId`, `hostName`.
+- **API:** `persistInstantMeetingSession(session)`, `readInstantMeetingSession(meetingCode)`, `clearInstantMeetingSession(meetingCode)`.
 - Được persist khi: join thành công (ACCEPT hoặc WAITING), khi settings thay đổi trong waiting state.
-- Được xóa khi: meeting kết thúc, bị reject, rời phòng.
-
-### Các vấn đề tiềm ẩn
-
-**1. Session không tự hết hạn**
-- `sessionStorage` không có TTL — session tồn tại suốt tab session.
-- Nếu livekitToken trong session đã hết hạn (thường 1-24h tùy backend config), người dùng refresh trang sẽ cố vào room với token hết hạn → LiveKit reject.
-- Hiện chưa có validation token expiry trước khi restore.
-
-**2. WAITING state + tab crash**
-- Nếu người dùng đang trong trạng thái WAITING và tab crash hoặc bị close force, session vẫn còn trong `sessionStorage` của tab.
-- `cancel-join` (`pagehide` + `beforeunload` events) có thể không kịp gửi khi crash.
-- Hậu quả: Backend vẫn giữ participant trong waiting room. Host thấy request "zombie". Sau khi backend timeout (tùy config), participant mới bị remove.
-
-**3. Multi-tab không được xử lý**
-- Không có cơ chế ngăn người dùng mở cùng meetingCode trên nhiều tab.
-- Hai tab có thể cùng join → tạo 2 participant với cùng user → behavior không định nghĩa.
+- Được xóa khi: meeting kết thúc, bị reject, rời phòng (xóa entry theo `meetingCode`; khi map rỗng thì gỡ luôn key khỏi `sessionStorage`).

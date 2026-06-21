@@ -79,23 +79,3 @@ Notification key = `{meetingCode}:{startTime}` — nếu meeting bị reschedule
 | `UpcomingMeetingCard` | `src/components/home/upcoming-meeting-card.tsx` |
 | `AuthenticatedHomeUpcoming` | `src/components/home/authenticated-home-upcoming.tsx` |
 | `AuthenticatedHomeScheduleBanner` | `src/components/home/authenticated-home-schedule-banner.tsx` |
-
----
-
-## Các vấn đề tiềm ẩn
-
-### 1. nowMs không đồng bộ real-time
-- **Vấn đề:** `nowMs` được cập nhật theo interval từ `use-current-time.ts`. Khoảng cập nhật quyết định độ trễ phát hiện "starting-now".
-- **Hậu quả:** Notification có thể trễ vài giây đến vài phút tùy interval.
-
-### 2. refetchInterval = 60 giây
-- **Vấn đề:** Danh sách meetings chỉ được cập nhật mỗi 60 giây.
-- **Hậu quả:** Nếu host cancel meeting, người khác mất đến 60 giây để thấy meeting biến mất.
-
-### 3. sessionStorage notification marker không có TTL
-- **Vấn đề:** `gg-meet:upcoming-started:{key}` tồn tại trong tab session mà không hết hạn.
-- **Hậu quả:** Trong tab hiện tại, người dùng sẽ không nhận thông báo nếu họ dismiss toast và muốn được nhắc lại.
-
-### 4. Không thông báo khi tab ở background
-- **Vấn đề:** `refetchIntervalInBackground: false` — không fetch khi tab inactive.
-- **Hậu quả:** Người dùng để tab ở background, khi quay lại có thể đã miss notification vì data cũ. Refetch xảy ra khi focus lại tab, nhưng notification dedup sẽ ngăn toast nếu meeting đã qua window "starting-now".

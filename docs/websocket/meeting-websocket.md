@@ -124,31 +124,3 @@ disconnect():
 ```
 
 Flag `isClosed` đảm bảo `onDisconnect` không bị gọi khi `disconnect()` được gọi chủ động.
-
----
-
-## Các vấn đề tiềm ẩn
-
-### 1. Reconnect cố định 3 giây, không có exponential backoff
-- **Vấn đề:** `reconnectDelay: 3000` — nếu server down trong thời gian dài, client liên tục reconnect mỗi 3 giây.
-- **Hậu quả:** Gây tải cho server khi recovery. Chưa có giới hạn số lần retry.
-
-### 2. participantId decode từ JWT client-side, không verify
-- **Vấn đề:** `decodeMeetingToken()` chỉ decode base64, không verify chữ ký JWT.
-- **Hậu quả:** Nếu token bị giả mạo hoặc bị lỗi format, `participantId` có thể là `null` → không subscribe được topic `/participant/{id}` → không nhận được ADMITTED/REJECTED/KICKED.
-
-### 3. Không subscribe `/participant/{id}` khi participantId = null
-- **Vấn đề:** Nếu `decodeMeetingToken()` không parse được `participantId`, subscription bị bỏ qua silently.
-- **Hậu quả:** Participant không nhận được admit/reject/kick. Hiện chưa có error log hay warning.
-
-### 4. Mất kết nối trong waiting room → lỗi hiển thị sau 8 giây
-- **Vấn đề:** `useLobbyWaitingSocket` set timeout 8 giây sau `onDisconnect` để hiện thông báo lỗi.
-- **Hậu quả:** Nếu mạng mất và recover nhanh hơn 8 giây, thông báo lỗi vẫn hiện ra. Reconnect và thông báo lỗi chạy song song.
-
-### 5. Publish khi socket chưa connected
-- **Vấn đề:** `publishMeetingAction()` throw `Error("Meeting socket is not connected.")` nếu `client.connected = false`.
-- **Hậu quả:** Các handler như `handleApproveWaitingParticipant` bắt lỗi này và gọi `onError()`, nhưng action (admit/reject/kick) bị drop hoàn toàn — không có retry hay queue.
-
-### 6. Không đồng bộ giữa STOMP reconnect và LiveKit room
-- **Vấn đề:** STOMP socket có thể reconnect (sau mất mạng) trong khi LiveKit vẫn connected, hoặc ngược lại.
-- **Hậu quả:** Trong khoảng thời gian lệch pha: meeting events (kick, settings change) qua STOMP không được nhận, nhưng video/audio vẫn chạy. Người dùng không bị thông báo.

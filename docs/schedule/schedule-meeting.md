@@ -86,23 +86,3 @@ Backend có thể trả về field errors. Các field được map:
 | `emailList`, `participantEmail`, `participants` | `participantEmail` hoặc `emailList` |
 
 Lỗi không map được → hiển thị trên `root` error.
-
----
-
-## Các vấn đề tiềm ẩn
-
-### 1. Merge participantEmail khi submit
-- **Vấn đề:** Nếu người dùng nhập email vào `participantEmail` nhưng không click "Add", khi submit vẫn tự động thêm vào list.
-- **Hậu quả:** Behavior có thể gây nhầm lẫn — người dùng có thể không biết email đó đã được thêm.
-
-### 2. Timezone không được xử lý
-- **Vấn đề:** `buildScheduleMeetingPayload()` combine date + time thành string mà không xử lý timezone của client.
-- **Hậu quả:** Nếu server lưu UTC, người dùng ở timezone khác sẽ thấy giờ họp bị lệch. Cần kiểm tra backend có normalize timezone không.
-
-### 3. Email dedup case-insensitive nhưng lưu original case
-- **Vấn đề:** `mergeParticipantEmails()` dedup theo lowercase comparison nhưng lưu giá trị gốc.
-- **Hậu quả:** Nếu user nhập `Test@example.com` và `test@example.com`, chỉ một trong hai được giữ lại — email nào tùy vào thứ tự. Không có thông báo.
-
-### 4. Không validate số lượng participants tối đa
-- **Vấn đề:** Không có giới hạn `emailList.length` ở phía client.
-- **Hậu quả:** User có thể thêm hàng trăm email → server phải validate và từ chối. Lỗi sẽ hiện nhưng UX kém.
