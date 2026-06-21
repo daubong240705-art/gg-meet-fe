@@ -13,7 +13,20 @@ function shouldRenderSiteShell(pathname: string | null) {
         return false;
     }
 
-    return pathname === "/" || pathname.startsWith("/profile") || pathname.startsWith("/schedule");
+    const publicRoutes = [
+        "/",
+        "/features",
+        "/how-it-works",
+        "/security",
+        "/help",
+        "/faq",
+        "/about",
+        "/privacy-policy",
+    ];
+
+    return publicRoutes.includes(pathname)
+        || pathname.startsWith("/profile")
+        || pathname.startsWith("/schedule");
 }
 
 export function SiteShell({ children }: { children: ReactNode }) {

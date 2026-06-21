@@ -14,13 +14,20 @@ const getSiteUrl = () => {
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const siteUrl = getSiteUrl();
-
-  return [
-    {
-      url: `${siteUrl}/`,
-      lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 1,
-    },
+  const routes = [
+    "",
+    "/features",
+    "/how-it-works",
+    "/security",
+    "/help",
+    "/faq",
+    "/about",
+    "/privacy-policy",
   ];
+
+  return routes.map((route) => ({
+    url: route ? `${siteUrl}${route}` : `${siteUrl}/`,
+    changeFrequency: route ? "monthly" : "weekly",
+    priority: route === "" ? 1 : route === "/features" ? 0.9 : 0.7,
+  }));
 }

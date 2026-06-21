@@ -89,12 +89,6 @@ export default function Homeheader() {
                     <span className="text-2xl font-semibold text-foreground">Kallio</span>
                 </Link>
 
-                {/* <nav className="hidden md:flex items-center gap-8">
-                    <a href="#features" className="text-foreground/70 hover:text-foreground transition-colors">Features</a>
-                    <a href="#pricing" className="text-foreground/70 hover:text-foreground transition-colors">Pricing</a>
-                    <a href="#about" className="text-foreground/70 hover:text-foreground transition-colors">About</a>
-                </nav> */}
-
                 <div className="flex items-center gap-3">
                     {isAuthenticated && user ? (
                         <div
